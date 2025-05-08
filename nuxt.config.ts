@@ -4,11 +4,18 @@ import { defineNuxtConfig } from 'nuxt/config'
 export default defineNuxtConfig({
   compatibilityDate: '2024-11-01',
   ssr: false,
+  devServer: {
+    port: 3000,
+  },
   runtimeConfig: {
     postgresUrl: process.env.POSTGRES_URL,
     elevenlabsApiKey: process.env.ELEVENLABS_API_KEY,
     elevenlabsBaseUrl: process.env.ELEVENLABS_API_BASE_URL || 'https://api.elevenlabs.io/v1',
-
+    openrouter: {
+      apiKey: process.env.OPENROUTER_API_KEY,
+      model: process.env.OPENROUTER_MODEL,
+      referer: process.env.NUXT_PUBLIC_SITE_URL || 'http://localhost:3000',
+    },
     public: {
       elevenlabsDefaultVoiceId: process.env.ELEVENLABS_DEFAULT_VOICE_ID || 'pNInz6obpgDQGcFmaJgB',
       elevenlabsDefaultModelId: process.env.ELEVENLABS_DEFAULT_MODEL_ID || 'eleven_multilingual_v2'
@@ -33,7 +40,6 @@ export default defineNuxtConfig({
     ],
     server: {
       allowedHosts: true,
-      port: 4000
     },
     resolve: {
       alias: {
