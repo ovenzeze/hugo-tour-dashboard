@@ -1,60 +1,62 @@
 <template>
-  <SidebarProvider>
-    <div class="relative flex min-h-screen flex-col md:flex-row w-full">
-      <!-- 桌面端侧边栏 -->
-      <ClientOnly>
-        <aside class="hidden md:flex md:flex-col md:w-50 h-screen border-r bg-card fixed left-0 top-0">
-          <SidebarNav :navLinks="navLinks" />
-        </aside>
-      </ClientOnly>
+  <div>
+    <SidebarProvider>
+      <div class="relative flex min-h-screen flex-col md:flex-row w-full">
+        <!-- 桌面端侧边栏 -->
+        <ClientOnly>
+          <aside class="hidden md:flex md:flex-col md:w-50 h-screen border-r bg-card fixed left-0 top-0">
+            <SidebarNav :navLinks="navLinks" />
+          </aside>
+        </ClientOnly>
 
-      <!-- 主体内容，包含PC端顶部栏和实际页面内容 -->
-      <div class="flex flex-col flex-1 md:ml-65">
-        <!-- PC端顶部栏 -->
-        <header class="sticky top-0 z-30 hidden h-16 items-center justify-between bg-background px-6 md:flex">
-          <div>
-            <!-- 可以放置面包屑导航或页面标题 -->
+        <!-- 主体内容，包含PC端顶部栏和实际页面内容 -->
+        <div class="flex flex-col flex-1 md:ml-65">
+          <!-- PC端顶部栏 -->
+          <header class="sticky top-0 z-30 hidden h-16 items-center justify-between bg-background px-6 md:flex">
+            <div>
+              <!-- 可以放置面包屑导航或页面标题 -->
+              <h1 class="text-lg font-semibold">{{ route.meta.title || 'Dashboard' }}</h1>
+            </div>
+            <div class="flex items-center gap-4">
+              <!-- 扩展功能，如通知、帮助等 -->
+              <Button variant="ghost" size="icon">
+                <Icon icon="ph:bell" class="h-5 w-5" />
+              </Button>
+              <Avatar>
+                <AvatarImage src="/images/avatar-default.png" alt="User" />
+                <AvatarFallback>U</AvatarFallback>
+              </Avatar>
+            </div>
+          </header>
+
+          <!-- 移动端顶部栏 -->
+          <header class="sticky top-0 z-40 flex h-16 items-center border-b bg-background px-4 md:hidden">
+            <ClientOnly>
+              <Sheet v-model:open="sidebarOpen">
+                <SidebarTrigger as-child>
+                  <Button variant="ghost" size="icon" class="mr-2">
+                    <Icon icon="ph:list" class="h-5 w-5" />
+                  </Button>
+                </SidebarTrigger>
+                <SheetContent side="left" class="w-[300px] p-0">
+                  <SidebarNav :navLinks="navLinks" @close="sidebarOpen = false" />
+                </SheetContent>
+              </Sheet>
+            </ClientOnly>
             <h1 class="text-lg font-semibold">{{ route.meta.title || 'Dashboard' }}</h1>
-          </div>
-          <div class="flex items-center gap-4">
-            <!-- 扩展功能，如通知、帮助等 -->
-            <Button variant="ghost" size="icon">
-              <Icon icon="ph:bell" class="h-5 w-5" />
-            </Button>
-            <Avatar>
-              <AvatarImage src="/images/avatar-default.png" alt="User" />
-              <AvatarFallback>U</AvatarFallback>
-            </Avatar>
-          </div>
-        </header>
+          </header>
 
-        <!-- 移动端顶部栏 -->
-        <header class="sticky top-0 z-40 flex h-16 items-center border-b bg-background px-4 md:hidden">
-          <ClientOnly>
-            <Sheet v-model:open="sidebarOpen">
-              <SidebarTrigger as-child>
-                <Button variant="ghost" size="icon" class="mr-2">
-                  <Icon icon="ph:list" class="h-5 w-5" />
-                </Button>
-              </SidebarTrigger>
-              <SheetContent side="left" class="w-[300px] p-0">
-                <SidebarNav :navLinks="navLinks" @close="sidebarOpen = false" />
-              </SheetContent>
-            </Sheet>
-          </ClientOnly>
-          <h1 class="text-lg font-semibold">{{ route.meta.title || 'Dashboard' }}</h1>
-        </header>
+          <!-- 主内容区 -->
+          <main class="flex-1 p-6 pb-16 md:pb-6">
+            <slot />
+          </main>
+        </div>
 
-        <!-- 主内容区 -->
-        <main class="flex-1 p-6 pb-16 md:pb-6">
-          <slot />
-        </main>
+        <!-- 移动端底部导航 -->
+        <MobileBottomBar />
       </div>
-
-      <!-- 移动端底部导航 -->
-      <MobileBottomBar />
-    </div>
-  </SidebarProvider>
+    </SidebarProvider>
+  </div>
 </template>
 
 <script setup lang="ts">
