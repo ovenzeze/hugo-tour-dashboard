@@ -67,4 +67,45 @@ export interface TextToSpeechProvider {
    * @returns True if the configuration is valid, otherwise throws an error or returns false.
    */
   validateConfig?(config: Record<string, any>): boolean | Promise<boolean>;
+
+  /**
+   * Creates a podcast conversation using the provider's capabilities.
+   * This is optional as not all TTS providers support podcast generation.
+   * @param request - The parameters for the podcast creation.
+   * @returns A promise that resolves to the podcast creation status and identifiers.
+   * @throws Error if podcast creation fails.
+   */
+  createPodcastConversation?(request: PodcastCreationRequest): Promise<PodcastCreationResponse>;
+}
+
+/**
+ * Represents the parameters for a podcast creation request, specifically for conversation mode.
+ */
+export interface PodcastCreationRequest {
+  elevenLabsApiKey: string; // Should be retrieved from runtimeConfig, but good to have for explicitness if passed around
+  elevenLabsProjectId: string; // The ID of the project in ElevenLabs Studio
+  podcastName: string;
+  scriptText: string; // Formatted script: "Host: ...\nGuest: ..."
+  hostVoiceId: string;
+  guestVoiceId: string;
+  modelId?: string; // e.g., 'eleven_multilingual_v2', defaults can be handled in implementation
+  titleVoiceId?: string; // Optional: Voice ID for the podcast title
+  voiceSettingsId?: string; // Optional: Voice settings ID for paragraphs
+}
+
+/**
+ * Represents the response from a podcast creation request from ElevenLabs.
+ * Based on ElevenLabs' PodcastResponseModel.
+ */
+export interface PodcastCreationResponse {
+  project_id: string;
+  podcast_id: string;
+  name: string;
+  status: 'creating' | 'created' | 'failed' | string; // string for future-proofing if new statuses are added
+  source_type: string;
+  created_at_unix: number;
+  updated_at_unix: number;
+  // Potentially a URL to the generated content or a way to poll for it
+  // For now, returning the core identifiers and status as per API docs.
+  [key: string]: any; // Allow other properties that might be returned
 }

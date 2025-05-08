@@ -6,7 +6,7 @@ export default defineEventHandler(async (event) => {
   console.log('[API /api/tts/stream-preview] Received request with text:', text ? text.substring(0, 30) + '...' : null, 'voiceId:', voiceId, 'modelId:', modelId);
 
   const runtimeConfig = useRuntimeConfig();
-  const apiKey = runtimeConfig.elevenlabsApiKey;
+  const apiKey = runtimeConfig.elevenlabs.apiKey;
 
   if (!apiKey) {
     throw new Error('ElevenLabs API key is not configured.');

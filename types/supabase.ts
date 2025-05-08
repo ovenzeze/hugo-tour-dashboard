@@ -9,6 +9,80 @@ export type Json =
 export type Database = {
   public: {
     Tables: {
+      agent_runs: {
+        Row: {
+          completed_at: string | null
+          created_at: string
+          error: string | null
+          id: string
+          responses: Json
+          started_at: string
+          status: string
+          thread_id: string
+          updated_at: string
+        }
+        Insert: {
+          completed_at?: string | null
+          created_at?: string
+          error?: string | null
+          id?: string
+          responses?: Json
+          started_at?: string
+          status?: string
+          thread_id: string
+          updated_at?: string
+        }
+        Update: {
+          completed_at?: string | null
+          created_at?: string
+          error?: string | null
+          id?: string
+          responses?: Json
+          started_at?: string
+          status?: string
+          thread_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "agent_runs_thread_id_fkey"
+            columns: ["thread_id"]
+            isOneToOne: false
+            referencedRelation: "threads"
+            referencedColumns: ["thread_id"]
+          },
+        ]
+      }
+      devices: {
+        Row: {
+          account_id: string
+          created_at: string | null
+          id: string
+          is_online: boolean | null
+          last_seen: string | null
+          name: string | null
+          updated_at: string | null
+        }
+        Insert: {
+          account_id: string
+          created_at?: string | null
+          id?: string
+          is_online?: boolean | null
+          last_seen?: string | null
+          name?: string | null
+          updated_at?: string | null
+        }
+        Update: {
+          account_id?: string
+          created_at?: string | null
+          id?: string
+          is_online?: boolean | null
+          last_seen?: string | null
+          name?: string | null
+          updated_at?: string | null
+        }
+        Relationships: []
+      }
       galleries: {
         Row: {
           created_at: string | null
@@ -214,6 +288,47 @@ export type Database = {
           },
         ]
       }
+      messages: {
+        Row: {
+          content: Json
+          created_at: string
+          is_llm_message: boolean
+          message_id: string
+          metadata: Json | null
+          thread_id: string
+          type: string
+          updated_at: string
+        }
+        Insert: {
+          content: Json
+          created_at?: string
+          is_llm_message?: boolean
+          message_id?: string
+          metadata?: Json | null
+          thread_id: string
+          type: string
+          updated_at?: string
+        }
+        Update: {
+          content?: Json
+          created_at?: string
+          is_llm_message?: boolean
+          message_id?: string
+          metadata?: Json | null
+          thread_id?: string
+          type?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "messages_thread_id_fkey"
+            columns: ["thread_id"]
+            isOneToOne: false
+            referencedRelation: "threads"
+            referencedColumns: ["thread_id"]
+          },
+        ]
+      }
       museums: {
         Row: {
           address: string | null
@@ -367,6 +482,7 @@ export type Database = {
           language_support: string[] | null
           name: string
           persona_id: number
+          tts_provider: string
           updated_at: string | null
           voice_description: string | null
           voice_model_identifier: string | null
@@ -379,6 +495,7 @@ export type Database = {
           language_support?: string[] | null
           name: string
           persona_id?: number
+          tts_provider?: string
           updated_at?: string | null
           voice_description?: string | null
           voice_model_identifier?: string | null
@@ -391,18 +508,263 @@ export type Database = {
           language_support?: string[] | null
           name?: string
           persona_id?: number
+          tts_provider?: string
           updated_at?: string | null
           voice_description?: string | null
           voice_model_identifier?: string | null
         }
         Relationships: []
       }
+      projects: {
+        Row: {
+          account_id: string
+          created_at: string
+          description: string | null
+          is_public: boolean | null
+          name: string
+          project_id: string
+          sandbox: Json | null
+          updated_at: string
+        }
+        Insert: {
+          account_id: string
+          created_at?: string
+          description?: string | null
+          is_public?: boolean | null
+          name: string
+          project_id?: string
+          sandbox?: Json | null
+          updated_at?: string
+        }
+        Update: {
+          account_id?: string
+          created_at?: string
+          description?: string | null
+          is_public?: boolean | null
+          name?: string
+          project_id?: string
+          sandbox?: Json | null
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      recordings: {
+        Row: {
+          a11y_file_path: string | null
+          account_id: string
+          action_annotated: boolean | null
+          action_training_file_path: string | null
+          audio_file_path: string | null
+          created_at: string | null
+          device_id: string
+          id: string
+          meta: Json | null
+          metadata_file_path: string | null
+          name: string | null
+          preprocessed_file_path: string | null
+          raw_data_file_path: string | null
+          ui_annotated: boolean | null
+          updated_at: string | null
+        }
+        Insert: {
+          a11y_file_path?: string | null
+          account_id: string
+          action_annotated?: boolean | null
+          action_training_file_path?: string | null
+          audio_file_path?: string | null
+          created_at?: string | null
+          device_id: string
+          id?: string
+          meta?: Json | null
+          metadata_file_path?: string | null
+          name?: string | null
+          preprocessed_file_path?: string | null
+          raw_data_file_path?: string | null
+          ui_annotated?: boolean | null
+          updated_at?: string | null
+        }
+        Update: {
+          a11y_file_path?: string | null
+          account_id?: string
+          action_annotated?: boolean | null
+          action_training_file_path?: string | null
+          audio_file_path?: string | null
+          created_at?: string | null
+          device_id?: string
+          id?: string
+          meta?: Json | null
+          metadata_file_path?: string | null
+          name?: string | null
+          preprocessed_file_path?: string | null
+          raw_data_file_path?: string | null
+          ui_annotated?: boolean | null
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "fk_device"
+            columns: ["device_id"]
+            isOneToOne: false
+            referencedRelation: "devices"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      threads: {
+        Row: {
+          account_id: string | null
+          created_at: string
+          is_public: boolean | null
+          project_id: string | null
+          thread_id: string
+          updated_at: string
+        }
+        Insert: {
+          account_id?: string | null
+          created_at?: string
+          is_public?: boolean | null
+          project_id?: string | null
+          thread_id?: string
+          updated_at?: string
+        }
+        Update: {
+          account_id?: string | null
+          created_at?: string
+          is_public?: boolean | null
+          project_id?: string | null
+          thread_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "threads_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "projects"
+            referencedColumns: ["project_id"]
+          },
+        ]
+      }
     }
     Views: {
       [_ in never]: never
     }
     Functions: {
-      [_ in never]: never
+      accept_invitation: {
+        Args: { lookup_invitation_token: string }
+        Returns: Json
+      }
+      create_account: {
+        Args: { slug?: string; name?: string }
+        Returns: Json
+      }
+      create_invitation: {
+        Args: {
+          account_id: string
+          account_role: "owner" | "member"
+          invitation_type: "one_time" | "24_hour"
+        }
+        Returns: Json
+      }
+      current_user_account_role: {
+        Args: { account_id: string }
+        Returns: Json
+      }
+      delete_invitation: {
+        Args: { invitation_id: string }
+        Returns: undefined
+      }
+      get_account: {
+        Args: { account_id: string }
+        Returns: Json
+      }
+      get_account_billing_status: {
+        Args: { account_id: string }
+        Returns: Json
+      }
+      get_account_by_slug: {
+        Args: { slug: string }
+        Returns: Json
+      }
+      get_account_id: {
+        Args: { slug: string }
+        Returns: string
+      }
+      get_account_invitations: {
+        Args: {
+          account_id: string
+          results_limit?: number
+          results_offset?: number
+        }
+        Returns: Json
+      }
+      get_account_members: {
+        Args: {
+          account_id: string
+          results_limit?: number
+          results_offset?: number
+        }
+        Returns: Json
+      }
+      get_accounts: {
+        Args: Record<PropertyKey, never>
+        Returns: Json
+      }
+      get_llm_formatted_messages: {
+        Args: { p_thread_id: string }
+        Returns: Json
+      }
+      get_personal_account: {
+        Args: Record<PropertyKey, never>
+        Returns: Json
+      }
+      lookup_invitation: {
+        Args: { lookup_invitation_token: string }
+        Returns: Json
+      }
+      remove_account_member: {
+        Args: { account_id: string; user_id: string }
+        Returns: undefined
+      }
+      service_role_upsert_customer_subscription: {
+        Args: { account_id: string; customer?: Json; subscription?: Json }
+        Returns: undefined
+      }
+      transfer_device: {
+        Args: {
+          device_id: string
+          new_account_id: string
+          device_name?: string
+        }
+        Returns: {
+          account_id: string
+          created_at: string | null
+          id: string
+          is_online: boolean | null
+          last_seen: string | null
+          name: string | null
+          updated_at: string | null
+        }[]
+      }
+      update_account: {
+        Args: {
+          account_id: string
+          slug?: string
+          name?: string
+          public_metadata?: Json
+          replace_metadata?: boolean
+        }
+        Returns: Json
+      }
+      update_account_user_role: {
+        Args: {
+          account_id: string
+          user_id: string
+          new_account_role: "owner" | "member"
+          make_primary_owner?: boolean
+        }
+        Returns: undefined
+      }
     }
     Enums: {
       [_ in never]: never

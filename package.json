@@ -10,7 +10,8 @@
     "generate": "nuxt generate",
     "preview": "nuxt preview",
     "postinstall": "nuxt prepare",
-    "lint": "nuxi typecheck"
+    "lint": "nuxi typecheck",
+    "types:gen": "npx supabase gen types typescript --project-id jazocztbwzavmtyprhye --schema public > types/supabase.ts"
   },
   "pnpm": {
     "onlyBuiltDependencies": [
@@ -20,6 +21,7 @@
     ]
   },
   "dependencies": {
+    "@google-cloud/text-to-speech": "^6.0.1",
     "@headlessui/vue": "^1.7.23",
     "@iconify-json/ph": "^1.2.2",
     "@iconify/vue": "^5.0.0",

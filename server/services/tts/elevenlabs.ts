@@ -4,6 +4,8 @@ import type {
   VoiceSynthesisRequest,
   VoiceSynthesisResponse,
   VoiceModel,
+  PodcastCreationRequest,
+  PodcastCreationResponse,
 } from './types';
 import { $fetch } from 'ofetch'; // Nuxt's built-in fetch utility
 
@@ -12,6 +14,28 @@ interface ElevenLabsConfig {
   apiKey: string;
   baseUrl?: string;
   defaultModelId?: string;
+}
+
+// Define a more specific type for the /voices API response
+interface ElevenLabsVoice { 
+  voice_id: string;
+  name: string;
+  // Add other relevant properties from the API as needed, e.g.:
+  // samples: any[];
+  // category: string;
+  // fine_tuning: any;
+  // labels: Record<string, string>;
+  // description: string | null;
+  // preview_url: string;
+  // available_for_tiers: string[];
+  // settings: any | null;
+  sharing: any | null; // Actual structure might be more complex
+  settings?: { stability: number; similarity_boost: number; style?: number; use_speaker_boost?: boolean };
+  [key: string]: any; // Allow other properties
+}
+
+interface ElevenLabsVoicesResponse {
+  voices: ElevenLabsVoice[];
 }
 
 export class ElevenLabsProvider implements TextToSpeechProvider {
@@ -85,12 +109,12 @@ export class ElevenLabsProvider implements TextToSpeechProvider {
   async listVoices(languageCode?: string): Promise<VoiceModel[]> {
     const apiUrl = `${this.elevenLabsBaseUrl}/voices`;
     try {
-      const response = await $fetch<any>(apiUrl, { // Specify expected response type if known
+      const response = await $fetch(apiUrl, { 
         method: 'GET',
         headers: {
           'xi-api-key': this.config.apiKey,
         },
-      });
+      }) as ElevenLabsVoicesResponse;
 
       if (!response || !Array.isArray(response.voices)) {
         console.error('Invalid response structure from ElevenLabs /voices endpoint:', response);
@@ -126,11 +150,91 @@ export class ElevenLabsProvider implements TextToSpeechProvider {
     }
   }
   
-  validateConfig?(): boolean {
-    if (!this.config.apiKey) {
-        console.error("ElevenLabs API Key (runtimeConfig.elevenlabs.apiKey) is missing.");
-        return false;
+  validateConfig?(config: Record<string, any>): boolean | Promise<boolean> {
+    if (!config || !config.elevenlabs || !config.elevenlabs.apiKey) {
+      throw new Error('ElevenLabs configuration requires runtimeConfig.elevenlabs.apiKey');
     }
     return true;
+  }
+
+  async createPodcastConversation(request: PodcastCreationRequest): Promise<PodcastCreationResponse> {
+    const { 
+      elevenLabsApiKey, // This should ideally come from this.config.apiKey
+      elevenLabsProjectId,
+      podcastName,
+      scriptText,
+      hostVoiceId,
+      guestVoiceId,
+      modelId,
+      titleVoiceId,
+      // voiceSettingsId, // Not directly used in the podcast creation body from docs
+    } = request;
+
+    if (!elevenLabsProjectId) {
+      throw new Error('ElevenLabs Project ID is required to create a podcast.');
+    }
+
+    const effectiveModelId = modelId || this.config.defaultModelId || 'eleven_multilingual_v2';
+    const apiUrl = `${this.elevenLabsBaseUrl}/studio/projects/${elevenLabsProjectId}/podcasts`;
+
+    // Construct the request body for ElevenLabs Podcast API
+    const payload: any = {
+      name: podcastName,
+      model_id: effectiveModelId,
+      source_type: 'text',
+      source: {
+        type: 'text',
+        text: scriptText, // Already formatted "Host: ...\nGuest: ..."
+      },
+      mode: {
+        type: 'conversation',
+        conversation: {
+          host_voice_id: hostVoiceId,
+          guest_voice_id: guestVoiceId,
+        },
+      },
+    };
+
+    // Optional fields
+    if (titleVoiceId) {
+      payload.title_voice_id = titleVoiceId;
+    }
+    // Note: The API documentation for POST /v1/studio/projects/{project_id}/podcasts
+    // doesn't explicitly mention 'voice_settings_id' at the top level for podcast creation.
+    // It's usually part of text-to-speech calls. If it's needed, it would be part of 'mode' or 'source'.
+    // For now, assuming it's not directly part of this specific API call's top-level body.
+
+    try {
+      console.log(`Calling ElevenLabs Create Podcast API: ${apiUrl}`);
+      console.log('Request payload:', JSON.stringify(payload, null, 2));
+
+      const response = await $fetch(apiUrl, {
+        method: 'POST',
+        headers: {
+          'xi-api-key': this.config.apiKey, // Use apiKey from internal config
+          'Content-Type': 'application/json',
+        },
+        body: payload,
+      }) as PodcastCreationResponse;
+
+      console.log('ElevenLabs Create Podcast API response:', response);
+      return response; // The API directly returns the PodcastCreationResponse structure
+
+    } catch (error: any) {
+      const errorMessage = error.data?.detail?.message || error.data?.message || error.message || 'Unknown ElevenLabs Podcast API error';
+      console.error(`ElevenLabs Podcast API error (${this.providerId}): ${errorMessage}`, error.data || error);
+      // Try to parse the error response if it's JSON
+      let errorDetails = {};
+      if (error.data && typeof error.data === 'string') {
+        try {
+          errorDetails = JSON.parse(error.data);
+        } catch (e) {
+          // ignore if not JSON
+        }
+      } else if (error.data) {
+        errorDetails = error.data;
+      }
+      throw new Error(`ElevenLabs Podcast creation failed: ${errorMessage} - Details: ${JSON.stringify(errorDetails)}`);
+    }
   }
 }

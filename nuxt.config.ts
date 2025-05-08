@@ -9,8 +9,10 @@ export default defineNuxtConfig({
   },
   runtimeConfig: {
     postgresUrl: process.env.POSTGRES_URL,
-    elevenlabsApiKey: process.env.ELEVENLABS_API_KEY,
-    elevenlabsBaseUrl: process.env.ELEVENLABS_API_BASE_URL || 'https://api.elevenlabs.io/v1',
+    elevenlabs: {
+      apiKey: process.env.ELEVENLABS_API_KEY,
+      baseUrl: process.env.ELEVENLABS_API_BASE_URL || 'https://api.elevenlabs.io/v1',
+    },
     openrouter: {
       apiKey: process.env.OPENROUTER_API_KEY,
       model: process.env.OPENROUTER_MODEL,
@@ -18,7 +20,10 @@ export default defineNuxtConfig({
     },
     public: {
       elevenlabsDefaultVoiceId: process.env.ELEVENLABS_DEFAULT_VOICE_ID || 'pNInz6obpgDQGcFmaJgB',
-      elevenlabsDefaultModelId: process.env.ELEVENLABS_DEFAULT_MODEL_ID || 'eleven_multilingual_v2'
+      elevenlabsDefaultModelId: process.env.ELEVENLABS_DEFAULT_MODEL_ID || 'eleven_multilingual_v2',
+      supabase: {
+      },
+      supabaseStorageBucketName: process.env.SUPABASE_STORAGE_BUCKET_NAME || "guide-voices",
     }
   },
   devtools: { enabled: false },

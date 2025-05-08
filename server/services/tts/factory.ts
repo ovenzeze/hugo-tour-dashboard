@@ -1,10 +1,7 @@
 // server/services/tts/factory.ts
 import type { TextToSpeechProvider } from './types';
-import { ElevenLabsProvider } from './elevenlabs'; // Assuming ElevenLabs is our first provider
-
-// You will import other providers here as you add them
-// import { GoogleTTSProvider } from './google';
-// import { AzureTTSProvider } from './azure';
+import { ElevenLabsProvider } from './elevenlabs'; 
+import { GoogleCloudTTSProvider } from './google'; 
 
 /**
  * A map holding all registered TTS provider classes.
@@ -12,8 +9,7 @@ import { ElevenLabsProvider } from './elevenlabs'; // Assuming ElevenLabs is our
  */
 const providerMap: Record<string, new (runtimeConfig: any) => TextToSpeechProvider> = {
   'elevenlabs': ElevenLabsProvider,
-  // 'google': GoogleTTSProvider,
-  // 'azure': AzureTTSProvider,
+  'google': GoogleCloudTTSProvider,
 };
 
 /**

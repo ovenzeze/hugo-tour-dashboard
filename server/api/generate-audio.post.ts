@@ -2,16 +2,12 @@ import { serverSupabaseServiceRole } from '#supabase/server';
 import type { Database } from '~/types/supabase';
 import type { H3Event } from 'h3';
 import { getAudioDurationInSeconds } from 'get-audio-duration';
-import { writeFileSync, unlinkSync, readFileSync } from 'fs'; // readFileSync might be needed if provider saves file
+import { writeFileSync, unlinkSync, readFileSync } from 'fs';
 import { join } from 'path';
 import { tmpdir } from 'os';
-import { getTtsProvider } from '../services/tts/factory'; // Updated import
-import type { VoiceSynthesisRequest } from '../services/tts/types'; // Updated import
+import { getTtsProvider } from '../services/tts/factory';
+import type { VoiceSynthesisRequest } from '../services/tts/types';
 
-// Define DB types (assuming these are still relevant for fetching text and persona)
-type GuideAudioInsert = Database['public']['Tables']['guide_audios']['Insert']; // Corrected: Use type alias
-
-// Define an interface for the expected shape of the persona data when joined
 interface PersonaWithTtsData {
     persona_id: number;
     name: string;
@@ -19,37 +15,19 @@ interface PersonaWithTtsData {
     tts_provider?: string | null;
 }
 
-// type GuideTextRow = Database['public']['Tables']['guide_texts']['Row']; // Not directly used here anymore for provider specifics
-// type PersonaRow = Database['public']['Tables']['personas']['Row']; // For tts_provider and voice_model_identifier
-
-// Combine fetched data for clarity - This interface might not be needed or needs adjustment
-// interface TextWithPersona {
-//     guide_text_id: number;
-//     transcript: string;
-//     language?: string;
-//     museum_id?: number | null;
-//     gallery_id?: number | null;
-//     object_id?: number | null;
-//     persona_id: number;
-//     personas: {
-//         persona_id: number;
-//         name: string;
-//         voice_model_identifier?: string | null;
-//         tts_provider?: string | null; // Added tts_provider
-//     };
-// }
+// Define the type for inserting into guide_audios more explicitly
+type GuideAudioInsert = Database['public']['Tables']['guide_audios']['Insert'];
 
 export default defineEventHandler(async (event: H3Event) => {
-    console.log('API Route /api/generate-audio (refactored) called.');
+    console.log('API Route /api/generate-audio (full refactor with storage, DB, metadata) called.');
 
     const supabaseClient = await serverSupabaseServiceRole<Database>(event);
     const runtimeConfig = useRuntimeConfig(event);
-    // const storageBucketName = 'guide-voices'; // Keep if direct upload to Supabase happens here, otherwise remove
+    const storageBucketName = runtimeConfig.public.supabaseStorageBucketName; // Corrected: Use the new config key
 
-    let tempAudioFilePath: string | null = null; // To track for cleanup on error
+    let tempAudioFilePath: string | null = null;
 
     try {
-        // 1. Read and Validate Input Body
         const body = await readBody(event);
         if (!body || typeof body.guide_text_id !== 'number') {
             throw createError({ statusCode: 400, statusMessage: 'Bad Request: Missing or invalid guide_text_id.' });
@@ -57,7 +35,7 @@ export default defineEventHandler(async (event: H3Event) => {
         const guideTextId: number = body.guide_text_id;
         console.log(`Processing request for guide_text_id: ${guideTextId}`);
 
-        // 2. Fetch Guide Text and Associated Persona (to get transcript, persona voice_id, and tts_provider)
+        // 1. Fetch Guide Text and associated Persona data
         const { data: textAndPersonaData, error: fetchError } = await supabaseClient
             .from('guide_texts')
             .select(`
@@ -65,11 +43,12 @@ export default defineEventHandler(async (event: H3Event) => {
                 transcript,
                 language,
                 persona_id,
+                museum_id, 
                 personas (
                     persona_id,
                     name,
                     voice_model_identifier,
-                    tts_provider 
+                    tts_provider
                 )
             `)
             .eq('guide_text_id', guideTextId)
@@ -83,111 +62,199 @@ export default defineEventHandler(async (event: H3Event) => {
             throw createError({ statusCode: 404, statusMessage: `Guide text with id ${guideTextId} not found.` });
         }
 
-        const { transcript, language, personas: personaRecord } = textAndPersonaData;
+        const { transcript, language, personas: personaRecord, museum_id } = textAndPersonaData;
 
         if (!personaRecord) {
              throw createError({ statusCode: 404, statusMessage: `Persona not found for guide text id ${guideTextId}.` });
         }
+        const persona = personaRecord as PersonaWithTtsData;
+        console.log(`Found text: "${transcript?.substring(0, 30)}...", Persona: ${persona.name}, Museum ID: ${museum_id}, Language: ${language}`);
 
-        // Type assertion for personaRecord as it comes from a join
-        const persona = personaRecord as PersonaWithTtsData; // Use defined interface
-
-        console.log(`Found text: "${transcript.substring(0, 30)}...", Persona: ${persona.name}`);
-
-        // 3. Determine TTS Provider and Parameters
-        const providerId = body.tts_provider || persona.tts_provider || 'elevenlabs'; // Default to elevenlabs
+        // 2. Determine TTS Provider and Voice
+        const providerId = body.tts_provider || persona.tts_provider || 'elevenlabs';
         const ttsProvider = getTtsProvider(providerId, runtimeConfig);
-
         const voiceId = body.voice_id || persona.voice_model_identifier;
         if (!voiceId) {
-            throw createError({ statusCode: 400, statusMessage: 'Voice ID is required (from request body or Persona settings).' });
+            throw createError({ statusCode: 400, statusMessage: 'Voice ID is required (can be from persona or request body).' });
         }
         
-        // Provider-specific model ID from request, or let provider use its default
-        const modelId = body.model_id; 
-        const requestedOutputFormat = body.output_format || 'mp3_44100_128'; // Example default
-
-        // Prepare provider-specific options (e.g., for ElevenLabs)
-        // These should align with what the specific provider implementation expects in 'providerOptions'
+        const modelId = body.model_id; // Optional, provider-specific
+        const requestedOutputFormat = body.output_format || 'mp3_44100_128'; // Default or from request
+        
         const providerOptions: Record<string, any> = {};
         if (providerId === 'elevenlabs') {
             providerOptions.stability = typeof body.stability === 'number' ? body.stability : 0.5;
             providerOptions.similarity_boost = typeof body.similarity_boost === 'number' ? body.similarity_boost : 0.75;
-            providerOptions.style = typeof body.style === 'number' ? body.style : 0.0; // ElevenLabs specific
-            providerOptions.use_speaker_boost = typeof body.use_speaker_boost === 'boolean' ? body.use_speaker_boost : true; // ElevenLabs specific
+            providerOptions.style = typeof body.style === 'number' ? body.style : 0.0;
+            providerOptions.use_speaker_boost = typeof body.use_speaker_boost === 'boolean' ? body.use_speaker_boost : true;
         }
-        // Add more provider-specific options here if needed for other providers
+        // Add other provider-specific options here if needed
 
         const synthesisRequest: VoiceSynthesisRequest = {
-            text: transcript,
+            text: transcript || '', // Ensure text is not null
             voiceId: voiceId,
-            modelId: modelId, // Optional, provider will use its default if not set
-            languageCode: language || undefined, // Pass language if available
-            outputFormat: requestedOutputFormat, // Provider might use this or have its own defaults/capabilities
+            modelId: modelId,
+            languageCode: language || undefined,
+            outputFormat: requestedOutputFormat,
             providerOptions: providerOptions,
         };
 
+        // 3. Generate Speech
         console.log(`Using TTS Provider: ${providerId}, Voice ID: ${voiceId}`);
-
-        // 4. Call TTS Provider's generateSpeech method
         const synthesisResponse = await ttsProvider.generateSpeech(synthesisRequest);
         const { audioData, contentType } = synthesisResponse;
 
-        // 5. Process and Save Audio (similar to before, but using data from provider)
-        // Determine file extension from outputFormat or contentType
         let fileExtension = 'mp3'; // Default
-        if (synthesisRequest.outputFormat?.startsWith('mp3')) {
-            fileExtension = 'mp3';
-        } else if (synthesisRequest.outputFormat?.startsWith('wav') || contentType === 'audio/wav') {
-            fileExtension = 'wav';
-        } // Add more mappings as needed
+        if (synthesisRequest.outputFormat?.includes('mp3')) fileExtension = 'mp3';
+        else if (synthesisRequest.outputFormat?.includes('wav') || contentType === 'audio/wav') fileExtension = 'wav';
+        // Add more mappings as needed based on provider output formats
 
-        const audioFileName = `guide_audio_${guideTextId}_${persona.persona_id}_${Date.now()}.${fileExtension}`;
-        tempAudioFilePath = join(tmpdir(), audioFileName); // Save to OS temp directory
-
+        const audioFileName = `audio_${guideTextId}_p${persona.persona_id}_v${Date.now()}.${fileExtension}`;
+        tempAudioFilePath = join(tmpdir(), audioFileName);
         writeFileSync(tempAudioFilePath, Buffer.from(audioData));
         console.log(`Temporary audio file saved to: ${tempAudioFilePath}`);
 
-        const audioDuration = await getAudioDurationInSeconds(tempAudioFilePath); // get-audio-duration often needs a file path
+        const audioDuration = await getAudioDurationInSeconds(tempAudioFilePath);
 
-        // The current endpoint seems to return temp file path.
-        // Actual upload to Supabase Storage and DB record creation might be handled elsewhere or in a subsequent call.
-        // If it were to be handled here, you'd add:
-        // const { data: storageData, error: storageError } = await supabaseClient.storage
-        //   .from(storageBucketName)
-        //   .upload(audioFileName, readFileSync(tempAudioFilePath), { contentType: contentType, upsert: true });
-        // ... and then insert into guide_audios table.
+        // 4. Upload to Supabase Storage
+        const audioFileBuffer = readFileSync(tempAudioFilePath);
+        const storagePath = `${museum_id || 'global'}/p${persona.persona_id}/${audioFileName}`;
+        
+        console.log(`Uploading to Supabase Storage at path: ${storagePath}`);
+        const { data: storageUploadData, error: storageUploadError } = await supabaseClient.storage
+            .from(storageBucketName)
+            .upload(storagePath, audioFileBuffer, { 
+                contentType: contentType, 
+                upsert: false // Timestamp in filename should prevent most collisions
+            });
 
+        if (storageUploadError) {
+            console.error('Error uploading to Supabase Storage:', storageUploadError);
+            throw createError({ statusCode: 500, statusMessage: `Storage upload failed: ${storageUploadError.message}` });
+        }
+        console.log('Successfully uploaded to Supabase Storage:', storageUploadData?.path);
+
+        // 5. Get Public URL
+        const { data: publicUrlData } = supabaseClient.storage
+            .from(storageBucketName)
+            .getPublicUrl(storagePath);
+
+        const publicAudioUrl = publicUrlData?.publicUrl || null;
+        console.log('Public URL:', publicAudioUrl);
+
+        // Critical check: If publicAudioUrl is null, we cannot proceed with DB insert as audio_url is non-nullable
+        if (!publicAudioUrl) {
+            // Attempt to delete the orphaned file from storage
+            if (storagePath) {
+                await supabaseClient.storage.from(storageBucketName).remove([storagePath]);
+                console.log(`Cleaned up orphaned storage file due to missing public URL: ${storagePath}`)
+            }
+            throw createError({ statusCode: 500, statusMessage: 'Failed to get public URL for the uploaded audio file. Cannot save record.' });
+        }
+
+        // 6. Versioning logic for guide_audios
+        const { data: existingAudios, error: existingAudiosError } = await supabaseClient
+            .from('guide_audios')
+            .select('version')
+            .eq('guide_text_id', guideTextId)
+            .eq('persona_id', persona.persona_id)
+            .order('version', { ascending: false })
+            .limit(1);
+
+        if (existingAudiosError) {
+            console.error('Error fetching existing audio versions:', existingAudiosError);
+            throw createError({ statusCode: 500, statusMessage: 'Failed to check existing audio versions.' });
+        }
+
+        let newVersion = 1;
+        if (existingAudios && existingAudios.length > 0 && typeof existingAudios[0].version === 'number') {
+            newVersion = existingAudios[0].version + 1;
+        }
+
+        if (newVersion > 1) {
+            const { error: updateOldVersionsError } = await supabaseClient
+                .from('guide_audios')
+                .update({ is_latest_version: false })
+                .eq('guide_text_id', guideTextId)
+                .eq('persona_id', persona.persona_id)
+                .eq('is_latest_version', true);
+            if (updateOldVersionsError) {
+                console.error('Error updating old audio versions to not be latest:', updateOldVersionsError);
+                // Log and continue, as this is not strictly critical for new audio creation
+            }
+        }
+
+        // 7. Insert into guide_audios table
+        const metadataToStore = {
+            file_name: audioFileName,
+            mime_type: contentType,
+            tts_provider_id: providerId,
+            voice_model_identifier: voiceId,
+            requested_output_format: requestedOutputFormat,
+            synthesis_settings: providerOptions,
+            // You can add more relevant info from synthesisResponse if needed
+        };
+
+        const newGuideAudio: GuideAudioInsert = {
+            guide_text_id: guideTextId,
+            persona_id: persona.persona_id,
+            audio_url: publicAudioUrl, // Store the public URL (now confirmed not null)
+            duration_seconds: parseFloat(audioDuration.toFixed(3)),
+            language: language || 'unknown', // Get from guide_text or default
+            museum_id: museum_id, // Get from guide_text
+            version: newVersion,
+            is_latest_version: true,
+            generated_at: new Date().toISOString(),
+            metadata: metadataToStore as any, // Cast to any if Json type causes issues with deep objects
+            // gallery_id and object_id are not directly available here, keep as null/default
+        };
+
+        const { data: insertedAudio, error: insertError } = await supabaseClient
+            .from('guide_audios')
+            .insert(newGuideAudio)
+            .select('audio_guide_id, audio_url, duration_seconds, metadata') // Corrected: select audio_guide_id
+            .single(); 
+
+        if (insertError) {
+            console.error('Error inserting into guide_audios:', insertError);
+            // Attempt to delete the uploaded file if DB insert fails
+            if (storagePath) {
+                await supabaseClient.storage.from(storageBucketName).remove([storagePath]);
+                console.log(`Attempted to clean up orphaned storage file: ${storagePath}`)
+            }
+            throw createError({ statusCode: 500, statusMessage: `Database insert failed: ${insertError.message}` });
+        }
+        if (!insertedAudio) {
+            throw createError({ statusCode: 500, statusMessage: 'Failed to insert audio record or retrieve it after insert.' });
+        }
+
+        console.log('Audio record inserted into DB with ID:', insertedAudio.audio_guide_id); // Corrected: use audio_guide_id
+        
         return {
-            message: `Audio generated successfully by ${providerId}.`,
-            provider_id: providerId,
-            audio_file_path: tempAudioFilePath, // Path to the temporary local file
-            audio_duration: audioDuration,
-            audio_file_name: audioFileName,
-            content_type: contentType,
-            output_format_requested: requestedOutputFormat // Return what was requested
+            message: `Audio generated, uploaded, and recorded successfully for guide_text_id ${guideTextId}.`,
+            guide_audio_id: insertedAudio.audio_guide_id, // Corrected: use audio_guide_id
+            public_audio_url: insertedAudio.audio_url, 
+            audio_duration: insertedAudio.duration_seconds,
+            audio_file_name: audioFileName, // From metadata, for convenience
+            // No Base64 data anymore
         };
 
     } catch (error: any) {
         console.error('Error in /api/generate-audio:', error);
-        // Clean up temp file if created
+        return createError({
+            statusCode: error.statusCode || 500,
+            statusMessage: error.statusMessage || 'Internal Server Error in audio generation.',
+            data: error.data
+        });
+    } finally {
+        // 8. Clean up temporary file
         if (tempAudioFilePath) {
             try {
                 unlinkSync(tempAudioFilePath);
+                console.log(`Temporary audio file ${tempAudioFilePath} deleted.`);
             } catch (cleanupError) {
-                console.error('Error cleaning up temporary audio file:', cleanupError);
+                console.error(`Error deleting temporary file ${tempAudioFilePath}:`, cleanupError);
             }
         }
-        // Check if it's a H3Error from createError, if so, rethrow it
-        if (error.statusCode && error.statusMessage) {
-             throw error;
-        }
-        // Otherwise, wrap it
-        throw createError({
-            statusCode: 500,
-            statusMessage: `Internal Server Error: ${error?.message || 'Unknown error during audio generation.'}`
-        });
     }
-    // 'finally' block for cleanup is tricky with async event handlers if errors are thrown out.
-    // Cleanup is handled in catch for now. Consider if temp file should persist on success for some reason.
 });
