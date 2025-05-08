@@ -1,7 +1,7 @@
 {
-    "name": "Hugo Tour Guide",
-    "short_name": "HugoGuide",
-    "description": "Hugo Tour Guide App",
+    "name": "Hugo Tour Dashboard",
+    "short_name": "HugoDash",
+    "description": "Hugo Tour Dashboard App",
     "start_url": "/",
     "display": "standalone",
     "background_color": "#ffffff",

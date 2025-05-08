@@ -18,8 +18,17 @@
 <script setup lang="ts">
 import { Toaster } from '@/components/ui/sonner'
 import { usePwa } from '~/composables/usePwa'
+import { useColorMode } from '@vueuse/core'
 
 const { isPwa } = usePwa()
+
+// Set initial color mode to dark and apply 'dark' class to <html> element
+useColorMode({
+  initialValue: 'dark',
+  selector: 'html',
+  attribute: 'class',
+  storageKey: null, // Set to null to not persist; or a key like 'theme-preference' to save user's choice
+})
 
 useHead({
   meta: [

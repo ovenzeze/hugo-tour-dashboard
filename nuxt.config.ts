@@ -32,7 +32,8 @@ export default defineNuxtConfig({
       tailwindcss(),
     ],
     server: {
-      allowedHosts: true
+      allowedHosts: true,
+      port: 4000
     },
     resolve: {
       alias: {
@@ -108,7 +109,7 @@ export default defineNuxtConfig({
       meta: [
         { name: 'apple-mobile-web-app-capable', content: 'yes' },
         { name: 'apple-mobile-web-app-status-bar-style', content: 'black-translucent' },
-        { name: 'apple-mobile-web-app-title', content: 'Hugo' },
+        { name: 'apple-mobile-web-app-title', content: 'Hugo Tour Dashboard' },
         { name: 'theme-color', content: '#ffffff' }
       ],
       link: [
@@ -134,9 +135,9 @@ export default defineNuxtConfig({
   pwa: {
     registerType: 'autoUpdate',
     manifest: {
-      name: 'Hugo Tour Guide',
-      short_name: 'HugoGuide',
-      description: 'Hugo Tour Guide App',
+      name: 'Hugo Tour Dashboard',
+      short_name: 'HugoDash',
+      description: 'Hugo Tour Dashboard App',
       theme_color: '#ffffff',
       background_color: '#ffffff',
       display: 'standalone',
