@@ -4,7 +4,7 @@
       <NuxtPage />
     </NuxtLayout>
     <Toaster 
-      position="top-right" 
+      position="top-center" 
       closeButton 
       richColors
       :toastOptions="{

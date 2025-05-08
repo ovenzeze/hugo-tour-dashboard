@@ -1,7 +1,7 @@
 <template>
-  <div>
+  <div >
     <SidebarProvider>
-      <div class="relative flex min-h-screen flex-col md:flex-row w-full">
+      <div class="relative flex flex-col md:flex-row w-full">
         <!-- 桌面端侧边栏 -->
         <ClientOnly>
           <aside class="hidden md:flex md:flex-col md:w-50 h-screen border-r bg-card fixed left-0 top-0">
@@ -9,25 +9,9 @@
           </aside>
         </ClientOnly>
 
-        <!-- 主体内容，包含PC端顶部栏和实际页面内容 -->
+        <!-- 主体内容，包含实际页面内容 -->
         <div class="flex flex-col flex-1 md:ml-65">
-          <!-- PC端顶部栏 -->
-          <header class="sticky top-0 z-30 hidden h-16 items-center justify-between bg-background px-6 md:flex">
-            <div>
-              <!-- 可以放置面包屑导航或页面标题 -->
-              <h1 class="text-lg font-semibold">{{ route.meta.title || 'Dashboard' }}</h1>
-            </div>
-            <div class="flex items-center gap-4">
-              <!-- 扩展功能，如通知、帮助等 -->
-              <Button variant="ghost" size="icon">
-                <Icon icon="ph:bell" class="h-5 w-5" />
-              </Button>
-              <Avatar>
-                <AvatarImage src="/images/avatar-default.png" alt="User" />
-                <AvatarFallback>U</AvatarFallback>
-              </Avatar>
-            </div>
-          </header>
+          <!-- PC端顶部栏 - 已移除 -->
 
           <!-- 移动端顶部栏 -->
           <header class="sticky top-0 z-40 flex h-16 items-center border-b bg-background px-4 md:hidden">
@@ -47,7 +31,7 @@
           </header>
 
           <!-- 主内容区 -->
-          <main class="flex-1 p-6 pb-16 md:pb-6">
+          <main class="flex-1 flex flex-col">
             <slot />
           </main>
         </div>
@@ -64,14 +48,13 @@ import { ref } from 'vue'
 import { useRoute } from '#imports'
 import { Icon } from '@iconify/vue'
 import { Button } from '@/components/ui/button'
-import { Sheet, SheetContent, SheetTrigger } from '@/components/ui/sheet'
-import { Avatar, AvatarImage, AvatarFallback } from '@/components/ui/avatar' // 新增 Avatar 导入
+import { Sheet, SheetContent } from '@/components/ui/sheet'
+import { Avatar, AvatarImage, AvatarFallback } from '@/components/ui/avatar'
 import SidebarNav from '@/components/layout/SidebarNav.vue'
 import { SidebarProvider, SidebarTrigger } from '@/components/ui/sidebar'
 import MobileBottomBar from '@/components/layout/MobileBottomBar.vue'
 import type { NavLink } from '@/components/layout/types'
 
-const sidebarOpen = ref(false)
 const route = useRoute()
 
 const navLinks: NavLink[] = [
@@ -86,19 +69,15 @@ const navLinks: NavLink[] = [
   { path: '/users', label: 'Users', icon: 'heroicons-outline:users' }
 ]
 
+const sidebarOpen = ref(false)
+
 defineExpose({
-  sidebarOpen,
   navLinks,
   route
 })
 </script>
 
 <style scoped>
-.h-dvh { height: 100dvh; }
-.bg-card { background: var(--card, #fff); }
-@media (max-width: 767px) {
-  .h-dvh { height: 100svh; }
-}
 .ios-pwa-safe-area .bottom-nav {
   padding-bottom: calc(0.5rem + env(safe-area-inset-bottom) * 0.5);
 }
@@ -111,4 +90,32 @@ defineExpose({
   z-index: 50;
   width: 100%;
 }
-</style>
+
+/* 阻止全局滚动弹性效果 */
+/*
+:global(html), :global(body) {
+  height: 100%;
+  overscroll-behavior: contain; 
+}
+*/
+
+/* 定制化滚动条样式和行为 */
+/*
+:global(.overscroll-none) {
+  overscroll-behavior: none;
+}
+*/
+
+:global(::-webkit-scrollbar) {
+  width: 6px;
+}
+
+:global(::-webkit-scrollbar-track) {
+  background: transparent;
+}
+
+:global(::-webkit-scrollbar-thumb) {
+  background-color: rgba(155, 155, 155, 0.5);
+  border-radius: 20px;
+}
+</style> 

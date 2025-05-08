@@ -7,7 +7,7 @@
 
 <script setup lang="ts">
 import { ref, computed } from 'vue';
-import type { HTMLAudioElement } from 'global';
+
 import { toast } from 'vue-sonner';
 
 const props = defineProps<{
