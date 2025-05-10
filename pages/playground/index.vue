@@ -285,43 +285,82 @@ const handleGenerateScript = async () => {
     } else if (activeTab.value === 'podcast') {
       // New podcast script generation logic
       const {
-        podcastProviderId,
-        podcastHostPersonaId,
-        podcastGuestPersonaId,
-        podcastInstruction,
+        selectedProvider: podcastProviderId,
+        selectedHostPersonaId: podcastHostPersonaId,
+        selectedGuestPersonaId: podcastGuestPersonaId,
+        userInstruction: podcastUserInstruction,
+        podcastName,
+        elevenLabsProjectId
       } = playgroundStore;
 
-      if (!podcastInstruction) {
+      if (!podcastUserInstruction) {
         scriptGenerationError.value = 'Podcast instruction cannot be empty.';
+        isGeneratingScript.value = false;
         return;
       }
       if (!podcastProviderId) {
         scriptGenerationError.value = 'Please select a voice provider for the podcast.';
+        isGeneratingScript.value = false;
         return;
       }
       if (!podcastHostPersonaId) {
         scriptGenerationError.value = 'Please select a host persona for the podcast.';
+        isGeneratingScript.value = false;
         return;
       }
-      // Guest persona can be optional, depending on requirements. For now, let's assume it might be.
-      // if (!podcastGuestPersonaId) {
-      //   scriptGenerationError.value = 'Please select a guest persona for the podcast.';
-      //   return;
-      // }
+      if (!podcastName) {
+        scriptGenerationError.value = 'Podcast name cannot be empty.';
+        isGeneratingScript.value = false;
+        return;
+      }
+      if (!elevenLabsProjectId) {
+        scriptGenerationError.value = 'ElevenLabs Project ID cannot be empty.';
+        isGeneratingScript.value = false;
+        return;
+      }
+      
+      const hostPersona = personas.value.find(p => p.persona_id === podcastHostPersonaId);
+      const guestPersona = personas.value.find(p => p.persona_id === podcastGuestPersonaId);
 
-      const podcastParams = {
-        provider_id: podcastProviderId,
-        host_persona_id: podcastHostPersonaId,
-        guest_persona_id: podcastGuestPersonaId, // Will be null if not selected
-        instruction: podcastInstruction,
-        // The system prompt from PodcastSettings is fixed and backend might have its own or it can be passed
-        // system_prompt: "Use the preset podcast system prompt..." // Or retrieve from store if made dynamic
+      if (!hostPersona) {
+        scriptGenerationError.value = 'Host persona details not found.';
+        isGeneratingScript.value = false;
+        return;
+      }
+      const hostVoiceId = hostPersona.voice_model_identifier;
+      const guestVoiceId = guestPersona ? guestPersona.voice_model_identifier : undefined;
+
+      if (!hostVoiceId) {
+        scriptGenerationError.value = `Host persona '${hostPersona.name}' does not have an ElevenLabs voice ID (using voice_model_identifier).`;
+        isGeneratingScript.value = false;
+        return;
+      }
+      if (podcastGuestPersonaId && !guestVoiceId) {
+        scriptGenerationError.value = `Guest persona '${guestPersona?.name}' does not have an ElevenLabs voice ID (using voice_model_identifier).`;
+        isGeneratingScript.value = false;
+        return;
+      }
+
+      const llmUserPrompt = `Please generate a podcast script in the specified JSON format. \nPodcast Title: "${podcastName}".\nHost: ${hostPersona.name} (${hostPersona.description || 'No description'}).\n${guestPersona ? `Guest: ${guestPersona.name} (${guestPersona.description || 'No description'}).\n` : ''}Topic/Instructions: ${podcastUserInstruction}\nEnsure the 'speaker' field in the JSON uses "${hostPersona.name}" for the host's lines${guestPersona ? ` and "${guestPersona.name}" for the guest's lines.` : '.'}`;
+
+      const backendApiParams = {
+        persona_id: podcastHostPersonaId,
+        user_prompt: llmUserPrompt,
+        createPodcast: true,
+        elevenLabsProjectId: elevenLabsProjectId,
+        podcastName: podcastName,
+        hostVoiceId: hostVoiceId,
+        guestVoiceId: guestVoiceId,
+        podcastSpeakerMapping: {
+          hostIdentifierInScript: hostPersona.name,
+          guestIdentifierInScript: guestPersona ? guestPersona.name : ''
+        }
       };
 
-      const response = await fetch('/api/generate-podcast.post.ts', { // Ensure the endpoint is correct
+      const response = await fetch('/api/generate-script', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(podcastParams),
+        body: JSON.stringify(backendApiParams),
       });
 
       if (!response.ok) {

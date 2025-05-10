@@ -153,18 +153,32 @@ The content of the 'speaker' and 'text' fields should be derived from the user's
       });
     }
 
-    const llmOutputContent = llmResponse.choices[0].message.content.trim();
-    console.log('Backend: Raw content from LLM:', llmOutputContent);
+    const llmOutputContentRaw = llmResponse.choices[0].message.content;
+    console.log('Backend: Raw content from LLM (before trim):', llmOutputContentRaw);
+
+    // Clean the LLM output: remove Markdown code block fences if present
+    let llmOutputContentCleaned = llmOutputContentRaw.trim();
+    if (llmOutputContentCleaned.startsWith('```json')) {
+      llmOutputContentCleaned = llmOutputContentCleaned.substring(7); // Remove ```json
+      if (llmOutputContentCleaned.endsWith('```')) {
+        llmOutputContentCleaned = llmOutputContentCleaned.substring(0, llmOutputContentCleaned.length - 3); // Remove ```
+      }
+    }
+    llmOutputContentCleaned = llmOutputContentCleaned.trim(); // Trim again after potential removals
+
+    console.log('Backend: Cleaned content from LLM (after attempting to remove fences):', llmOutputContentCleaned);
 
     let parsedJsonScript: any;
     try {
-      parsedJsonScript = JSON.parse(llmOutputContent);
+      parsedJsonScript = JSON.parse(llmOutputContentCleaned);
     } catch (e: any) {
-      console.error('Backend: Failed to parse LLM output as JSON.', e.message);
-      console.error('LLM Output was:', llmOutputContent);
+      console.error('Backend: Failed to parse cleaned LLM output as JSON.', e.message);
+      console.error('Cleaned LLM Output was:', llmOutputContentCleaned);
+      // Include the original raw output as well for better debugging if cleaning failed
+      console.error('Original Raw LLM Output was:', llmOutputContentRaw);
       throw createError({
         statusCode: 500,
-        statusMessage: 'LLM output was not valid JSON. Please check the LLM prompt and model capabilities. Raw output: ' + llmOutputContent,
+        statusMessage: 'LLM output was not valid JSON even after cleaning. Raw output: ' + llmOutputContentRaw, // Send raw for debugging
       });
     }
     

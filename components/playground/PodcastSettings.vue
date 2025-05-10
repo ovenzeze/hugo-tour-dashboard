@@ -3,6 +3,16 @@
     <div class="space-y-4">
       <h2 class="text-xl font-semibold">Podcast Script Generation Setup</h2>
 
+      <!-- Podcast Name -->
+      <div>
+        <Input id="podcast-name" v-model="localPodcastName" placeholder="Enter podcast name" />
+      </div>
+
+      <!-- ElevenLabs Project ID -->
+      <div>
+        <Input id="elevenlabs-project-id" v-model="localElevenLabsProjectId" placeholder="Enter ElevenLabs Project ID" />
+      </div>
+
       <!-- 1. Voice Provider -->
       <div>
         <Select v-model="selectedProviderForPodcast" @update:model-value="onProviderChange" id="podcast-provider-select">
@@ -76,7 +86,7 @@ import { ref, computed, watch, type PropType, onMounted } from 'vue';
 // import { toast } from 'vue-sonner'; // toast will be handled by the component triggering API call
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Textarea } from '@/components/ui/textarea';
-// import { Input } from '@/components/ui/input'; 
+import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label'; // Label might still be useful for section titles if needed later
 // import { Button } from '@/components/ui/button';
 // import { Icon } from '@iconify/vue';
@@ -137,6 +147,8 @@ const podcastUserInstruction = ref(initialPodcastInstruction);
 const selectedProviderForPodcast = ref<string | undefined>(props.currentSelectedProvider);
 const selectedHostPersonaId = ref<Persona['persona_id'] | null>(null);
 const selectedGuestPersonaId = ref<Persona['persona_id'] | null>(null);
+const localPodcastName = ref('');
+const localElevenLabsProjectId = ref('');
 
 // Watch for prop changes to sync provider if necessary
 watch(() => props.currentSelectedProvider, (newVal) => {
@@ -156,34 +168,85 @@ const onProviderChange = (newProviderId: string) => {
 
 // Update Pinia store when local settings change
 watch(podcastUserInstruction, (newValue) => {
-  playgroundStore.updatePodcastInstruction(newValue); // Assumed action
+  playgroundStore.updateUserInstruction(newValue);
 });
 watch(selectedProviderForPodcast, (newValue) => {
-  if(newValue) playgroundStore.updatePodcastProvider(newValue); // Assumed action
+  if(newValue) playgroundStore.updateSelectedProvider(newValue);
 });
 watch(selectedHostPersonaId, (newValue) => {
-  playgroundStore.updatePodcastHostPersona(newValue); // Assumed action
+  playgroundStore.updateSelectedHostPersonaId(newValue !== null ? Number(newValue) : null);
 });
 watch(selectedGuestPersonaId, (newValue) => {
-  playgroundStore.updatePodcastGuestPersona(newValue); // Assumed action
+  playgroundStore.updateSelectedGuestPersonaId(newValue !== null ? Number(newValue) : null);
+});
+watch(localPodcastName, (newValue) => {
+  playgroundStore.updatePodcastName(newValue);
+});
+watch(localElevenLabsProjectId, (newValue) => {
+  playgroundStore.updateElevenLabsProjectId(newValue);
 });
 
-// Initialize store with default values on mount if they are not already set
+// Initialize local refs from store on mount, and update store if local initial values are preferred and store is empty.
 onMounted(() => {
-  // Check if store already has values, if not, initialize them from local defaults
-  // This prevents overwriting store values if they were set by other means or persisted
-  if (playgroundStore.podcastInstruction === undefined || playgroundStore.podcastInstruction === '') {
-      playgroundStore.updatePodcastInstruction(podcastUserInstruction.value);
+  // Initialize podcastUserInstruction from store if store has a value, otherwise update store with local initial value.
+  if (playgroundStore.userInstruction) {
+    if (podcastUserInstruction.value !== playgroundStore.userInstruction && podcastUserInstruction.value === initialPodcastInstruction) {
+      // If local is still initial and store has a different value, prefer store's value for local display.
+      podcastUserInstruction.value = playgroundStore.userInstruction;
+    }
+  } else if (podcastUserInstruction.value) {
+    // If store is empty but local has initial value, update store.
+    playgroundStore.updateUserInstruction(podcastUserInstruction.value);
   }
-  if (selectedProviderForPodcast.value && (playgroundStore.podcastProviderId === undefined || playgroundStore.podcastProviderId === '')){
-      playgroundStore.updatePodcastProvider(selectedProviderForPodcast.value);
+
+  // Sync localPodcastName with store
+  if (playgroundStore.podcastName) {
+    localPodcastName.value = playgroundStore.podcastName;
+  } else if (localPodcastName.value) { // If local has a default (e.g. empty string and store is also empty/undefined)
+    // playgroundStore.updatePodcastName(localPodcastName.value); // Only update store if local has a meaningful initial value different from store default
   }
-  // Initializing personas to null is fine, no need to check store if they are already null
-  if (playgroundStore.podcastHostPersonaId === undefined) {
-    playgroundStore.updatePodcastHostPersona(selectedHostPersonaId.value);
+  // Ensure store is updated if it's empty and local has some initial value (even if empty string if that's intended to be default)
+  if (!playgroundStore.podcastName && localPodcastName.value !== playgroundStore.podcastName) {
+    playgroundStore.updatePodcastName(localPodcastName.value);
   }
-  if (playgroundStore.podcastGuestPersonaId === undefined) {
-    playgroundStore.updatePodcastGuestPersona(selectedGuestPersonaId.value);
+
+  // Sync localElevenLabsProjectId with store
+  if (playgroundStore.elevenLabsProjectId) {
+    localElevenLabsProjectId.value = playgroundStore.elevenLabsProjectId;
+  } else if (localElevenLabsProjectId.value) {
+    // playgroundStore.updateElevenLabsProjectId(localElevenLabsProjectId.value);
+  }
+   if (!playgroundStore.elevenLabsProjectId && localElevenLabsProjectId.value !== playgroundStore.elevenLabsProjectId) {
+    playgroundStore.updateElevenLabsProjectId(localElevenLabsProjectId.value);
+  }
+
+  // Sync selectedProviderForPodcast with store
+  if (playgroundStore.selectedProvider) {
+    if (selectedProviderForPodcast.value !== playgroundStore.selectedProvider) {
+      selectedProviderForPodcast.value = playgroundStore.selectedProvider;
+    }
+  } else if (selectedProviderForPodcast.value) {
+    playgroundStore.updateSelectedProvider(selectedProviderForPodcast.value);
+  }
+
+  // Sync selectedHostPersonaId with store
+  const storeHostId = playgroundStore.selectedHostPersonaId !== null ? String(playgroundStore.selectedHostPersonaId) : null;
+  if (storeHostId) {
+    if (selectedHostPersonaId.value !== storeHostId) {
+      selectedHostPersonaId.value = storeHostId;
+    }
+  } else if (selectedHostPersonaId.value) {
+    playgroundStore.updateSelectedHostPersonaId(Number(selectedHostPersonaId.value));
+  }
+
+  // Sync selectedGuestPersonaId with store
+  const storeGuestId = playgroundStore.selectedGuestPersonaId !== null ? String(playgroundStore.selectedGuestPersonaId) : null;
+  if (storeGuestId) {
+    if (selectedGuestPersonaId.value !== storeGuestId) {
+      selectedGuestPersonaId.value = storeGuestId;
+    }
+  } else if (selectedGuestPersonaId.value) {
+    playgroundStore.updateSelectedGuestPersonaId(Number(selectedGuestPersonaId.value));
   }
 });
 
