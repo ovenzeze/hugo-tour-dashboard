@@ -144,6 +144,45 @@ export const usePlaygroundStore = defineStore('playground', {
       this.personasLoading = false;
     },
 
+    // Action to update userInstruction state
+    updateUserInstruction(instruction: string) {
+      this.userInstruction = instruction;
+    },
+
+    updateSelectedProvider(providerId: string | undefined) {
+      this.selectedProvider = providerId;
+    },
+
+    updateSelectedHostPersonaId(personaId: number | null) {
+      this.selectedHostPersonaId = personaId;
+      // Optionally, also update hostVoiceId if the new persona has a voice_model_identifier
+      const hostPersona = this.personas.find(p => p.persona_id === personaId);
+      if (hostPersona?.voice_model_identifier) {
+        this.hostVoiceId = hostPersona.voice_model_identifier;
+      } else if (!personaId) { // If personaId is null, clear hostVoiceId
+        this.hostVoiceId = '';
+      }
+    },
+
+    updateSelectedGuestPersonaId(personaId: number | null) {
+      this.selectedGuestPersonaId = personaId;
+      // Optionally, also update guestVoiceId if the new persona has a voice_model_identifier
+      const guestPersona = this.personas.find(p => p.persona_id === personaId);
+      if (guestPersona?.voice_model_identifier) {
+        this.guestVoiceId = guestPersona.voice_model_identifier;
+      } else if (!personaId) { // If personaId is null, clear guestVoiceId
+        this.guestVoiceId = '';
+      }
+    },
+
+    updatePodcastName(name: string) {
+      this.podcastName = name;
+    },
+    
+    updateElevenLabsProjectId(projectId: string) {
+      this.elevenLabsProjectId = projectId;
+    },
+
     // Action to update createPodcast state
     setCreatePodcast(value: boolean) {
       this.createPodcast = value;

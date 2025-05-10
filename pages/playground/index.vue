@@ -247,25 +247,99 @@ const selectedPersonaVoiceId = computed(() => {
 });
 
 const handleGenerateScript = async () => {
-  if (isGeneratingScript.value || !userInstruction.value) return;
-  isGeneratingScript.value = true;
+  if (isGeneratingScript.value) return;
+
   scriptGenerationError.value = null;
+  isGeneratingScript.value = true;
+  textToSynthesize.value = ''; // Clear previous script
+
   try {
-    const response = await fetch('/api/generate-script', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ instruction: userInstruction.value }),
-    });
-    if (!response.ok) {
-      const errorData = await response.json().catch(() => ({ message: 'Failed to parse error response' }));
-      throw new Error(errorData.message || `HTTP error ${response.status}`);
+    if (activeTab.value === 'standard') {
+      if (!userInstruction.value) {
+        scriptGenerationError.value = 'User instruction cannot be empty for standard script generation.';
+        return;
+      }
+      if (!selectedPersonaId.value) {
+        scriptGenerationError.value = 'Please select a persona for standard script generation.';
+        return;
+      }
+      // Existing standard script generation logic
+      const response = await fetch('/api/generate-script', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          instruction: userInstruction.value,
+          persona_id: selectedPersonaId.value,
+          // Potentially send other params like temperature if your API supports it
+        }),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({ message: 'Failed to generate script.' }));
+        throw new Error(errorData.message || `HTTP error! status: ${response.status}`);
+      }
+      const data = await response.json();
+      textToSynthesize.value = data.script;
+      toast.success('Script generated successfully!');
+
+    } else if (activeTab.value === 'podcast') {
+      // New podcast script generation logic
+      const {
+        podcastProviderId,
+        podcastHostPersonaId,
+        podcastGuestPersonaId,
+        podcastInstruction,
+      } = playgroundStore;
+
+      if (!podcastInstruction) {
+        scriptGenerationError.value = 'Podcast instruction cannot be empty.';
+        return;
+      }
+      if (!podcastProviderId) {
+        scriptGenerationError.value = 'Please select a voice provider for the podcast.';
+        return;
+      }
+      if (!podcastHostPersonaId) {
+        scriptGenerationError.value = 'Please select a host persona for the podcast.';
+        return;
+      }
+      // Guest persona can be optional, depending on requirements. For now, let's assume it might be.
+      // if (!podcastGuestPersonaId) {
+      //   scriptGenerationError.value = 'Please select a guest persona for the podcast.';
+      //   return;
+      // }
+
+      const podcastParams = {
+        provider_id: podcastProviderId,
+        host_persona_id: podcastHostPersonaId,
+        guest_persona_id: podcastGuestPersonaId, // Will be null if not selected
+        instruction: podcastInstruction,
+        // The system prompt from PodcastSettings is fixed and backend might have its own or it can be passed
+        // system_prompt: "Use the preset podcast system prompt..." // Or retrieve from store if made dynamic
+      };
+
+      const response = await fetch('/api/generate-podcast.post.ts', { // Ensure the endpoint is correct
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(podcastParams),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({ message: 'Failed to generate podcast script.' }));
+        throw new Error(errorData.message || `HTTP error! status: ${response.status}`);
+      }
+      const data = await response.json();
+      if (data.script) {
+        textToSynthesize.value = data.script;
+        toast.success('Podcast script generated successfully!');
+      } else {
+        throw new Error(data.message || 'Podcast script generation failed to return a script.');
+      }
     }
-    const data = await response.json();
-    textToSynthesize.value = data.script;
-    toast.success('Script generated successfully!');
   } catch (err: any) {
-    scriptGenerationError.value = err.message || 'An unexpected error occurred while generating the script.';
-    toast.error('Script Generation Failed', { description: scriptGenerationError.value });
+    console.error('Error generating script:', err);
+    scriptGenerationError.value = err.message || 'An unexpected error occurred.';
+    toast.error('Script Generation Failed', { description: err.message });
   } finally {
     isGeneratingScript.value = false;
   }
