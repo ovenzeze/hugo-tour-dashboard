@@ -8,9 +8,30 @@
         <Input id="podcast-name" v-model="localPodcastName" placeholder="Enter podcast name" />
       </div>
 
-      <!-- ElevenLabs Project ID -->
+      <!-- ElevenLabs Project ID (Dropdown Select) -->
       <div>
-        <Input id="elevenlabs-project-id" v-model="localElevenLabsProjectId" placeholder="Enter ElevenLabs Project ID" />
+        <div class="flex items-center gap-2 mb-1">
+          <span class="text-sm font-medium text-gray-700 dark:text-gray-300">ElevenLabs Project</span>
+          <Button variant="link" size="xs" @click="fetchProjects" :disabled="projectsLoading" class="text-xs p-0 h-auto">
+            <Icon name="material-symbols:refresh" class="mr-1 h-3 w-3" />
+            Refresh
+          </Button>
+          <span v-if="projectsLoading" class="text-xs text-gray-500 dark:text-gray-400 ml-2">Loading projects...</span>
+        </div>
+        <Select v-model="localElevenLabsProjectId" :disabled="projectsLoading || !elevenLabsProjects.length">
+          <SelectTrigger class="w-full">
+            <SelectValue placeholder="Select an ElevenLabs project" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem v-if="elevenLabsProjects.length === 0 && !projectsLoading && !projectsError" value="no-projects" disabled>
+              No projects found.
+            </SelectItem>
+            <SelectItem v-for="proj in elevenLabsProjects" :key="proj.project_id" :value="proj.project_id">
+              {{ proj.name }} <span class="text-xs text-muted-foreground ml-1">({{ proj.project_id }})</span>
+            </SelectItem>
+          </SelectContent>
+        </Select>
+        <div v-if="projectsError" class="text-xs text-red-500 dark:text-red-400 mt-1">{{ projectsError }}</div>
       </div>
 
       <!-- 1. Voice Provider -->
@@ -88,8 +109,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Textarea } from '@/components/ui/textarea';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label'; // Label might still be useful for section titles if needed later
-// import { Button } from '@/components/ui/button';
-// import { Icon } from '@iconify/vue';
+import { Button } from '@/components/ui/button';
+import { Icon } from '@iconify/vue';
 import type { Database, Tables } from '@/types/supabase';
 import { usePlaygroundStore } from '@/stores/playground'; // Assuming this is your Pinia store
 
@@ -98,6 +119,17 @@ type Persona = Tables<'personas'>;
 interface VoiceProvider {
   id: string;
   name: string;
+}
+
+interface ElevenLabsProject {
+  project_id: string;
+  name: string;
+  // Add other fields if needed from the API response
+}
+
+interface ElevenLabsProjectsResponse {
+  projects: ElevenLabsProject[];
+  error?: string; // To handle potential error responses from our backend API
 }
 
 // Interface for script segments might be needed by the store or parent component later
@@ -148,7 +180,52 @@ const selectedProviderForPodcast = ref<string | undefined>(props.currentSelected
 const selectedHostPersonaId = ref<Persona['persona_id'] | null>(null);
 const selectedGuestPersonaId = ref<Persona['persona_id'] | null>(null);
 const localPodcastName = ref('');
-const localElevenLabsProjectId = ref('');
+const localElevenLabsProjectId = ref<string | undefined>(undefined);
+
+const elevenLabsProjects = ref<ElevenLabsProject[]>([]);
+const projectsLoading = ref(false);
+const projectsError = ref('');
+
+const fetchProjects = async () => {
+  projectsLoading.value = true;
+  projectsError.value = '';
+  try {
+    // Type the response from $fetch
+    const res = await $fetch<ElevenLabsProjectsResponse>('/api/elevenlabs-projects');
+    
+    if (res.error) {
+      projectsError.value = res.error;
+      elevenLabsProjects.value = [];
+    } else if (res.projects && Array.isArray(res.projects)) {
+      elevenLabsProjects.value = res.projects;
+      // Default select the first project if current localElevenLabsProjectId is not set or not in the new list
+      if (res.projects.length > 0) {
+        const currentIdIsValid = res.projects.some(p => p.project_id === localElevenLabsProjectId.value);
+        if (!localElevenLabsProjectId.value || !currentIdIsValid) {
+           const storeProjectId = playgroundStore.elevenLabsProjectId;
+           if (storeProjectId && res.projects.some(p => p.project_id === storeProjectId)) {
+             localElevenLabsProjectId.value = storeProjectId;
+           } else {
+             localElevenLabsProjectId.value = res.projects[0].project_id;
+           }
+        }
+      } else {
+        localElevenLabsProjectId.value = undefined; // No projects, so no selection
+      }
+    } else {
+      projectsError.value = 'Invalid response format when fetching projects.';
+      elevenLabsProjects.value = [];
+      localElevenLabsProjectId.value = undefined;
+    }
+  } catch (e: any) {
+    console.error("Fetch projects error:", e);
+    projectsError.value = e.data?.message || e.message || 'Failed to fetch ElevenLabs projects.';
+    elevenLabsProjects.value = [];
+    localElevenLabsProjectId.value = undefined;
+  } finally {
+    projectsLoading.value = false;
+  }
+};
 
 // Watch for prop changes to sync provider if necessary
 watch(() => props.currentSelectedProvider, (newVal) => {
@@ -183,11 +260,13 @@ watch(localPodcastName, (newValue) => {
   playgroundStore.updatePodcastName(newValue);
 });
 watch(localElevenLabsProjectId, (newValue) => {
-  playgroundStore.updateElevenLabsProjectId(newValue);
+  playgroundStore.updateElevenLabsProjectId(newValue || ''); // Ensure empty string if undefined
 });
 
 // Initialize local refs from store on mount, and update store if local initial values are preferred and store is empty.
 onMounted(() => {
+  fetchProjects(); // Fetch projects when component mounts
+
   // Initialize podcastUserInstruction from store if store has a value, otherwise update store with local initial value.
   if (playgroundStore.userInstruction) {
     if (podcastUserInstruction.value !== playgroundStore.userInstruction && podcastUserInstruction.value === initialPodcastInstruction) {
