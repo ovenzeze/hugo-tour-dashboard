@@ -1,343 +1,244 @@
 <template>
-  <div class="space-y-6">
+  <div class="space-y-6 text-sm">
     <div class="space-y-4">
-      <h2 class="text-xl font-semibold">Podcast Script Generation Setup</h2>
+      <h3 class="text-base font-semibold text-gray-900 dark:text-gray-100">Content & Structure</h3>
+      <Input id="podcast-name" v-model="podcastSettings.title" placeholder="Podcast Episode Title (e.g., Exploring Deep Space)" />
+      
+      <Textarea
+        id="podcast-topic"
+        v-model="podcastSettings.topic"
+        placeholder="Main Topic / Theme (e.g., The future of AI in education...)"
+        rows="3"
+      />
 
-      <!-- Podcast Name -->
-      <div>
-        <Input id="podcast-name" v-model="localPodcastName" placeholder="Enter podcast name" />
-      </div>
-
-      <!-- ElevenLabs Project ID (Dropdown Select) -->
-      <div>
-        <div class="flex items-center gap-2 mb-1">
-          <span class="text-sm font-medium text-gray-700 dark:text-gray-300">ElevenLabs Project</span>
-          <Button variant="link" size="xs" @click="fetchProjects" :disabled="projectsLoading" class="text-xs p-0 h-auto">
-            <Icon name="material-symbols:refresh" class="mr-1 h-3 w-3" />
-            Refresh
-          </Button>
-          <span v-if="projectsLoading" class="text-xs text-gray-500 dark:text-gray-400 ml-2">Loading projects...</span>
-        </div>
-        <Select v-model="localElevenLabsProjectId" :disabled="projectsLoading || !elevenLabsProjects.length">
-          <SelectTrigger class="w-full">
-            <SelectValue placeholder="Select an ElevenLabs project" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem v-if="elevenLabsProjects.length === 0 && !projectsLoading && !projectsError" value="no-projects" disabled>
-              No projects found.
-            </SelectItem>
-            <SelectItem v-for="proj in elevenLabsProjects" :key="proj.project_id" :value="proj.project_id">
-              {{ proj.name }} <span class="text-xs text-muted-foreground ml-1">({{ proj.project_id }})</span>
-            </SelectItem>
-          </SelectContent>
-        </Select>
-        <div v-if="projectsError" class="text-xs text-red-500 dark:text-red-400 mt-1">{{ projectsError }}</div>
-      </div>
-
-      <!-- 1. Voice Provider -->
-      <div>
-        <Select v-model="selectedProviderForPodcast" @update:model-value="onProviderChange" id="podcast-provider-select">
-          <SelectTrigger class="w-full">
-            <SelectValue placeholder="Select voice provider" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem v-for="provider in props.providers" :key="provider.id" :value="provider.id" class="dark:hover:bg-gray-700">
-              {{ provider.name }}
-            </SelectItem>
-          </SelectContent>
-        </Select>
-      </div>
-
-      <!-- 2. Host Persona -->
-      <div>
-        <Select v-model="selectedHostPersonaId" :disabled="!selectedProviderForPodcast || props.personasLoading || !props.personas || props.personas.length === 0" id="host-persona-select">
-          <SelectTrigger class="w-full">
-            <SelectValue placeholder="Select Host Persona" />
-          </SelectTrigger>
-          <SelectContent>
-            <p v-if="props.personasLoading" class="p-2 text-sm text-gray-500 dark:text-gray-400">Loading personas...</p>
-            <SelectItem v-else v-for="persona in props.personas" :key="persona.persona_id" :value="String(persona.persona_id)" class="dark:hover:bg-gray-700">
-              {{ persona.name }}
-            </SelectItem>
-          </SelectContent>
-        </Select>
-      </div>
-
-      <!-- 3. Guest Persona -->
-      <div>
-        <Select v-model="selectedGuestPersonaId" :disabled="!selectedProviderForPodcast || props.personasLoading || !props.personas || props.personas.length === 0" id="guest-persona-select">
-          <SelectTrigger class="w-full">
-            <SelectValue placeholder="Select Guest Persona" />
-          </SelectTrigger>
-          <SelectContent>
-            <p v-if="props.personasLoading" class="p-2 text-sm text-gray-500 dark:text-gray-400">Loading personas...</p>
-            <SelectItem v-else v-for="persona in props.personas" :key="persona.persona_id" :value="String(persona.persona_id)" class="dark:hover:bg-gray-700">
-              {{ persona.name }}
-            </SelectItem>
-          </SelectContent>
-        </Select>
-      </div>
-
-      <!-- 4. User Instruction -->
-      <div>
-        <Textarea
-          id="podcast-user-instruction"
-          v-model="podcastUserInstruction"
-          placeholder="Podcast Topic / Instructions (e.g., A 3-segment podcast discussing the future of AI in education...)"
-          class="min-h-[150px]"
+      <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+        <Input 
+          id="podcast-segments" 
+          v-model.number="podcastSettings.numberOfSegments" 
+          type="number" 
+          placeholder="Number of Segments (e.g., 3)" 
+          min="1"
+        />
+        <Input 
+          id="podcast-style" 
+          v-model="podcastSettings.style" 
+          placeholder="Podcast Style / Tone (e.g., Conversational)" 
         />
       </div>
-      
-      <!-- 5. System Prompt (Fixed) -->
-      <div>
-        <div
-          id="podcast-system-prompt-display"
-          class="p-3 bg-muted/40 dark:bg-muted/30 rounded-md border border-dashed text-sm text-muted-foreground min-h-[100px] whitespace-pre-wrap select-text"
-          aria-label="System Prompt (Preset)"
-        >
-          {{ podcastSystemPrompt }} 
+
+      <Textarea
+        id="podcast-keywords"
+        v-model="podcastSettings.keywords"
+        placeholder="Key Talking Points / Keywords (comma-separated, e.g., AI, future, ethics)"
+        rows="2"
+      />
+    </div>
+
+    <div class="space-y-4">
+      <h3 class="text-base font-semibold text-gray-900 dark:text-gray-100">Voice & Personas</h3>
+      <Select v-model="selectedProviderForPodcast" @update:model-value="onProviderChange" id="podcast-provider-select">
+        <SelectTrigger class="w-full">
+          <SelectValue placeholder="Select voice provider" />
+        </SelectTrigger>
+        <SelectContent>
+          <SelectItem v-for="provider in props.providers" :key="provider.id" :value="provider.id">
+            {{ provider.name }}
+          </SelectItem>
+        </SelectContent>
+      </Select>
+
+      <!-- Host Persona Selection -->
+      <div class="mb-6">
+        <h3 class="text-lg font-medium text-gray-900 dark:text-gray-100 mb-2">Host Persona</h3>
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div>
+            <Select v-model="podcastSettings.hostPersonaId" :disabled="props.personasLoading">
+              <SelectTrigger class="w-full border-blue-300 dark:border-blue-700">
+                <SelectValue :placeholder="props.personasLoading ? 'Loading...' : 'Select host persona'" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem v-for="persona in props.personas" :key="persona.id" :value="persona.id">
+                  {{ persona.name }}
+                </SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
         </div>
       </div>
+
+      <!-- Guest Personas Selection -->
+      <div class="mb-6">
+        <h3 class="text-lg font-medium text-gray-900 dark:text-gray-100 mb-2">Guest Personas</h3>
+        <p class="text-sm text-gray-500 dark:text-gray-400 mb-4">Add up to 3 guest personas for your podcast.</p>
+        <div v-for="(guestId, index) in podcastSettings.guestPersonaIds" :key="index" class="mb-4 border-b border-gray-200 dark:border-gray-700 pb-4">
+          <div class="flex justify-between items-center mb-2">
+            <h4 class="text-md font-medium text-gray-800 dark:text-gray-200">Guest {{ index + 1 }}</h4>
+            <Button variant="ghost" size="sm" @click="removeGuest(index)" v-if="podcastSettings.guestPersonaIds.length > 0">
+              <X class="h-4 w-4" />
+              Remove
+            </Button>
+          </div>
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div>
+              <Select v-model="podcastSettings.guestPersonaIds[index]" :disabled="props.personasLoading">
+                <SelectTrigger class="w-full border-green-300 dark:border-green-700">
+                  <SelectValue :placeholder="props.personasLoading ? 'Loading...' : `Select guest persona ${index + 1}`" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem v-for="persona in availableGuestPersonas(guestId)" :key="persona.id" :value="persona.id">
+                    {{ persona.name }}
+                  </SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+        </div>
+        <Button class="mt-2" variant="outline" @click="addGuest" :disabled="podcastSettings.guestPersonaIds.length >= 3">
+          <Plus class="h-4 w-4 mr-2" />
+          Add Guest
+        </Button>
+      </div>
+    </div>
+
+    <div class="space-y-4">
+      <h3 class="text-base font-semibold text-gray-900 dark:text-gray-100">Audio & Effects</h3>
+      <Input 
+        id="podcast-music" 
+        v-model="podcastSettings.backgroundMusic" 
+        placeholder="Background Music Theme (e.g., Uplifting, Chill, Mysterious... or None)" 
+      />
+    </div>
+
+    <!-- Configuration Completeness -->
+    <div class="mt-2 text-xs" :class="configCompleteness.textColor">
+      Configuration Status: {{ configCompleteness.statusText }} ({{ configCompleteness.percentage }}%)
+    </div>
+    <!-- Save Status -->
+    <div v-if="showSaveStatus" class="mt-2 text-xs text-green-600 dark:text-green-400">
+      Settings applied!
     </div>
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref, computed, watch, type PropType, onMounted } from 'vue';
-// import { toast } from 'vue-sonner'; // toast will be handled by the component triggering API call
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Textarea } from '@/components/ui/textarea';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label'; // Label might still be useful for section titles if needed later
+import { ref, watch, computed, onMounted, reactive } from 'vue';
 import { Button } from '@/components/ui/button';
-import { Icon } from '@iconify/vue';
-import type { Database, Tables } from '@/types/supabase';
-import { usePlaygroundStore } from '@/stores/playground'; // Assuming this is your Pinia store
-
-type Persona = Tables<'personas'>;
+import { Input } from '@/components/ui/input';
+import { Textarea } from '@/components/ui/textarea';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
+import { X, Plus } from 'lucide-vue-next';
+import type { Persona } from '@/types/persona'; 
+import type { FullPodcastSettings } from '@/stores/playground'; 
 
 interface VoiceProvider {
   id: string;
   name: string;
 }
 
-interface ElevenLabsProject {
-  project_id: string;
-  name: string;
-  // Add other fields if needed from the API response
-}
+const props = defineProps<{
+  personas: Persona[];
+  personasLoading: boolean;
+  providers: VoiceProvider[];
+  currentSelectedProvider: string | undefined;
+  initialSettings: FullPodcastSettings; // Ensure initialSettings is defined as a required prop
+}>();
 
-interface ElevenLabsProjectsResponse {
-  projects: ElevenLabsProject[];
-  error?: string; // To handle potential error responses from our backend API
-}
+const emit = defineEmits<{ 
+  (e: 'update:selectedProvider', providerId: string | undefined): void;
+  (e: 'update:podcastSettings', settings: FullPodcastSettings): void;
+}>();
 
-// Interface for script segments might be needed by the store or parent component later
-// interface PodcastScriptSegment {
-//   id?: string; 
-//   role: string;
-//   text: string;
-// }
-
-const props = defineProps({
-  personas: {
-    type: Array as PropType<Persona[]>,
-    default: () => []
-  },
-  personasLoading: {
-    type: Boolean,
-    default: false
-  },
-  providers: {
-    type: Array as PropType<VoiceProvider[]>,
-    default: () => []
-  },
-  currentSelectedProvider: {
-    type: String as PropType<string | undefined>,
-    default: undefined
-  }
+const podcastSettings = ref<FullPodcastSettings>({
+  ...(props.initialSettings || {}),
+  guestPersonaIds: props.initialSettings?.guestPersonaIds || []
 });
 
-// const emit = defineEmits(['update:selectedProvider']); // Not emitting for now, parent updates prop
+const showSaveStatus = ref(false);
+let saveStatusTimeout: NodeJS.Timeout | null = null;
 
-const playgroundStore = usePlaygroundStore();
+// Update podcastSettings if initialSettings prop changes from parent
+watch(() => props.initialSettings, (newSettings) => {
+  podcastSettings.value = {
+    ...(newSettings || {}), // Default to empty object if newSettings is undefined
+    guestPersonaIds: newSettings?.guestPersonaIds || [] // Use optional chaining and fallback
+  };
+}, { deep: true, immediate: true });
 
-const initialPodcastInstruction = `Podcast Topic: "The Ethics of AI"
+// Emit changes to parent whenever podcastSettings changes
+const emitSettings = () => {
+  emit('update:podcastSettings', { ...podcastSettings.value });
+  showSaveStatus.value = true;
+  if (saveStatusTimeout) clearTimeout(saveStatusTimeout);
+  saveStatusTimeout = setTimeout(() => {
+    showSaveStatus.value = false;
+  }, 2000);
+};
 
-Cast:
-- Host: [Selected via dropdown]
-- Guest: [Selected via dropdown]
+watch(podcastSettings, () => {
+  emitSettings();
+}, { deep: true });
 
-Key Discussion Points / Script Outline:
-- Segment 1: Discuss current AI advancements and public perception.
-- Segment 2: Explore ethical challenges (e.g., bias, privacy).
-- Segment 3: Cover future outlook and responsible AI development.
+const configCompleteness = computed(() => {
+  let completedFields = 0;
+  const totalFields = 4; // title, topic, hostPersonaId, voiceProvider
 
-Overall Tone: Informative and engaging.`;
+  if (podcastSettings.value.title?.trim()) completedFields++;
+  if (podcastSettings.value.topic?.trim()) completedFields++;
+  if (podcastSettings.value.hostPersonaId) completedFields++;
+  if (selectedProviderForPodcast.value) completedFields++; // Assuming selectedProviderForPodcast reflects voice_provider_id
 
-const podcastUserInstruction = ref(initialPodcastInstruction);
-const selectedProviderForPodcast = ref<string | undefined>(props.currentSelectedProvider);
-const selectedHostPersonaId = ref<Persona['persona_id'] | null>(null);
-const selectedGuestPersonaId = ref<Persona['persona_id'] | null>(null);
-const localPodcastName = ref('');
-const localElevenLabsProjectId = ref<string | undefined>(undefined);
+  const percentage = Math.round((completedFields / totalFields) * 100);
+  let statusText = 'Incomplete';
+  let textColor = 'text-red-600 dark:text-red-400';
 
-const elevenLabsProjects = ref<ElevenLabsProject[]>([]);
-const projectsLoading = ref(false);
-const projectsError = ref('');
+  if (percentage === 100) {
+    statusText = 'Ready to Generate';
+    textColor = 'text-green-600 dark:text-green-400';
+  } else if (percentage > 50) {
+    statusText = 'Almost Ready';
+    textColor = 'text-yellow-600 dark:text-yellow-400';
+  }
+  return { percentage, statusText, textColor };
+});
 
-const fetchProjects = async () => {
-  projectsLoading.value = true;
-  projectsError.value = '';
-  try {
-    // Type the response from $fetch
-    const res = await $fetch<ElevenLabsProjectsResponse>('/api/elevenlabs-projects');
-    
-    if (res.error) {
-      projectsError.value = res.error;
-      elevenLabsProjects.value = [];
-    } else if (res.projects && Array.isArray(res.projects)) {
-      elevenLabsProjects.value = res.projects;
-      // Default select the first project if current localElevenLabsProjectId is not set or not in the new list
-      if (res.projects.length > 0) {
-        const currentIdIsValid = res.projects.some(p => p.project_id === localElevenLabsProjectId.value);
-        if (!localElevenLabsProjectId.value || !currentIdIsValid) {
-           const storeProjectId = playgroundStore.elevenLabsProjectId;
-           if (storeProjectId && res.projects.some(p => p.project_id === storeProjectId)) {
-             localElevenLabsProjectId.value = storeProjectId;
-           } else {
-             localElevenLabsProjectId.value = res.projects[0].project_id;
-           }
-        }
-      } else {
-        localElevenLabsProjectId.value = undefined; // No projects, so no selection
-      }
-    } else {
-      projectsError.value = 'Invalid response format when fetching projects.';
-      elevenLabsProjects.value = [];
-      localElevenLabsProjectId.value = undefined;
-    }
-  } catch (e: any) {
-    console.error("Fetch projects error:", e);
-    projectsError.value = e.data?.message || e.message || 'Failed to fetch ElevenLabs projects.';
-    elevenLabsProjects.value = [];
-    localElevenLabsProjectId.value = undefined;
-  } finally {
-    projectsLoading.value = false;
+const selectedProviderForPodcast = ref(props.currentSelectedProvider);
+
+const onProviderChange = (providerId: string | undefined) => {
+  selectedProviderForPodcast.value = providerId;
+  emit('update:selectedProvider', providerId);
+};
+
+const addGuest = () => {
+  if (podcastSettings.value.guestPersonaIds.length < 3) {
+    podcastSettings.value.guestPersonaIds.push('');
   }
 };
 
-// Watch for prop changes to sync provider if necessary
-watch(() => props.currentSelectedProvider, (newVal) => {
-  if (selectedProviderForPodcast.value !== newVal) {
-    selectedProviderForPodcast.value = newVal;
-    // Also update store if parent changes it, assuming parent is the source of truth for this prop
-    // playgroundStore.updatePodcastProvider(newVal); 
-  }
-});
-
-const onProviderChange = (newProviderId: string) => {
-  selectedProviderForPodcast.value = newProviderId;
-  // Emit or call store action if this component can change the shared provider state
-  // emit('update:selectedProvider', newProviderId);
-  // playgroundStore.updatePodcastProvider(newProviderId);
+const removeGuest = (index: number) => {
+  podcastSettings.value.guestPersonaIds.splice(index, 1);
 };
 
-// Update Pinia store when local settings change
-watch(podcastUserInstruction, (newValue) => {
-  playgroundStore.updateUserInstruction(newValue);
-});
-watch(selectedProviderForPodcast, (newValue) => {
-  if(newValue) playgroundStore.updateSelectedProvider(newValue);
-});
-watch(selectedHostPersonaId, (newValue) => {
-  playgroundStore.updateSelectedHostPersonaId(newValue !== null ? Number(newValue) : null);
-});
-watch(selectedGuestPersonaId, (newValue) => {
-  playgroundStore.updateSelectedGuestPersonaId(newValue !== null ? Number(newValue) : null);
-});
-watch(localPodcastName, (newValue) => {
-  playgroundStore.updatePodcastName(newValue);
-});
-watch(localElevenLabsProjectId, (newValue) => {
-  playgroundStore.updateElevenLabsProjectId(newValue || ''); // Ensure empty string if undefined
+// Compute available personas for guests (exclude selected host and other selected guests)
+const availableGuestPersonas = computed(() => {
+  return (currentGuestId: number | undefined) => {
+    return props.personas.filter(persona => {
+      // Exclude the host persona
+      if (persona.id === podcastSettings.value.hostPersonaId) return false;
+      // Exclude other selected guest personas, unless it's the current slot being edited
+      if (podcastSettings.value.guestPersonaIds.some((id, idx) => id === persona.id && currentGuestId !== undefined && idx !== currentGuestId)) return false;
+      return true;
+    });
+  };
 });
 
-// Initialize local refs from store on mount, and update store if local initial values are preferred and store is empty.
 onMounted(() => {
-  fetchProjects(); // Fetch projects when component mounts
-
-  // Initialize podcastUserInstruction from store if store has a value, otherwise update store with local initial value.
-  if (playgroundStore.userInstruction) {
-    if (podcastUserInstruction.value !== playgroundStore.userInstruction && podcastUserInstruction.value === initialPodcastInstruction) {
-      // If local is still initial and store has a different value, prefer store's value for local display.
-      podcastUserInstruction.value = playgroundStore.userInstruction;
-    }
-  } else if (podcastUserInstruction.value) {
-    // If store is empty but local has initial value, update store.
-    playgroundStore.updateUserInstruction(podcastUserInstruction.value);
-  }
-
-  // Sync localPodcastName with store
-  if (playgroundStore.podcastName) {
-    localPodcastName.value = playgroundStore.podcastName;
-  } else if (localPodcastName.value) { // If local has a default (e.g. empty string and store is also empty/undefined)
-    // playgroundStore.updatePodcastName(localPodcastName.value); // Only update store if local has a meaningful initial value different from store default
-  }
-  // Ensure store is updated if it's empty and local has some initial value (even if empty string if that's intended to be default)
-  if (!playgroundStore.podcastName && localPodcastName.value !== playgroundStore.podcastName) {
-    playgroundStore.updatePodcastName(localPodcastName.value);
-  }
-
-  // Sync localElevenLabsProjectId with store
-  if (playgroundStore.elevenLabsProjectId) {
-    localElevenLabsProjectId.value = playgroundStore.elevenLabsProjectId;
-  } else if (localElevenLabsProjectId.value) {
-    // playgroundStore.updateElevenLabsProjectId(localElevenLabsProjectId.value);
-  }
-   if (!playgroundStore.elevenLabsProjectId && localElevenLabsProjectId.value !== playgroundStore.elevenLabsProjectId) {
-    playgroundStore.updateElevenLabsProjectId(localElevenLabsProjectId.value);
-  }
-
-  // Sync selectedProviderForPodcast with store
-  if (playgroundStore.selectedProvider) {
-    if (selectedProviderForPodcast.value !== playgroundStore.selectedProvider) {
-      selectedProviderForPodcast.value = playgroundStore.selectedProvider;
-    }
-  } else if (selectedProviderForPodcast.value) {
-    playgroundStore.updateSelectedProvider(selectedProviderForPodcast.value);
-  }
-
-  // Sync selectedHostPersonaId with store
-  const storeHostId = playgroundStore.selectedHostPersonaId !== null ? String(playgroundStore.selectedHostPersonaId) : null;
-  if (storeHostId) {
-    if (selectedHostPersonaId.value !== storeHostId) {
-      selectedHostPersonaId.value = storeHostId;
-    }
-  } else if (selectedHostPersonaId.value) {
-    playgroundStore.updateSelectedHostPersonaId(Number(selectedHostPersonaId.value));
-  }
-
-  // Sync selectedGuestPersonaId with store
-  const storeGuestId = playgroundStore.selectedGuestPersonaId !== null ? String(playgroundStore.selectedGuestPersonaId) : null;
-  if (storeGuestId) {
-    if (selectedGuestPersonaId.value !== storeGuestId) {
-      selectedGuestPersonaId.value = storeGuestId;
-    }
-  } else if (selectedGuestPersonaId.value) {
-    playgroundStore.updateSelectedGuestPersonaId(Number(selectedGuestPersonaId.value));
-  }
+  // Ensure initial settings are emitted on mount if needed
+  emitSettings();
 });
-
-
-const presetSystemPrompt = "This is a preset system prompt for podcast generation. The AI will generate a multi-turn dialogue script based on the user instructions, host, and guest personas. Ensure the conversation flows naturally and adheres to the defined roles.";
-
-const podcastSystemPrompt = computed(() => {
-  return presetSystemPrompt;
-});
-
 </script>
-
-<style scoped>
-/* Add any specific styles for the PodcastSettings component here */
-</style>

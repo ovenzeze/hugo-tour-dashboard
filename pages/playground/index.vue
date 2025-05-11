@@ -86,13 +86,14 @@
                 </div>
               </TabsContent>
               <TabsContent value="podcast" class="space-y-6">
-                <PodcastSettings 
-                  :personas="personas"
-                  :personas-loading="personasLoading"
-                  :providers="providers"
-                  :current-selected-provider="selectedProvider"
-                  @update:selectedProvider="val => selectedProvider = val" />
-              </TabsContent>
+  <PodcastStatusBar :status="podcastStatus" :progress-value="podcastProgress" />
+  <PodcastSettings 
+    :personas="personas"
+    :personas-loading="personasLoading"
+    :providers="providers"
+    :current-selected-provider="selectedProvider"
+    @update:selectedProvider="val => selectedProvider = val" />
+</TabsContent>
             </Tabs>
           </CardContent>
         </Card>
@@ -144,6 +145,9 @@
 
 <script setup lang="ts">
 import { ref, reactive, onMounted, onUnmounted, watch, nextTick, computed } from 'vue';
+// Podcast生成流程状态
+const podcastStatus = ref<'idle'|'generatingScript'|'generatingAudio'|'generatingSegments'|'editingSegments'|'mixing'|'done'>('idle');
+const podcastProgress = ref(0);
 import { toast } from 'vue-sonner';
 import { Slider } from '@/components/ui/slider';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -156,6 +160,9 @@ import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
 import PlaygroundToolbar from '@/components/PlaygroundToolbar.vue';
 import AudioHandler from '@/components/audio/AudioHandler.vue';
 import PodcastSettings from '@/components/playground/PodcastSettings.vue';
+import PodcastStatusBar from '@/components/playground/PodcastStatusBar.vue';
+
+
 import { usePlaygroundStore } from '@/stores/playground';
 import type { Database } from '@/types/supabase'; // Import Database type
 import { useSupabaseClient } from '#imports';

@@ -12,6 +12,18 @@ export interface SynthesisParams {
   speed: number;
 }
 
+export interface FullPodcastSettings {
+  title: string;
+  topic: string;
+  numberOfSegments: number;
+  style: string; 
+  keywords: string; 
+  hostPersonaId: number | string | undefined; // Allow string for initial prop, store as number
+  guestPersonaIds: (number | string | undefined)[]; // Allow string for initial prop, store as number
+  backgroundMusic: string | undefined;
+  elevenLabsProjectId: string | undefined;
+}
+
 export interface PlaygroundState {
   personas: Persona[];
   personasLoading: boolean;
@@ -29,6 +41,8 @@ export interface PlaygroundState {
   hostVoiceId: string;
   selectedGuestPersonaId: number | null;
   guestVoiceId: string;
+
+  podcastSettings: FullPodcastSettings;
 
   synthesisParams: SynthesisParams;
   isGeneratingScript: boolean;
@@ -58,6 +72,19 @@ export const usePlaygroundStore = defineStore('playground', {
     hostVoiceId: '',
     selectedGuestPersonaId: null,
     guestVoiceId: '',
+
+    podcastSettings: {
+      title: '',
+      topic: "The Ethics of AI", // Default topic
+      numberOfSegments: 3,
+      style: 'casual',
+      keywords: '',
+      hostPersonaId: undefined,
+      guestPersonaIds: [],
+      backgroundMusic: 'none',
+      elevenLabsProjectId: undefined,
+    } as FullPodcastSettings,
+
     synthesisParams: {
       temperature: 0.5,
       speed: 1.0,
@@ -93,13 +120,13 @@ export const usePlaygroundStore = defineStore('playground', {
     canGeneratePodcastScript(state): boolean {
       return !!(
         state.createPodcast &&
-        state.userInstruction.trim() &&
-        state.elevenLabsProjectId.trim() &&
-        state.podcastName.trim() &&
-        state.selectedHostPersonaId !== null &&
-        state.hostVoiceId.trim() &&
-        state.selectedGuestPersonaId !== null &&
-        state.guestVoiceId.trim()
+        state.podcastSettings.topic.trim() &&
+        state.podcastSettings.elevenLabsProjectId?.trim() && // Optional chaining for safety
+        state.podcastSettings.title.trim() &&
+        state.podcastSettings.hostPersonaId !== null && state.podcastSettings.hostPersonaId !== undefined &&
+        // state.hostVoiceId.trim() && // Voice ID is derived, so persona selection is key
+        state.podcastSettings.guestPersonaIds.length > 0 // Example: require at least one guest for this getter logic
+        // state.guestVoiceId.trim() // Voice ID is derived
       );
     }
   },
@@ -181,6 +208,42 @@ export const usePlaygroundStore = defineStore('playground', {
     
     updateElevenLabsProjectId(projectId: string) {
       this.elevenLabsProjectId = projectId;
+      this.podcastSettings.elevenLabsProjectId = projectId; // Sync with new structure
+    },
+
+    // Action to update the full podcast settings object
+    updateFullPodcastSettings(settings: Partial<FullPodcastSettings>) {
+      // Convert persona IDs from string to number where necessary before merging
+      const parsePersonaId = (id: string | number | undefined): number | undefined => {
+        if (id === undefined || id === null) return undefined;
+        const numId = Number(id);
+        return isNaN(numId) ? undefined : numId;
+      };
+
+      const processedSettings = { ...settings };
+      if (settings.hostPersonaId !== undefined) {
+        processedSettings.hostPersonaId = parsePersonaId(settings.hostPersonaId);
+      }
+      if (settings.guestPersonaIds !== undefined) {
+        processedSettings.guestPersonaIds = settings.guestPersonaIds.map(parsePersonaId).filter(id => id !== undefined) as number[];
+      }
+
+      this.podcastSettings = { ...this.podcastSettings, ...processedSettings };
+      
+      // Update legacy individual fields for compatibility or if still used elsewhere directly
+      if (processedSettings.title !== undefined) this.podcastName = processedSettings.title;
+      if (processedSettings.topic !== undefined) this.userInstruction = processedSettings.topic; // Or a dedicated podcastTopic field
+      if (processedSettings.elevenLabsProjectId !== undefined) this.elevenLabsProjectId = processedSettings.elevenLabsProjectId;
+      if (processedSettings.hostPersonaId !== undefined && typeof processedSettings.hostPersonaId === 'number') {
+         this.selectedHostPersonaId = processedSettings.hostPersonaId;
+      }
+      // For guestPersonaIds, the legacy selectedGuestPersonaId might represent the first guest or be deprecated.
+      // For now, let's assume selectedGuestPersonaId and guestVoiceId will be managed based on the first guest in the new array.
+      if (processedSettings.guestPersonaIds && processedSettings.guestPersonaIds.length > 0 && typeof processedSettings.guestPersonaIds[0] === 'number') {
+        this.selectedGuestPersonaId = processedSettings.guestPersonaIds[0] as number;
+      } else {
+        this.selectedGuestPersonaId = null;
+      }
     },
 
     // Action to update createPodcast state
