@@ -66,7 +66,7 @@
         />
         <AudioSynthesis
           v-if="currentStepIndex === 3"
-          :performanceConfig="podcastPerformanceConfig"
+          :performanceConfig="podcastPerformanceConfig === null ? undefined : podcastPerformanceConfig"
           :audio-url="playgroundStore.audioUrl === null ? undefined : playgroundStore.audioUrl"
           :is-synthesizing="playgroundStore.isSynthesizing"
           @synthesize="onSynthesizeAudioForPodcast"
@@ -97,11 +97,20 @@
         />
           </CardHeader>
           <CardContent class="flex-1 p-2 flex flex-col">
+            <!-- Textarea for editing when no persona is selected for highlighting -->
             <Textarea
+              v-if="!playgroundStore.selectedPersonaIdForHighlighting"
               v-model="mainEditorContent"
               placeholder="Script will appear here after generation..."
               class="flex-1 w-full h-full resize-none min-h-[200px] border-0 focus-visible:ring-0 focus-visible:ring-offset-0"
             />
+
+            <!-- Display area for highlighted script when a persona is selected -->
+            <div
+              v-else
+              class="flex-1 w-full h-full overflow-y-auto p-2 text-sm"
+              v-html="highlightedScript"
+            ></div>
           </CardContent>
         </Card>
         
@@ -132,9 +141,45 @@ import AudioSynthesis from '../components/playground/AudioSynthesis.vue';
 import PlaygroundV2Toolbar from '../components/playground/PlaygroundV2Toolbar.vue';
 import { toast } from 'vue-sonner';
 import { usePlaygroundStore } from '../stores/playground';
-import type { FullPodcastSettings, Persona } from '../types/playground';
+import type { FullPodcastSettings, Persona } from '../types/playground'; // Note: This import might still cause errors if the file doesn't exist, but we'll ignore them as per user instructions.
 
 const playgroundStore = usePlaygroundStore();
+
+// Computed property to generate highlighted script HTML
+const highlightedScript = computed(() => {
+  const script = playgroundStore.textToSynthesize;
+  const selectedPersonaId = playgroundStore.selectedPersonaIdForHighlighting;
+
+  console.log('Highlighting script for persona ID:', selectedPersonaId); // Add log
+
+  if (!script || selectedPersonaId === null) {
+    return script; // Return original script if no script or no persona selected
+  }
+
+  // Find the name of the selected persona
+  const selectedPersona = playgroundStore.personas.find((p: any) => p.persona_id === selectedPersonaId); // Explicitly type 'p' as any
+  const selectedPersonaName = selectedPersona?.name;
+
+  console.log('Selected persona for highlighting:', selectedPersonaName); // Add log
+
+  if (!selectedPersonaName) {
+    return script; // Return original script if selected persona name not found
+  }
+
+  const lines = script.split('\n');
+  let highlightedHtml = '';
+
+  lines.forEach(line => {
+    // Simple check if the line starts with the persona's name followed by a colon
+    if (line.trim().startsWith(`${selectedPersonaName}:`)) {
+      highlightedHtml += `<p class="bg-yellow-200 dark:bg-yellow-800 p-1 rounded">${line}</p>`; // Apply highlight style
+    } else {
+      highlightedHtml += `<p>${line}</p>`; // Render non-highlighted line
+    }
+  });
+
+  return highlightedHtml;
+});
 
 const currentStepIndex = ref(1);
 const podcastPerformanceConfig = ref<object | null>(null);
@@ -164,6 +209,7 @@ const isGeneratingOverall = computed(() => {
 
 onMounted(async () => {
   await playgroundStore.fetchPersonas();
+  console.log('Fetched personas:', playgroundStore.personas); // Add log
 });
 
 const getVoiceNameFromId = (voiceIdParam: string | number | undefined): string => {
@@ -208,12 +254,30 @@ function onPerformanceSettingsNextForPodcast(config: object) {
   currentStepIndex.value = 3;
 }
 
-async function onSynthesizeAudioForPodcast() {
+async function onSynthesizeAudioForPodcast(payload: { useTimestamps: boolean, synthesisParams?: any, performanceConfig?: any }) {
   if (!podcastPerformanceConfig.value) {
     toast.error("缺少性能配置。");
     return;
   }
-  await playgroundStore.synthesizePodcastAudio();
+  
+  console.log('Synthesizing audio with payload:', payload);
+  
+  // 如果有时间戳数据，保存到store中
+  if (payload.performanceConfig?.segments) {
+    const timestamps = payload.performanceConfig.segments
+      .filter((segment: any) => segment.timestamps && segment.timestamps.length > 0)
+      .map((segment: any) => segment.timestamps)
+      .flat();
+    
+    if (timestamps.length > 0) {
+      playgroundStore.saveSegmentTimestamps(timestamps);
+    }
+  }
+  
+  // 调用store中的合成方法，传递useTimestamps参数
+  await playgroundStore.synthesizePodcastAudio({
+    useTimestamps: payload.useTimestamps
+  });
 
   if (!playgroundStore.synthesisError) {
     toast.success("播客音频合成成功！");
@@ -229,7 +293,11 @@ function handleToolbarProceedToSynthesis() {
 }
 
 function handleToolbarSynthesizePodcastAudio() {
-  onSynthesizeAudioForPodcast();
+  onSynthesizeAudioForPodcast({
+    useTimestamps: true,
+    synthesisParams: playgroundStore.synthesisParams,
+    performanceConfig: podcastPerformanceConfig.value
+  });
 }
 
 function handleDownloadCurrentAudio() {

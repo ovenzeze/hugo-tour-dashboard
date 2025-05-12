@@ -16,16 +16,6 @@
       </div>
     </div>
 
-    <div class="space-y-2">
-      <Label for="scriptContentArea" class="text-base font-medium">Script Content</Label>
-      <Textarea 
-        id="scriptContentArea"
-        :value="scriptContent" 
-        @input="$emit('update:scriptContent', ($event.target as HTMLTextAreaElement).value)" 
-        class="min-h-[200px] font-mono text-sm"
-        placeholder="Your script will appear here. You can make minor edits."
-      />
-    </div>
 
     <!-- Synthesis Parameters from playgroundStore -->
     <div class="space-y-2">
@@ -44,7 +34,7 @@
       </div>
       <Slider
         :model-value="playgroundStore.synthesisParams.temperatureArray"
-        @update:model-value="(value: number[]) => playgroundStore.updateSynthesisParams({ temperature: value[0] })"
+        @update:model-value="(value: number[] | undefined) => { if (value && value.length > 0) playgroundStore.updateSynthesisParams({ temperature: value[0] }) }"
         :min="0"
         :max="1"
         :step="0.1"
@@ -67,7 +57,7 @@
       </div>
       <Slider
         :model-value="playgroundStore.synthesisParams.speedArray"
-        @update:model-value="(value: number[]) => playgroundStore.updateSynthesisParams({ speed: value[0] })"
+        @update:model-value="(value: number[] | undefined) => { if (value && value.length > 0) playgroundStore.updateSynthesisParams({ speed: value[0] }) }"
         :min="0.5"
         :max="2"
         :step="0.1"
@@ -145,8 +135,17 @@
       <div v-for="(segment, index) in parsedScriptSegments" :key="`segment-${index}`" class="p-4 border rounded-md space-y-3 bg-muted/40">
         <div class="flex justify-between items-center">
           <p class="text-sm font-semibold">Segment {{ index + 1 }}: <span class="font-bold text-primary">{{ segment.speakerTag }}</span></p>
-          <!-- Placeholder for Preview Button -->
-          <!-- <Button size="sm" variant="outline">Preview</Button> -->
+          <!-- Add Preview Button -->
+          <Button
+            size="sm"
+            variant="outline"
+            :disabled="!speakerAssignments[segment.speakerTag] || isPreviewingSegment === index"
+            @click="previewSegment(segment, index)"
+          >
+            <Loader2 v-if="isPreviewingSegment === index" class="w-3.5 h-3.5 mr-1 animate-spin" />
+            <Play v-else class="w-3.5 h-3.5 mr-1" />
+            {{ isPreviewingSegment === index ? 'Generating...' : 'Preview' }}
+          </Button>
         </div>
         
         <div class="space-y-1">
@@ -164,29 +163,73 @@
             <p class="text-sm font-medium">{{ getPersonaForSpeaker(segment.speakerTag)?.name || 'None' }}</p>
           </div>
         </div>
+        
+        <!-- Add preview audio player -->
+        <div v-if="segmentPreviews[index]?.audioUrl" class="mt-2">
+          <audio :src="segmentPreviews[index].audioUrl" controls class="w-full h-8" />
+        </div>
       </div>
+    </div>
+  </div>
+
+  <!-- 在组件底部添加预览和确认区域 -->
+  <div class="flex flex-col space-y-4 mt-6 pt-4 border-t">
+    <div class="flex justify-between">
+      <h3 class="text-base font-medium">全局预览和提交</h3>
+      <Button
+        variant="outline"
+        size="sm"
+        :disabled="!canProceed || Object.keys(segmentPreviews).length === 0"
+        @click="previewAll"
+      >
+        <Play class="w-4 h-4 mr-2" />
+        预览全部
+      </Button>
+    </div>
+    
+    <div v-if="combinedPreviewUrl" class="border rounded-md p-4 bg-muted/30">
+      <p class="text-sm font-medium mb-2">完整音频预览:</p>
+      <audio :src="combinedPreviewUrl" controls class="w-full" />
+    </div>
+    
+    <div class="flex justify-end gap-3">
+      <Button
+        variant="secondary"
+        @click="$emit('back')"
+      >
+        上一步
+      </Button>
+      <Button
+        @click="submitWithTimestamps"
+        :disabled="!canProceed"
+      >
+        下一步：音频合成
+        <ArrowRight class="w-4 h-4 ml-2" />
+      </Button>
     </div>
   </div>
 </template>
 
 <script setup lang="ts">
 import { ref, watch, computed, defineProps, defineEmits, defineExpose } from 'vue';
-import { Label } from '@/components/ui/label';
-import { Textarea } from '@/components/ui/textarea';
-import { Select, SelectContent, SelectGroup, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Label } from '../../components/ui/label/index.js';
+import { Textarea } from '../../components/ui/textarea/index.js';
+import { Select, SelectContent, SelectGroup, SelectItem, SelectTrigger, SelectValue } from '../../components/ui/select/index.js';
 import { Loader2 } from 'lucide-vue-next';
-import { usePlaygroundStore, type Persona } from '@/stores/playground';
+import { usePlaygroundStore, type Persona } from '../../stores/playground.js';
 import {
   HoverCard,
   HoverCardContent,
   HoverCardTrigger,
-} from '@/components/ui/hover-card';
-import { Button } from '@/components/ui/button';
+} from '../../components/ui/hover-card/index.js';
+import { Button } from '../../components/ui/button/index.js';
 import { HelpCircle } from 'lucide-vue-next';
-import { Slider } from '@/components/ui/slider';
+import { Slider } from '../../components/ui/slider/index.js';
+import { Play, ArrowRight } from 'lucide-vue-next';
+import { toast } from 'vue-sonner';
 
 const props = defineProps<{ scriptContent: string }>();
-const emit = defineEmits(['update:scriptContent']);
+const emit = defineEmits(['update:scriptContent', 'next', 'back']);
 
 const playgroundStore = usePlaygroundStore();
 
@@ -196,6 +239,10 @@ const availableVoices = ref<{id: string, name: string}[]>([]);
 const selectedVoice = ref('');
 const isLoadingVoices = ref(false);
 const speakerAssignments = ref<Record<string, string>>({});
+
+// 预览状态管理
+const isPreviewingSegment = ref<number | null>(null);
+const segmentPreviews = ref<Record<number, { audioUrl: string, timestamps?: any[] }>>({});
 
 const selectedHostPersona = computed<Persona | undefined>(() => {
   if (!playgroundStore.podcastSettings.hostPersonaId) return undefined;
@@ -293,10 +340,251 @@ const canProceed = computed(() => {
   if (!performanceTaskType.value || !ttsProvider.value || isLoadingVoices.value) return false;
   if (performanceTaskType.value === 'dialogue') {
     if (speakersInScript.value.length === 0) return false; // Must have speakers for dialogue
-    return speakersInScript.value.every(sp => speakerAssignments.value[sp] && availableVoices.value.some(v => v.id === speakerAssignments.value[sp]));
+    return parsedScriptSegments.value.every(seg => speakerAssignments.value[seg.speakerTag] && availableVoices.value.some(v => v.id === speakerAssignments.value[seg.speakerTag]));
   }
   return !!selectedVoice.value && availableVoices.value.some(v => v.id === selectedVoice.value);
 });
+
+// 添加这些状态管理变量
+const combinedPreviewUrl = ref<string | null>(null);
+
+// 预览单个片段的方法
+async function previewSegment(segment: { speakerTag: string, text: string }, index: number) {
+  if (!segment.text || !speakerAssignments.value[segment.speakerTag]) return;
+  
+  isPreviewingSegment.value = index;
+  try {
+    // 获取语音ID
+    const voiceId = speakerAssignments.value[segment.speakerTag];
+    
+    // 调用带时间戳的TTS API
+    const response = await fetch('/api/elevenlabs/tts-with-timestamps', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        text: segment.text,
+        voiceId,
+        modelId: 'eleven_multilingual_v2', // 可以根据实际情况调整或设置为可配置项
+        voiceSettings: {
+          stability: playgroundStore.synthesisParams.temperature,
+          similarity_boost: 0.75,
+          style: 0,
+          use_speaker_boost: true
+        },
+        optimizeStreamingLatency: 3
+      })
+    });
+    
+    if (!response.ok) {
+      throw new Error('预览音频生成失败');
+    }
+    
+    const data = await response.json();
+    
+    // 创建临时音频URL - 使用浏览器兼容的方式处理base64数据
+    const binary = atob(data.audio);
+    const bytes = new Uint8Array(binary.length);
+    for (let i = 0; i < binary.length; i++) {
+      bytes[i] = binary.charCodeAt(i);
+    }
+    const audioBlob = new Blob([bytes], { type: 'audio/mpeg' });
+    const audioUrl = URL.createObjectURL(audioBlob);
+    
+    // 保存预览结果
+    segmentPreviews.value[index] = {
+      audioUrl,
+      timestamps: data.timestamps
+    };
+    
+  } catch (error) {
+    console.error('预览生成失败:', error);
+    toast.error('预览生成失败，请重试');
+  } finally {
+    isPreviewingSegment.value = null;
+  }
+}
+
+// 预览全部的方法
+async function previewAll() {
+  const previewKeys = Object.keys(segmentPreviews.value);
+  if (previewKeys.length === 0) {
+    toast.error("Please preview at least one segment first.");
+    return;
+  }
+  
+  if (previewKeys.length === 1) {
+    // 如果只有一个片段，直接使用它
+    const firstKey = previewKeys[0];
+    combinedPreviewUrl.value = segmentPreviews.value[Number(firstKey)].audioUrl;
+    toast.info("Only one segment previewed. Showing that segment.");
+    return;
+  }
+  
+  try {
+    toast.info("Combining audio segments...");
+    
+    // 按照索引顺序排序预览片段
+    const sortedKeys = previewKeys.map(Number).sort((a, b) => a - b);
+    
+    // 创建一个新的AudioContext
+    const AudioContextClass = window.AudioContext || (window as any).webkitAudioContext;
+    const audioContext = new AudioContextClass();
+    const audioBuffers: AudioBuffer[] = [];
+    
+    // 加载所有音频片段
+    for (const key of sortedKeys) {
+      const audioUrl = segmentPreviews.value[key].audioUrl;
+      const response = await fetch(audioUrl);
+      const arrayBuffer = await response.arrayBuffer();
+      const audioBuffer = await audioContext.decodeAudioData(arrayBuffer);
+      audioBuffers.push(audioBuffer);
+    }
+    
+    // 计算合并后的总长度
+    const totalLength = audioBuffers.reduce((acc, buffer) => acc + buffer.length, 0);
+    
+    // 创建一个新的AudioBuffer来存储合并后的音频
+    const combinedBuffer = audioContext.createBuffer(
+      audioBuffers[0].numberOfChannels,
+      totalLength,
+      audioBuffers[0].sampleRate
+    );
+    
+    // 合并音频片段
+    let offset = 0;
+    for (let i = 0; i < audioBuffers.length; i++) {
+      const buffer = audioBuffers[i];
+      for (let channel = 0; channel < buffer.numberOfChannels; channel++) {
+        const channelData = buffer.getChannelData(channel);
+        combinedBuffer.copyToChannel(channelData, channel, offset);
+      }
+      offset += buffer.length;
+    }
+    
+    // 将合并后的AudioBuffer转换为Blob
+    const offlineContext = new OfflineAudioContext(
+      combinedBuffer.numberOfChannels,
+      combinedBuffer.length,
+      combinedBuffer.sampleRate
+    );
+    const source = offlineContext.createBufferSource();
+    source.buffer = combinedBuffer;
+    source.connect(offlineContext.destination);
+    source.start();
+    
+    const renderedBuffer = await offlineContext.startRendering();
+    const wavBlob = await audioBufferToWav(renderedBuffer);
+    
+    // 创建URL并设置
+    combinedPreviewUrl.value = URL.createObjectURL(wavBlob);
+    toast.success("Combined preview created successfully!");
+  } catch (error) {
+    console.error('Error combining audio segments:', error);
+    toast.error("Failed to combine audio segments. Using first segment instead.");
+    const firstKey = previewKeys[0];
+    combinedPreviewUrl.value = segmentPreviews.value[Number(firstKey)].audioUrl;
+  }
+}
+
+// 辅助函数：将AudioBuffer转换为WAV格式的Blob
+function audioBufferToWav(buffer: AudioBuffer): Promise<Blob> {
+  return new Promise((resolve) => {
+    const numOfChannels = buffer.numberOfChannels;
+    const length = buffer.length * numOfChannels * 2;
+    const sampleRate = buffer.sampleRate;
+    const wavDataView = new DataView(new ArrayBuffer(44 + length));
+    
+    // RIFF标识符
+    writeString(wavDataView, 0, 'RIFF');
+    // 文件长度
+    wavDataView.setUint32(4, 36 + length, true);
+    // WAVE标识符
+    writeString(wavDataView, 8, 'WAVE');
+    // fmt子块标识符
+    writeString(wavDataView, 12, 'fmt ');
+    // 子块1大小
+    wavDataView.setUint32(16, 16, true);
+    // 音频格式（PCM）
+    wavDataView.setUint16(20, 1, true);
+    // 通道数
+    wavDataView.setUint16(22, numOfChannels, true);
+    // 采样率
+    wavDataView.setUint32(24, sampleRate, true);
+    // 字节率
+    wavDataView.setUint32(28, sampleRate * numOfChannels * 2, true);
+    // 块对齐
+    wavDataView.setUint16(32, numOfChannels * 2, true);
+    // 每个样本的位数
+    wavDataView.setUint16(34, 16, true);
+    // data子块标识符
+    writeString(wavDataView, 36, 'data');
+    // 数据长度
+    wavDataView.setUint32(40, length, true);
+    
+    // 写入PCM数据
+    let offset = 44;
+    for (let i = 0; i < buffer.length; i++) {
+      for (let channel = 0; channel < numOfChannels; channel++) {
+        const sample = Math.max(-1, Math.min(1, buffer.getChannelData(channel)[i]));
+        wavDataView.setInt16(offset, sample < 0 ? sample * 0x8000 : sample * 0x7FFF, true);
+        offset += 2;
+      }
+    }
+    
+    resolve(new Blob([wavDataView], { type: 'audio/wav' }));
+  });
+}
+
+// 辅助函数：将字符串写入DataView
+function writeString(dataView: DataView, offset: number, str: string): void {
+  for (let i = 0; i < str.length; i++) {
+    dataView.setUint8(offset + i, str.charCodeAt(i));
+  }
+}
+
+// 提交带时间戳的配置
+function submitWithTimestamps() {
+  if (!canProceed.value) return;
+  
+  // 获取基础配置
+  const baseConfig = {
+    taskType: performanceTaskType.value,
+    provider: ttsProvider.value,
+    script: props.scriptContent,
+    availableVoices: availableVoices.value,
+  };
+  
+  // 整合时间戳信息
+  const configWithTimestamps = {
+    ...baseConfig,
+    segments: Object.entries(speakerAssignments.value).map(([speakerTag, voiceId]) => {
+      // 找到对应的segment索引
+      const segmentIndex = parsedScriptSegments.value.findIndex(s => s.speakerTag === speakerTag);
+      const segmentPreview = segmentIndex >= 0 ? segmentPreviews.value[segmentIndex] : undefined;
+      
+      let personaId: number | undefined = undefined;
+      if (selectedHostPersona.value && selectedHostPersona.value.name === speakerTag) {
+        personaId = selectedHostPersona.value.persona_id;
+      } else {
+        const guestPersona = selectedGuestPersonas.value.find(p => p.name === speakerTag);
+        if (guestPersona) {
+          personaId = guestPersona.persona_id;
+        }
+      }
+      
+      return {
+        speakerTag,
+        voiceId,
+        text: parsedScriptSegments.value.find(s => s.speakerTag === speakerTag)?.text || '',
+        personaId,
+        timestamps: segmentPreview?.timestamps || []
+      };
+    }),
+    useTimestamps: true // 标记使用时间戳功能
+  };
+  
+  emit('next', configWithTimestamps);
+}
 
 // Expose performance config and validation state
 defineExpose({

@@ -47,6 +47,8 @@ export interface PlaygroundState {
   currentPreviewAbortController: AbortController | null;
   isStreamingPreview: boolean;
   streamingPreviewError: string | null;
+  selectedPersonaIdForHighlighting: number | null; // New state for selected persona for script highlighting
+  segmentTimestamps: any[]; // Added for timestamp data
 }
 
 const defaultSynthesisParams: SynthesisParams = {
@@ -89,6 +91,8 @@ export const usePlaygroundStore = defineStore('playground', {
     currentPreviewAbortController: null,
     isStreamingPreview: false,
     streamingPreviewError: null,
+    selectedPersonaIdForHighlighting: null, // Initialize new state
+    segmentTimestamps: [], // Initialize segmentTimestamps
   }),
 
   getters: {
@@ -579,39 +583,71 @@ Host: Couldn't agree more. Thanks for joining us, Elliot, and thank you to our l
       };
     },
 
-    async synthesizePodcastAudio() {
+    // 保存时间戳数据的方法
+    saveSegmentTimestamps(timestamps: any[]) {
+      this.segmentTimestamps = timestamps;
+    },
+
+    async synthesizePodcastAudio(options: { useTimestamps?: boolean } = {}) {
+      const { useTimestamps = false } = options;
+
       if (this.isSynthesizing) return;
       if (!this.textToSynthesize.trim()) {
         toast.error('Script is empty.', { description: 'Please generate or write a script before synthesizing.' });
         return;
       }
-      // Add more validation if needed (e.g., ElevenLabs Project ID for specific flows)
+      
       this.isSynthesizing = true;
       this.synthesisError = null;
       this.audioUrl = null;
+      
       try {
-        // This is a placeholder for the actual API call
-        // You'll need to define the endpoint and payload for podcast synthesis
-        // @ts-ignore - Nuxt 自动导入的 $fetch
-        const response = await $fetch<{ audioUrl: string; filename?: string }>('/api/tts/podcast', { // Example endpoint
-          method: 'POST',
-          body: {
-            script: this.textToSynthesize,
-            podcastSettings: this.podcastSettings,
-            synthesisParams: this.synthesisParams, // Send relevant params
-            provider: this.selectedProvider,
-          },
-        });
+        let response;
+        if (useTimestamps && this.segmentTimestamps.length > 0) {
+          // 调用支持时间戳的音频合成API
+          // @ts-ignore - Nuxt 自动导入的 $fetch
+          response = await $fetch<{ audioUrl: string; filename?: string }>('/api/synthesize-podcast-with-timestamps', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              script: this.textToSynthesize, // Or segments if your backend expects that
+              podcastSettings: this.podcastSettings,
+              synthesisParams: this.synthesisParams,
+              provider: this.selectedProvider,
+              timestamps: this.segmentTimestamps
+            })
+          });
+          toast.info('Synthesizing with timestamps...');
+        } else {
+          // 原有的音频合成逻辑...
+          // @ts-ignore - Nuxt 自动导入的 $fetch
+          response = await $fetch<{ audioUrl: string; filename?: string }>('/api/tts/podcast', { // Example endpoint
+            method: 'POST',
+            body: {
+              script: this.textToSynthesize,
+              podcastSettings: this.podcastSettings,
+              synthesisParams: this.synthesisParams,
+              provider: this.selectedProvider,
+            },
+          });
+        }
+        
         this.audioUrl = response.audioUrl;
         if(response.filename) this.outputFilename = response.filename;
         toast.success('Podcast audio synthesized successfully!');
+        
       } catch (error: any) {
         console.error('Podcast audio synthesis failed:', error);
         const errorMessage = error.data?.message || error.message || 'Unknown synthesis error.';
         this.synthesisError = errorMessage;
         toast.error('Podcast Synthesis Failed', { description: errorMessage });
+      } finally {
+        this.isSynthesizing = false;
       }
-      this.isSynthesizing = false;
     },
+
+    setSelectedPersonaForHighlighting(personaId: number | null) {
+      this.selectedPersonaIdForHighlighting = personaId;
+    }
   },
 });

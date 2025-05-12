@@ -29,12 +29,12 @@ export async function fetchElevenLabsAPI(options: ApiOptions) {
   } = options
   
   // 构建完整 URL
-  const baseUrl = config.elevenlabsBaseUrl
+  const baseUrl = config.elevenlabs?.baseUrl
   const url = `${baseUrl}${endpoint}`
   
   // 检查 API Key 是否存在
-  if (!config.elevenlabsApiKey) {
-    console.error('[fetchElevenLabsAPI] Error: elevenlabsApiKey is missing in runtime config!')
+  if (!config.elevenlabs?.apiKey) {
+    console.error('[fetchElevenLabsAPI] Error: elevenlabs.apiKey is missing in runtime config!')
     throw createError({
       statusCode: 500,
       statusMessage: 'ElevenLabs API Key 未配置'
@@ -43,7 +43,7 @@ export async function fetchElevenLabsAPI(options: ApiOptions) {
 
   // 设置通用请求头
   const requestHeaders: Record<string, string> = {
-    'xi-api-key': config.elevenlabsApiKey,
+    'xi-api-key': config.elevenlabs.apiKey,
     ...headers
   }
   

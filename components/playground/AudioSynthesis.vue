@@ -73,6 +73,27 @@
       </div>
     </div>
 
+    <!-- 添加时间戳信息展示区域 -->
+    <div v-if="props.performanceConfig?.useTimestamps" class="mt-4 border-t pt-4">
+      <div class="flex items-center justify-between">
+        <h4 class="text-sm font-medium">时间戳信息可视化</h4>
+        <Badge variant="outline">Beta</Badge>
+      </div>
+      
+      <div class="mt-2 p-3 bg-muted rounded-md text-xs">
+        <p>已从步骤2导入时间戳数据，将用于高级音频处理</p>
+      </div>
+      
+      <!-- 可以添加一个开关来控制是否使用时间戳 -->
+      <div class="mt-3 flex items-center space-x-2">
+        <Checkbox
+          id="use-timestamps"
+          v-model:checked="useTimestampsForSynthesis"
+        />
+        <Label for="use-timestamps">使用预生成的时间戳数据</Label>
+      </div>
+    </div>
+
     <!-- Action Buttons -->
     <div class="flex gap-3">
       <Button 
@@ -106,17 +127,18 @@
 
 <script setup lang="ts">
 import { ref, watch } from 'vue'
-import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
-import { Label } from '@/components/ui/label'
-import { Badge } from '@/components/ui/badge'
-import { Slider } from '@/components/ui/slider'
-import { ScrollArea } from '@/components/ui/scroll-area'
+import { Button } from '../../components/ui/button/index.js'
+import { Input } from '../../components/ui/input/index.js'
+import { Label } from '../../components/ui/label/index.js'
+import { Badge } from '../../components/ui/badge/index.js'
+import { Slider } from '../../components/ui/slider/index.js'
+import { Checkbox } from '../../components/ui/checkbox/index.js' // Added Checkbox
+import { ScrollArea } from '../../components/ui/scroll-area/index.js'
 import {
   HoverCard,
   HoverCardContent,
   HoverCardTrigger,
-} from '@/components/ui/hover-card'
+} from '../../components/ui/hover-card/index.js'
 import { RadioTower, Download, Loader2, HelpCircle } from 'lucide-vue-next'
 
 const props = defineProps<{
@@ -128,14 +150,23 @@ const props = defineProps<{
     temperatureArray: number[]
     speedArray: number[]
   }
+  performanceConfig?: { // Added performanceConfig
+    useTimestamps?: boolean
+    segments?: any[] // Define more specifically if needed
+    // other properties from VoicePerformanceSettings...
+  }
   isLoading?: boolean
   disabled?: boolean
 }>()
 
 const emit = defineEmits<{
-  (e: 'update:outputFilename', value: string): void
-  (e: 'synthesize'): void
-  (e: 'download'): void
+  'update:outputFilename': [value: string]
+  'synthesize': [payload: {
+    useTimestamps: boolean,
+    synthesisParams?: any,
+    performanceConfig?: any
+  }] // Extended synthesize event payload
+  'download': []
 }>()
 
 const localOutputFilename = ref('')
@@ -144,8 +175,19 @@ watch(() => localOutputFilename.value, (newValue) => {
   emit('update:outputFilename', newValue)
 })
 
+const useTimestampsForSynthesis = ref(true); // Added this ref
+
 const handleSynthesize = () => {
-  if (!props.scriptContent?.trim()) return
-  emit('synthesize')
+  if (!props.scriptContent?.trim()) return;
+  
+  // 检查是否有时间戳数据并且用户选择使用
+  const useTimestamps = !!(props.performanceConfig?.useTimestamps && useTimestampsForSynthesis.value);
+  
+  // 发送合成请求时包含时间戳数据和其他必要参数
+  emit('synthesize', {
+    useTimestamps,
+    synthesisParams: props.synthesisParams,
+    performanceConfig: props.performanceConfig
+  });
 }
-</script> 
+</script>

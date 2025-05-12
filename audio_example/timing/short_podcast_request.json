@@ -1,0 +1,29 @@
+{
+  "podcastTitle": "Short Test Podcast",
+  "script": [
+    {
+      "speaker": "Cybo - Tech Guide",
+      "text": "Welcome to 'AI: The Next Frontier,' the podcast where we explore the cutting edge of artificial intelligence and its transformative potential."
+    },
+    {
+      "speaker": "Elliot - Contemplative Artist",
+      "text": "Thanks for having me, Cybo. It's always exciting to dive into these discussions."
+    },
+    {
+      "speaker": "Cybo - Tech Guide",
+      "text": "Absolutely! Let's start with the big picture. AI, machine learning, deep learning—these terms are everywhere now."
+    }
+  ],
+  "personas": {
+    "hostPersona": {
+      "name": "Cybo - Tech Guide (Brian Voice Placeholder)",
+      "voice_model_identifier": "nPczCjzI2devNBz1zQrb"
+    },
+    "guestPersonas": [
+      {
+        "name": "Elliot - Contemplative Artist (Liam Voice)",
+        "voice_model_identifier": "TX3LPaxmHKxFdv7VOQHJ"
+      }
+    ]
+  }
+}

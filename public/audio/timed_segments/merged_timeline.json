@@ -1,0 +1,90 @@
+[
+  {
+    "speaker": "Cybo   Tech Guide",
+    "audioFile": "/audio/timed_segments/Cybo___Tech_Guide_1747082049585.mp3",
+    "timestampFile": "/audio/timed_segments/Cybo___Tech_Guide_1747082049585.json",
+    "duration": 19.737,
+    "startTime": 0,
+    "endTime": 19.737
+  },
+  {
+    "speaker": "Elliot   Contemplative Artist",
+    "audioFile": "/audio/timed_segments/Elliot___Contemplative_Artist_1747082052141.mp3",
+    "timestampFile": "/audio/timed_segments/Elliot___Contemplative_Artist_1747082052141.json",
+    "duration": 12.446,
+    "startTime": 19.737,
+    "endTime": 32.183
+  },
+  {
+    "speaker": "Cybo   Tech Guide",
+    "audioFile": "/audio/timed_segments/Cybo___Tech_Guide_1747082054382.mp3",
+    "timestampFile": "/audio/timed_segments/Cybo___Tech_Guide_1747082054382.json",
+    "duration": 10.635,
+    "startTime": 32.183,
+    "endTime": 42.818
+  },
+  {
+    "speaker": "Elliot   Contemplative Artist",
+    "audioFile": "/audio/timed_segments/Elliot___Contemplative_Artist_1747082059623.mp3",
+    "timestampFile": "/audio/timed_segments/Elliot___Contemplative_Artist_1747082059623.json",
+    "duration": 23.824,
+    "startTime": 42.818,
+    "endTime": 66.642
+  },
+  {
+    "speaker": "Cybo   Tech Guide",
+    "audioFile": "/audio/timed_segments/Cybo___Tech_Guide_1747082062502.mp3",
+    "timestampFile": "/audio/timed_segments/Cybo___Tech_Guide_1747082062502.json",
+    "duration": 12.771,
+    "startTime": 66.642,
+    "endTime": 79.413
+  },
+  {
+    "speaker": "Elliot   Contemplative Artist",
+    "audioFile": "/audio/timed_segments/Elliot___Contemplative_Artist_1747082068306.mp3",
+    "timestampFile": "/audio/timed_segments/Elliot___Contemplative_Artist_1747082068306.json",
+    "duration": 25.31,
+    "startTime": 79.413,
+    "endTime": 104.723
+  },
+  {
+    "speaker": "Cybo   Tech Guide",
+    "audioFile": "/audio/timed_segments/Cybo___Tech_Guide_1747082071864.mp3",
+    "timestampFile": "/audio/timed_segments/Cybo___Tech_Guide_1747082071864.json",
+    "duration": 11.146,
+    "startTime": 104.723,
+    "endTime": 115.869
+  },
+  {
+    "speaker": "Elliot   Contemplative Artist",
+    "audioFile": "/audio/timed_segments/Elliot___Contemplative_Artist_1747082078371.mp3",
+    "timestampFile": "/audio/timed_segments/Elliot___Contemplative_Artist_1747082078371.json",
+    "duration": 29.304,
+    "startTime": 115.869,
+    "endTime": 145.173
+  },
+  {
+    "speaker": "Cybo   Tech Guide",
+    "audioFile": "/audio/timed_segments/Cybo___Tech_Guide_1747082080032.mp3",
+    "timestampFile": "/audio/timed_segments/Cybo___Tech_Guide_1747082080032.json",
+    "duration": 6.269,
+    "startTime": 145.173,
+    "endTime": 151.442
+  },
+  {
+    "speaker": "Elliot   Contemplative Artist",
+    "audioFile": "/audio/timed_segments/Elliot___Contemplative_Artist_1747082085115.mp3",
+    "timestampFile": "/audio/timed_segments/Elliot___Contemplative_Artist_1747082085115.json",
+    "duration": 22.709,
+    "startTime": 151.442,
+    "endTime": 174.151
+  },
+  {
+    "speaker": "Cybo   Tech Guide",
+    "audioFile": "/audio/timed_segments/Cybo___Tech_Guide_1747082087660.mp3",
+    "timestampFile": "/audio/timed_segments/Cybo___Tech_Guide_1747082087660.json",
+    "duration": 11.564,
+    "startTime": 174.151,
+    "endTime": 185.715
+  }
+]

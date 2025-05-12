@@ -1,0 +1,26 @@
+[
+  {
+    "speaker": "001_Cybo - Tech",
+    "audioFile": "/podcasts/short_test_podcast/segments/001_Cybo___Tech_Guide.mp3",
+    "timestampFile": "/podcasts/short_test_podcast/segments/001_Cybo___Tech_Guide.json",
+    "duration": 8.034,
+    "startTime": 0,
+    "endTime": 8.034
+  },
+  {
+    "speaker": "002_Elliot - Contemplative",
+    "audioFile": "/podcasts/short_test_podcast/segments/002_Elliot___Contemplative_Artist.mp3",
+    "timestampFile": "/podcasts/short_test_podcast/segments/002_Elliot___Contemplative_Artist.json",
+    "duration": 4.412,
+    "startTime": 8.034,
+    "endTime": 12.446000000000002
+  },
+  {
+    "speaker": "003_Cybo - Tech",
+    "audioFile": "/podcasts/short_test_podcast/segments/003_Cybo___Tech_Guide.mp3",
+    "timestampFile": "/podcasts/short_test_podcast/segments/003_Cybo___Tech_Guide.json",
+    "duration": 7.059,
+    "startTime": 12.446000000000002,
+    "endTime": 19.505000000000003
+  }
+]
