@@ -50,7 +50,7 @@ export default defineEventHandler(async (event) => {
       await execAsync(
         `python podcast_mixer_segments.py mix "${aliceAudioPath}" "${markAudioPath}" "${podcastOutputPath}" --segments "${segmentsPath}" --left-gain ${leftGain} --right-gain ${rightGain}`
       );
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error mixing podcast:', error);
       return { 
         success: false, 
@@ -62,7 +62,7 @@ export default defineEventHandler(async (event) => {
       success: true,
       podcastUrl: `/api/podcast/files/${sessionId}/final_podcast.mp3`
     };
-  } catch (error) {
+  } catch (error: any) {
     console.error('Error in podcast mixing:', error);
     return { 
       success: false, 

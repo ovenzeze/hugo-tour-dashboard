@@ -11,14 +11,26 @@ interface TTSOptions {
     style?: number;
     use_speaker_boost?: boolean;
   };
+  optimizeStreamingLatency?: number; // 0-4
+  enableTimestamps?: boolean; // 是否启用时间戳
+}
+
+export interface TimestampChunk {
+  audio: string; // Base64编码的音频数据
+  timestamps: {
+    char: string; // 字符
+    start: number; // 开始时间(秒)
+    end: number; // 结束时间(秒)
+  }[];
 }
 
 export function useElevenLabsTTS() {
   const audioUrl = ref<string | null>(null)
   const isLoading = ref(false)
   const error = ref<string | null>(null)
-  const audioData = ref<Blob | null>(null) // 添加一个新的 ref 存储原始音频数据
+  const audioData = ref<Blob | null>(null)
   const currentVoiceConfig = ref<Voice.Config | null>(null)
+  const timestamps = ref<TimestampChunk[]>([]) // 存储时间戳数据
 
   // 使用预设配置生成声音
   const generateWithVoiceConfig = async (text: string, voiceConfig: Voice.Config) => {
@@ -56,8 +68,9 @@ export function useElevenLabsTTS() {
   const generateTTS = async (text: string, options: TTSOptions = {}) => {
     isLoading.value = true
     error.value = null
+    timestamps.value = []
     
-    // 先清理旧的资源
+    // 清理旧的资源
     if (audioUrl.value) {
       URL.revokeObjectURL(audioUrl.value)
       audioUrl.value = null
@@ -73,15 +86,19 @@ export function useElevenLabsTTS() {
     try {
       console.log(`[useElevenLabsTTS] 发送 TTS 请求，文本长度: ${text.length}`)
       
-      // 调用服务端 API
-      const response = await fetch('/api/elevenlabs/tts', {
+      // 调用服务端API
+      const endpoint = options.enableTimestamps 
+        ? '/api/elevenlabs/tts-with-timestamps' 
+        : '/api/elevenlabs/tts'
+      
+      const response = await fetch(endpoint, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
           text,
-          ...options, // 包含 voiceId, modelId, voiceSettings
+          ...options,
         }),
       })
 
@@ -97,26 +114,34 @@ export function useElevenLabsTTS() {
       })
 
       try {
-        // 将 ArrayBuffer 转换为 Blob
-        const audioBlob = await response.blob()
-        
-        // 记录关于 blob 的信息
-        console.log('[useElevenLabsTTS] 收到音频 blob:', {
-          size: audioBlob.size, 
-          type: audioBlob.type || 'unknown'
-        })
-        
-        if (audioBlob.size < 100) {
-          throw new Error(`收到的音频数据过小 (${audioBlob.size} 字节)，可能不是有效的音频文件`)
+        if (options.enableTimestamps) {
+          // 处理带时间戳的响应
+          const data = await response.json()
+          
+          if (!data.audio || !data.timestamps) {
+            throw new Error('无效的时间戳API响应格式')
+          }
+          
+          // 保存时间戳数据
+          timestamps.value = data.timestamps
+          
+          // 处理音频数据
+          const audioBlob = base64ToBlob(data.audio, 'audio/mpeg')
+          audioData.value = audioBlob
+          audioUrl.value = URL.createObjectURL(audioBlob)
+        } else {
+          // 普通音频处理
+          const audioBlob = await response.blob()
+          
+          if (audioBlob.size < 100) {
+            throw new Error(`收到的音频数据过小 (${audioBlob.size} 字节)，可能不是有效的音频文件`)
+          }
+          
+          audioData.value = audioBlob
+          const blobType = audioBlob.type || 'audio/mpeg'
+          const blobWithType = new Blob([audioBlob], { type: blobType })
+          audioUrl.value = URL.createObjectURL(blobWithType)
         }
-        
-        // 保存原始 Blob
-        audioData.value = audioBlob
-        
-        // 创建新的 Blob URL - 确保使用正确的 MIME 类型
-        const blobType = audioBlob.type || 'audio/mpeg'
-        const blobWithType = new Blob([audioBlob], { type: blobType })
-        audioUrl.value = URL.createObjectURL(blobWithType)
         
         console.log('[useElevenLabsTTS] 创建 Blob URL:', audioUrl.value)
       } catch (blobError: any) {
@@ -143,21 +168,88 @@ export function useElevenLabsTTS() {
     currentVoiceConfig.value = null
   }
 
+  // Base64转Blob的辅助函数
+  const base64ToBlob = (base64: string, mimeType: string) => {
+    const byteCharacters = atob(base64)
+    const byteNumbers = new Array(byteCharacters.length)
+    for (let i = 0; i < byteCharacters.length; i++) {
+      byteNumbers[i] = byteCharacters.charCodeAt(i)
+    }
+    const byteArray = new Uint8Array(byteNumbers)
+    return new Blob([byteArray], { type: mimeType })
+  }
+
+  // 流式生成方法
+  const streamTTSWithTimestamps = async (
+    text: string, 
+    options: TTSOptions,
+    onChunk: (chunk: TimestampChunk) => void
+  ) => {
+    if (!options.enableTimestamps) {
+      throw new Error('流式时间戳需要启用enableTimestamps选项')
+    }
+
+    try {
+      const response = await fetch('/api/elevenlabs/stream-with-timestamps', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          text,
+          ...options,
+        }),
+      })
+
+      if (!response.ok) {
+        throw new Error(`流式请求失败: ${response.statusText}`)
+      }
+
+      const reader = response.body?.getReader()
+      if (!reader) {
+        throw new Error('无法获取可读流')
+      }
+
+      while (true) {
+        const { done, value } = await reader.read()
+        if (done) break
+
+        const text = new TextDecoder().decode(value)
+        try {
+          const chunk = JSON.parse(text) as TimestampChunk
+          onChunk(chunk)
+        } catch (e) {
+          console.error('解析流式数据失败:', e)
+        }
+      }
+    } catch (err: any) {
+      console.error('流式TTS错误:', err)
+      throw err
+    }
+  }
+
   return {
     audioUrl,
     audioData,
     isLoading,
     error,
     currentVoiceConfig,
+    timestamps,
     
-    // 基本生成方法
     generateTTS,
-    
-    // 高级配置方法
     generateWithVoiceConfig,
     generateWithVoiceId,
     generateWithDefaultVoice,
+    streamTTSWithTimestamps,
     
-    clearAudio
+    clearAudio: () => {
+      if (audioUrl.value) {
+        URL.revokeObjectURL(audioUrl.value)
+        audioUrl.value = null
+      }
+      audioData.value = null
+      currentVoiceConfig.value = null
+      timestamps.value = []
+    }
   }
-} 
+}

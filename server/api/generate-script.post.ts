@@ -32,6 +32,7 @@ export default defineEventHandler(async (event) => {
     persona_id: rawPersonaId, // Corrected: use persona_id from body
     system_prompt: feSystemPrompt,
     user_prompt: feUserPrompt,
+    user_instruction: feUserInstruction, // 添加对新字段user_instruction的支持
     createPodcast = false, // Default to false if not provided
     elevenLabsProjectId,
     podcastName,
@@ -39,7 +40,6 @@ export default defineEventHandler(async (event) => {
     guestVoiceId,
     podcastModelId,
     titleVoiceId,
-    podcastSpeakerMapping, // { hostIdentifierInScript: string, guestIdentifierInScript: string }
   } = body;
 
   console.log('Backend: Raw body:', JSON.stringify(body, null, 2));
@@ -64,11 +64,12 @@ export default defineEventHandler(async (event) => {
   // Podcast-specific validations for other fields if in podcast mode
   if (createPodcast) {
     console.log('Podcast params - projectId:', elevenLabsProjectId, 'name:', podcastName, 'hostVoice:', hostVoiceId, 'guestVoice:', guestVoiceId);
-    if (!elevenLabsProjectId || !podcastName || !hostVoiceId || !guestVoiceId || !podcastSpeakerMapping || !podcastSpeakerMapping.hostIdentifierInScript || !podcastSpeakerMapping.guestIdentifierInScript) {
-      console.error('Backend: Missing required fields for podcast generation.');
+    
+    if (!podcastName || !hostVoiceId || !guestVoiceId) {
+      console.error('Backend: Missing essential fields for podcast generation.');
       throw createError({
         statusCode: 400,
-        statusMessage: 'Missing required fields for podcast generation (Project ID, Podcast Name, Host/Guest Voice IDs, Speaker Mapping).',
+        statusMessage: 'Missing essential fields for podcast generation (Podcast Name, Host/Guest Voice IDs).',
       });
     }
   }
@@ -123,7 +124,7 @@ The content of the 'speaker' and 'text' fields should be derived from the user's
     },
     {
       role: 'user',
-      content: feUserPrompt || "Please generate a short piece of content in JSON format, with a root key 'data'."
+      content: feUserInstruction || feUserPrompt || "Please generate a short piece of content in JSON format, with a root key 'data'."
     }
   ];
 
@@ -187,9 +188,6 @@ The content of the 'speaker' and 'text' fields should be derived from the user's
     if (createPodcast) {
       // Transform the generic JSON script to the Host/Guest format for ElevenLabs Podcast
       let scriptForElevenLabs = "";
-      // Assuming parsedJsonScript has a structure like { "script_segments": [{ "speaker": "X", "dialogue": "..." }, ...] }
-      // The actual path to segments and speaker/dialogue keys should be robust or defined by user_prompt indirectly.
-      // For this example, let's assume a common 'script_segments' key, or that the root is an array.
       const segments = parsedJsonScript.script_segments || 
                        parsedJsonScript.script || // Added check for 'script' key
                        (Array.isArray(parsedJsonScript) ? parsedJsonScript : null);
@@ -202,33 +200,52 @@ The content of the 'speaker' and 'text' fields should be derived from the user's
         });
       }
 
+      // 获取所有出现的角色名称，以确定哪些是不同的角色
+      const allSpeakers = segments
+        .map(segment => segment.speaker_name || segment.speaker || segment.role)
+        .filter(speaker => typeof speaker === 'string');
+      
+      // 如果没有找到任何角色，报错
+      if (allSpeakers.length === 0) {
+        throw createError({
+          statusCode: 500,
+          statusMessage: 'No valid speakers found in the generated script.',
+        });
+      }
+      
+      // 获取唯一的角色名称（去重）
+      const uniqueSpeakers = [...new Set(allSpeakers)];
+      console.log('Backend: Unique speakers found in script:', uniqueSpeakers);
+      
+      // 将第一个独特的角色视为Host，其他角色视为Guest
+      const hostSpeaker = uniqueSpeakers[0];
+      // 所有其他角色都视为Guest
+      const guestSpeakers = uniqueSpeakers.slice(1);
+      
+      console.log('Backend: Treating as Host:', hostSpeaker);
+      console.log('Backend: Treating as Guest(s):', guestSpeakers);
+      
+      // 处理每个段落，将角色名称映射为"Host:"或"Guest:"
       for (const segment of segments) {
-        // The user_prompt should guide the LLM to use consistent keys for speaker and dialogue.
-        // For this example, we'll assume 'speaker' and 'dialogue' as keys within each segment.
-        // A more robust solution might involve the user specifying these keys in the request.
-        const speakerNameFromLlm = segment.speaker_name || segment.speaker || segment.role; 
+        const speakerNameFromLlm = segment.speaker_name || segment.speaker || segment.role;
         const dialogueText = segment.dialogue_text || segment.dialogue || segment.text;
-
+        
         if (typeof speakerNameFromLlm === 'string' && typeof dialogueText === 'string') {
-          // Check if the current speaker from LLM matches the one designated as Host in the mapping
-          if (speakerNameFromLlm === podcastSpeakerMapping.hostIdentifierInScript) {
+          if (speakerNameFromLlm === hostSpeaker) {
             scriptForElevenLabs += `Host: ${dialogueText.trim()}\n`;
-          // Check if the current speaker from LLM matches the one designated as Guest in the mapping
-          } else if (speakerNameFromLlm === podcastSpeakerMapping.guestIdentifierInScript) {
+          } else if (guestSpeakers.includes(speakerNameFromLlm)) {
             scriptForElevenLabs += `Guest: ${dialogueText.trim()}\n`;
           }
-          // Segments from other speakers not mapped to Host or Guest will be ignored in scriptForElevenLabs
         }
       }
 
       if (!scriptForElevenLabs.trim()) {
-        console.error('Backend: Failed to transform JSON script to ElevenLabs format. Resulting script is empty. Check speaker mapping and JSON structure. Mapped Host:', podcastSpeakerMapping.hostIdentifierInScript, 'Mapped Guest:', podcastSpeakerMapping.guestIdentifierInScript, 'LLM Speakers found in first segment:', segments[0]?.speaker || segments[0]?.speaker_name || segments[0]?.role);
+        console.error('Backend: Failed to transform JSON script to ElevenLabs format. Resulting script is empty.');
         throw createError({
             statusCode: 500,
-            statusMessage: 'Failed to transform JSON script for ElevenLabs. Ensure speaker mapping matches identifiers in the JSON script and that segments have text.',
+            statusMessage: 'Failed to transform JSON script for ElevenLabs. The resulting script is empty.',
         });
       }
-      // TODO: Consider if other speakers from the LLM script should be handled or reported.
 
       console.log('Backend: Script transformed for ElevenLabs:', scriptForElevenLabs);
 
@@ -248,19 +265,29 @@ The content of the 'speaker' and 'text' fields should be derived from the user's
         const podcastResponse = await elevenLabsProvider.createPodcastConversation(podcastRequest);
         console.log('Backend: Podcast creation successful:', podcastResponse);
         return { 
-          generatedScript: parsedJsonScript, // Return the original JSON script
+          script: scriptForElevenLabs,
+          generatedScript: parsedJsonScript,
           podcastDetails: podcastResponse 
         };
       } catch (podcastError: any) {
         console.error('Backend: ElevenLabs podcast creation failed:', podcastError.message);
         return { 
-          generatedScript: parsedJsonScript, // Still return the generated JSON script
+          script: scriptForElevenLabs,
+          generatedScript: parsedJsonScript,
           podcastError: podcastError.message || 'Failed to create podcast with ElevenLabs.' 
         };
       }
     } else {
       // If not creating a podcast, just return the parsed JSON script
-      return { generatedScript: parsedJsonScript };
+      // 将原始JSON脚本转换为可读文本
+      const formattedScript = parsedJsonScript.script
+        .map((segment: any) => `${segment.speaker}: ${segment.text}`)
+        .join('\n\n');
+      
+      return { 
+        script: formattedScript,
+        generatedScript: parsedJsonScript 
+      };
     }
 
   } catch (error: any) {

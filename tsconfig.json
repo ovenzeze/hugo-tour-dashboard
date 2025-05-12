@@ -5,12 +5,16 @@
     "strict": true,
     "skipLibCheck": true,
     "types": [],
-    "paths": {
-      "#imports": ["./.nuxt/imports"],
-      "#app": ["./.nuxt/app"],
-      "#components": ["./.nuxt/components"],
-      "~/*": ["./*"],
-      "@/*": ["./*"]
-    }
+    "module": "ESNext",
+    "moduleResolution": "NodeNext",
+    "target": "ES2020",
+    "esModuleInterop": true,
+"paths": {
+  "#imports": ["./.nuxt/imports"],
+  "#app": ["./.nuxt/app"],
+  "#components": ["./.nuxt/components"],
+  "~/*": ["./*"],
+  "@/*": ["./*"]
+}
   }
-} 
+}

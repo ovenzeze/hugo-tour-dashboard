@@ -117,7 +117,7 @@ export default defineEventHandler(async (event) => {
       await execAsync(
         `python podcast_mixer_segments.py create-template "${aliceAudioPath}" "${markAudioPath}" "${segmentsPath}" --elevenlabs-json1 "${aliceTimestampsPath}" --elevenlabs-json2 "${markTimestampsPath}"`
       );
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error generating segments:', error);
       return { 
         success: false, 
@@ -136,7 +136,7 @@ export default defineEventHandler(async (event) => {
         segments: `/api/podcast/files/${sessionId}/segments.json`
       }
     };
-  } catch (error) {
+  } catch (error: any) {
     console.error('Error in podcast generation:', error);
     return { 
       success: false, 

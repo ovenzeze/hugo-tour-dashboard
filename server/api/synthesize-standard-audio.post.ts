@@ -19,7 +19,7 @@ interface PersonaWithTtsData {
 type GuideAudioInsert = Database['public']['Tables']['guide_audios']['Insert'];
 
 export default defineEventHandler(async (event: H3Event) => {
-    console.log('API Route /api/generate-audio (full refactor with storage, DB, metadata) called.');
+    console.log('API Route /api/synthesize-standard-audio (full refactor with storage, DB, metadata) called.');
 
     const supabaseClient = await serverSupabaseServiceRole<Database>(event);
     const runtimeConfig = useRuntimeConfig(event);
@@ -240,7 +240,7 @@ export default defineEventHandler(async (event: H3Event) => {
         };
 
     } catch (error: any) {
-        console.error('Error in /api/generate-audio:', error);
+        console.error('Error in /api/synthesize-standard-audio:', error);
         return createError({
             statusCode: error.statusCode || 500,
             statusMessage: error.statusMessage || 'Internal Server Error in audio generation.',
@@ -251,10 +251,10 @@ export default defineEventHandler(async (event: H3Event) => {
         if (tempAudioFilePath) {
             try {
                 unlinkSync(tempAudioFilePath);
-                console.log(`Temporary audio file ${tempAudioFilePath} deleted.`);
+                console.log(`Temporary audio file deleted: ${tempAudioFilePath}`);
             } catch (cleanupError) {
                 console.error(`Error deleting temporary file ${tempAudioFilePath}:`, cleanupError);
             }
         }
     }
-});
+}); 
