@@ -1,38 +1,42 @@
-# Dockerfile for Nuxt App with ffmpeg ✅
+# Dockerfile for Nuxt App with ffmpeg, using git clone
 
 # 第一阶段：构建 Nuxt 应用
 FROM node:18-alpine AS builder
 
-# 设置工作目录
-WORKDIR /src
-
-# 声明用于 Git token 的构建参数
+# 声明用于 Git 克隆 URL 的构建参数
 ARG GIT_CLONE_URL
+
+# 设置初始工作目录 (用于克隆)
+WORKDIR /src
 
 # 安装 git
 RUN apk add --no-cache git
 
-# 克隆代码仓库
-# 注意：您需要在构建时通过 --build-arg GIT_CLONE_URL="https://oauth2:YOUR_TOKEN@github.com/ovenzeze/hugo-tour-dashboard.git" 传递
+# 克隆代码仓库到 /app 目录
+# GIT_CLONE_URL 应为 "https://oauth2:YOUR_TOKEN@github.com/user/repo.git"
 RUN git clone ${GIT_CLONE_URL} /app
+
+# 设置后续操作的工作目录为克隆下来的仓库
 WORKDIR /app
 
-# package.json 和 pnpm-lock.yaml 现在应该在 /app 目录中
+# package.json 和 pnpm-lock.yaml 现在位于 /app 目录中
 
 # 安装编译原生依赖所需的构建工具
 RUN apk add --no-cache python3 make g++
 
-# 安装依赖
+# 安装 pnpm 并安装项目依赖
+# npm install -g pnpm 确保 pnpm 命令可用
+# pnpm install 使用 /app/package.json 和 /app/pnpm-lock.yaml
 RUN npm install -g pnpm && pnpm install --frozen-lockfile
 
 # 强制重新编译原生依赖 (例如 better-sqlite3) 以确保架构匹配
 RUN pnpm rebuild better-sqlite3
 
-# 构建应用 (确保构建时需要的 public runtimeConfig 环境变量已设置)
-# Nuxt 会自动从 process.env 读取 NUXT_PUBLIC_ 开头的变量
+# 构建应用
+# nuxt.config.ts 中应设置 preset: 'node-server'，输出到 .output
 RUN pnpm exec nuxi build
 
-# 第二阶段：运行 Nuxt 应用 (包含 ffmpeg) ✅
+# 第二阶段：运行 Nuxt 应用
 FROM node:18-alpine
 
 WORKDIR /app
@@ -43,25 +47,18 @@ RUN apk update && \
         ffmpeg \
     && rm -rf /var/cache/apk/*
 
-# 从构建阶段复制构建产物 (现在应该是标准的 .output 目录)
+# 从构建阶段复制构建产物和必要的运行时文件
 COPY --from=builder /app/.output ./.output
 COPY --from=builder /app/node_modules ./node_modules
 COPY --from=builder /app/package.json ./package.json
-# 如果您有 .npmrc 或 pnpm specific files like .pnpmfile.cjs, copy them too
-# COPY --from=builder /app/.npmrc ./.npmrc
-# COPY --from=builder /app/pnpm-workspace.yaml ./pnpm-workspace.yaml # if applicable
+# 如果您有 .npmrc 或 pnpm specific files like .pnpmfile.cjs, 它们应该在 git clone 时已包含
+# 如果它们是构建过程生成的，并且运行时需要，则需要从 /app 复制
 
-# 设置 Node.js 服务器监听地址
-# Nitro 会自动监听 $PORT 环境变量 (由 Cloud Run 提供) 或默认端口 (3000)
+# 设置 Node.js 服务器监听地址和环境变量
 ENV HOST=0.0.0.0
-# EXPOSE 指令主要用于文档和本地 Docker 交互，Cloud Run 不使用它
-# 我们保留 3000 作为本地/默认参考
+ENV NODE_ENV=production
+# Nitro (nuxi start) 会自动监听 $PORT (由 Cloud Run 提供) 或默认端口 (3000)
 EXPOSE 3000
 
-# 设置 NODE_ENV 为 production ✅
-ENV NODE_ENV=production
-
-# 启动 Nuxt 服务器 (使用标准的 Nitro 服务器入口点)
-# 使用 npx 来执行项目本地安装的 nuxi 命令
-# nuxi start 默认会监听 HOST 和 PORT 环境变量
+# 启动 Nuxt 服务器
 CMD ["npx", "nuxi", "start"]
