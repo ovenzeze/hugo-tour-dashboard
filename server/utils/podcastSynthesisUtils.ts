@@ -1,4 +1,3 @@
-// fs and path imports will be replaced by storageService methods
 import { execSync } from 'child_process'; // For executing ffmpeg
 import { IStorageService } from '../services/storageService'; // Corrected import path
 
@@ -11,9 +10,9 @@ interface TimelineSegment {
   endTime: number;
 }
 
-export async function synthesizeBasicPodcast(
+export async function mergeAudioSegmentsForPodcast( // Renamed function
   podcastId: string,
-  storageService: IStorageService // Add storageService parameter
+  storageService: IStorageService
 ): Promise<string> {
   // Paths for storage operations (relative to project root for LocalStorageService)
   const podcastStoragePath = storageService.joinPath('public', 'podcasts', podcastId);
@@ -57,28 +56,28 @@ export async function synthesizeBasicPodcast(
     // Construct and execute ffmpeg command
     const ffmpegCommand = `ffmpeg -y -f concat -safe 0 -i "${absoluteFileListPath}" -c copy "${absoluteFinalOutputPath}"`;
     
-    console.log(`Executing ffmpeg command: ${ffmpegCommand}`);
+    console.log(`Executing ffmpeg command for merging: ${ffmpegCommand}`); // Updated log
     execSync(ffmpegCommand, { stdio: 'inherit' });
 
-    console.log(`Successfully synthesized podcast to ${absoluteFinalOutputPath}`);
+    console.log(`Successfully merged podcast to ${absoluteFinalOutputPath}`); // Updated log
     // Return public URL path
     return storageService.getPublicUrl(storageService.joinPath('podcasts', podcastId, finalOutputFileName));
 
   } catch (error: any) {
-    console.error('Error during ffmpeg execution:', error.message);
+    console.error('Error during ffmpeg merge execution:', error.message); // Updated log
     if (error.stderr) {
       console.error('FFMPEG stderr:', error.stderr.toString());
     }
     if (error.stdout) {
       console.error('FFMPEG stdout:', error.stdout.toString());
     }
-    throw new Error(`Failed to synthesize podcast: ${error.message}`);
+    throw new Error(`Failed to merge podcast audio: ${error.message}`); // Updated log
   } finally {
     // Clean up the temporary file list
     try {
       await storageService.unlink(fileListStoragePath);
     } catch (cleanupError) {
-      console.warn(`Failed to delete temporary ffmpeg file list: ${fileListPath}`, cleanupError);
+      console.warn(`Failed to delete temporary ffmpeg file list: ${fileListStoragePath}`, cleanupError);
     }
   }
 }

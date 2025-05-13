@@ -1,45 +1,41 @@
-import { useRuntimeConfig } from '#imports';
-// Removed: import { fetchElevenLabsAPI } from '../utils/elevenlabsClient';
-import { getTtsProvider } from '../services/tts/factory'; // Import TTS Provider factory
-import type { VoiceSynthesisRequest, VoiceSynthesisWithTimestampsResponse } from '../services/tts/types'; // Import types
-import { IStorageService } from '../services/storageService';
+// server/utils/podcastScriptProcessor.ts
+import { useRuntimeConfig } from '#imports'; // May not be needed if no runtimeConfig specific logic remains
 
+// Interface for persona data
 interface Persona {
   name: string;
   voice_model_identifier: string;
 }
 
+// Interface for individual script segments from input
 interface ScriptSegment {
   speaker: string;
   text: string;
 }
 
-interface ProcessedSegment extends ScriptSegment {
-  audio?: string; // Path to the saved audio file
-  timestamps?: string; // Path to the saved timestamp JSON file
-  error?: string;
+// New interface for the output of this function, preparing segments for the next synthesis step
+export interface PreparedSegmentForSynthesis {
+  segmentIndex: number;
+  text: string;
+  voiceId: string;
+  speakerName: string; // Original speaker name, can be used by next step for filename
+  error?: string;     // For errors like voiceId not found
 }
 
+/**
+ * Processes the raw podcast script and personas to prepare segments for TTS synthesis.
+ * This function identifies the speaker, text, and voiceId for each segment.
+ * It does NOT perform TTS itself.
+ */
 export async function processPodcastScript(
-  podcastId: string,
+  podcastId: string, // podcastId might still be useful for context or logging
   script: ScriptSegment[],
-  personas: { hostPersona?: Persona; guestPersonas?: Persona[] },
-  storageService: IStorageService // Add storageService parameter
-): Promise<ProcessedSegment[]> {
-  const runtimeConfig = useRuntimeConfig();
-  // API key check will be handled by the TTS provider
-  
-  // Define paths relative to the storage service's public root
-  const podcastPublicPath = storageService.joinPath('podcasts', podcastId);
-  const segmentsPublicPath = storageService.joinPath(podcastPublicPath, 'segments');
-  
-  // Ensure directories exist using storage service
-  // storageService.ensureDir expects path relative to project root for LocalStorageService
-  // For LocalStorageService, public/podcasts/podcastId/segments
-  const segmentsStoragePath = storageService.joinPath('public', segmentsPublicPath);
-  await storageService.ensureDir(segmentsStoragePath);
+  personas: { hostPersona?: Persona; guestPersonas?: Persona[] }
+  // storageService is no longer passed as this function doesn't write files
+): Promise<PreparedSegmentForSynthesis[]> {
+  // const runtimeConfig = useRuntimeConfig(); // Uncomment if needed for any other logic
 
-  const processedSegments: ProcessedSegment[] = [];
+  const preparedSegments: PreparedSegmentForSynthesis[] = [];
   let segmentIndex = 0;
 
   for (const segment of script) {
@@ -47,99 +43,49 @@ export async function processPodcastScript(
     const { speaker, text } = segment;
 
     if (!speaker || !text) {
-      console.warn('Skipping segment due to missing speaker or text:', segment);
+      console.warn(`[processPodcastScript] Skipping segment ${segmentIndex} for podcast "${podcastId}" due to missing speaker or text.`);
+      preparedSegments.push({
+        segmentIndex,
+        text: text || '',
+        speakerName: speaker || 'Unknown',
+        voiceId: '', // No voiceId if speaker/text is missing
+        error: 'Segment missing speaker or text.',
+      });
       continue;
     }
 
     // Find the voiceId for the speaker
-    let voiceId = null;
-    if (personas.hostPersona && personas.hostPersona.name.startsWith(speaker)) {
+    let voiceId: string | null = null;
+    if (personas.hostPersona && personas.hostPersona.name && personas.hostPersona.name.startsWith(speaker)) {
       voiceId = personas.hostPersona.voice_model_identifier;
     } else if (personas.guestPersonas && Array.isArray(personas.guestPersonas)) {
-      const guest = personas.guestPersonas.find(p => p.name.startsWith(speaker));
+      const guest = personas.guestPersonas.find(p => p.name && p.name.startsWith(speaker));
       if (guest) {
-        voiceId = guest.voice_model_identifier; // Corrected access based on user-provided persona structure
+        voiceId = guest.voice_model_identifier;
       }
     }
 
     if (!voiceId) {
-      console.warn(`Could not find voiceId for speaker: ${speaker}. Skipping segment.`);
-      processedSegments.push({
-        speaker: speaker,
-        text: text,
+      console.warn(`[processPodcastScript] Could not find voiceId for speaker: "${speaker}" in segment ${segmentIndex} for podcast "${podcastId}".`);
+      preparedSegments.push({
+        segmentIndex,
+        text,
+        speakerName: speaker,
+        voiceId: '', // No voiceId found
         error: `Could not find voiceId for speaker: ${speaker}`,
       });
       continue;
     }
 
-    console.log(`Generating audio with timestamps for speaker: ${speaker} with voiceId: ${voiceId}`);
-
-    try {
-      // Determine TTS provider (assuming ElevenLabs for now, but could be dynamic)
-      const ttsProviderId = 'elevenlabs'; // This could come from persona or config
-      const ttsProvider = getTtsProvider(ttsProviderId, runtimeConfig);
-
-      if (!ttsProvider.generateSpeechWithTimestamps) {
-        throw new Error(`TTS Provider ${ttsProviderId} does not support generateSpeechWithTimestamps.`);
-      }
-
-      const synthesisRequest: VoiceSynthesisRequest = {
-        text: text,
-        voiceId: voiceId,
-        // modelId: 'eleven_multilingual_v2', // Model can be set in provider or here if needed
-        // providerOptions: {}, // Voice settings can be passed here
-        outputFormat: 'mp3_44100_128' // Example, ensure provider handles this
-      };
-
-      const ttsResult: VoiceSynthesisWithTimestampsResponse = await ttsProvider.generateSpeechWithTimestamps(synthesisRequest);
-
-      let audioFilePath: string | undefined = undefined;
-      let timestampsFilePath: string | undefined = undefined;
-      const safeSpeakerName = speaker.replace(/[^a-zA-Z0-9_]/g, '_').substring(0, 50);
-      const baseFilename = `${String(segmentIndex).padStart(3, '0')}_${safeSpeakerName}`;
-
-      if (ttsResult.audioData) {
-        // audioData is ArrayBuffer, convert to Buffer for writeFile
-        const audioBuffer = Buffer.from(ttsResult.audioData);
-        // Infer extension from contentType or default to mp3
-        const extension = ttsResult.contentType.includes('mpeg') ? 'mp3' :
-                          ttsResult.contentType.includes('wav') ? 'wav' : 'mp3';
-        const audioFilename = `${baseFilename}.${extension}`;
-        
-        const audioStoragePath = storageService.joinPath(segmentsStoragePath, audioFilename);
-        await storageService.writeFile(audioStoragePath, audioBuffer);
-        audioFilePath = storageService.getPublicUrl(storageService.joinPath(segmentsPublicPath, audioFilename));
-        console.log(`Saved audio for ${speaker} to ${audioFilePath} (Content-Type: ${ttsResult.contentType})`);
-      }
-
-      if (ttsResult.timestamps) {
-        // Assuming ttsResult.timestamps is already in the desired format (e.g., AlignmentData)
-        // If not, transformation would be needed here.
-        // The `timelineUtils` expects `AlignmentData` { characters, character_start_times_seconds, character_end_times_seconds }
-        // The ElevenLabs SDK's convertWithTimestamps likely returns this or similar.
-        const timestampsFilename = `${baseFilename}.json`;
-        const timestampsStoragePath = storageService.joinPath(segmentsStoragePath, timestampsFilename);
-        await storageService.writeFile(timestampsStoragePath, JSON.stringify(ttsResult.timestamps, null, 2));
-        timestampsFilePath = storageService.getPublicUrl(storageService.joinPath(segmentsPublicPath, timestampsFilename));
-        console.log(`Saved timestamps for ${speaker} to ${timestampsFilePath}`);
-      }
-
-      processedSegments.push({
-        speaker: speaker,
-        text: text,
-        audio: audioFilePath,
-        timestamps: timestampsFilePath,
-      });
-
-    } catch (ttsError: any) {
-      console.error(`Error generating TTS for speaker ${speaker}:`, ttsError.message || ttsError);
-      processedSegments.push({
-        speaker: speaker,
-        text: text,
-        error: `Failed to generate audio: ${ttsError.message}`,
-      });
-    }
+    // Segment is ready for the next synthesis step
+    preparedSegments.push({
+      segmentIndex,
+      text,
+      voiceId, // voiceId is guaranteed to be a string here
+      speakerName: speaker,
+    });
   }
 
-  return processedSegments;
+  console.log(`[processPodcastScript] Prepared ${preparedSegments.length} segments for podcast "${podcastId}".`);
+  return preparedSegments;
 }
