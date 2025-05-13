@@ -1,104 +1,40 @@
 <template>
   <div class="p-4 sm:p-6 lg:p-8">
     <div class="sm:flex sm:items-center">
-      <div class="sm:flex-auto">
-        <h1 class="text-xl font-semibold text-gray-900 dark:text-gray-100">Personas Management</h1>
-        <p class="mt-2 text-sm text-gray-700 dark:text-gray-300">
-          A list of all the personas in your account including their name, description, and status.
-        </p>
-      </div>
       <div class="mt-4 sm:mt-0 sm:ml-16 sm:flex-none">
         <Button @click="openAddPersonaDialog">
-          <CirclePlus class="mr-2 h-4 w-4" /> Add Persona
+         <Icon name="ph:plus" class=" h-4 w-4" />Add Persona
         </Button>
       </div>
     </div>
 
-    <div class="mt-8 flex flex-col">
-      <div class="-my-2 -mx-4 overflow-x-auto sm:-mx-6 lg:-mx-8">
-        <div class="inline-block min-w-full py-2 align-middle md:px-6 lg:px-8">
-          <div v-if="pending" class="space-y-4 py-4">
-            <Skeleton class="h-12 w-full" />
-            <div class="space-y-3">
-              <Skeleton class="h-8 w-full" />
-              <Skeleton class="h-8 w-full" />
-              <Skeleton class="h-8 w-full" />
-            </div>
-          </div>
-          <div v-else-if="error" class="text-center py-4">
-            <p class="text-red-500">Failed to load personas: {{ error.message }}</p>
-          </div>
-          <div v-else-if="personas && personas.length > 0" class="overflow-hidden shadow ring-1 ring-black ring-opacity-5 md:rounded-lg dark:ring-white/10">
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead class="w-[100px]">Avatar</TableHead>
-                  <TableHead>Name</TableHead>
-                  <TableHead>Description</TableHead>
-                  <TableHead>System Prompt</TableHead>
-                  <TableHead>Voice Settings</TableHead>
-                  <TableHead>Status</TableHead>
-                  <TableHead class="text-right">Actions</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                <TableRow v-for="persona in personas" :key="persona.persona_id">
-                  <TableCell class="font-medium">
-                    <Avatar class="h-10 w-10">
-                      <AvatarImage v-if="persona.avatar_url" :src="persona.avatar_url" :alt="persona.name" />
-                      <AvatarFallback>
-                        <UserCircle class="h-6 w-6 text-gray-500 dark:text-gray-400" />
-                      </AvatarFallback>
-                    </Avatar>
-                  </TableCell>
-                  <TableCell>{{ persona.name }}</TableCell>
-                  <TableCell class="max-w-xs break-words">{{ persona.description || 'N/A' }}</TableCell>
-                  <TableCell class="max-w-xs break-words">{{ persona.system_prompt || 'N/A' }}</TableCell>
-                  <TableCell class="max-w-xs break-words">{{ persona.voice_settings || 'N/A' }}</TableCell>
-                  <TableCell>
-                    <Badge :variant="persona.is_active ? 'default' : 'secondary'" :class="persona.is_active ? 'bg-green-500 text-white' : 'bg-red-500 text-white'">
-                      {{ persona.is_active ? 'Active' : 'Inactive' }}
-                    </Badge>
-                  </TableCell>
-                  <TableCell class="text-right">
-                    <DropdownMenu>
-                      <DropdownMenuTrigger as-child>
-                        <Button variant="ghost" class="h-8 w-8 p-0">
-                          <span class="sr-only">Open menu</span>
-                          <MoreHorizontal class="h-4 w-4" />
-                        </Button>
-                      </DropdownMenuTrigger>
-                      <DropdownMenuContent align="end">
-                        <DropdownMenuItem @click="editPersona(persona.persona_id)">
-                          <Pencil class="mr-2 h-4 w-4" />
-                          <span>Edit</span>
-                        </DropdownMenuItem>
-                        <DropdownMenuItem @click="viewPersonaDetails(persona.persona_id)">
-                          <Eye class="mr-2 h-4 w-4" />
-                          <span>View Details</span>
-                        </DropdownMenuItem>
-                        <DropdownMenuItem @click="confirmDeletePersona(persona.persona_id)" class="text-red-600 hover:!text-red-600 dark:text-red-500 dark:hover:!text-red-500">
-                          <Trash2 class="mr-2 h-4 w-4" />
-                          <span>Delete</span>
-                        </DropdownMenuItem>
-                      </DropdownMenuContent>
-                    </DropdownMenu>
-                  </TableCell>
-                </TableRow>
-              </TableBody>
-            </Table>
-          </div>
-          <div v-else class="text-center py-12">
-            <Users2 class="mx-auto h-12 w-12 text-gray-400" />
-            <h3 class="mt-2 text-sm font-medium text-gray-900 dark:text-gray-100">No Personas Found</h3>
-            <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">Get started by creating a new persona.</p>
-            <div class="mt-6">
-              <Button @click="openAddPersonaDialog">
-                <CirclePlus class="mr-2 h-4 w-4" />
-                Create Persona
-              </Button>
-            </div>
-          </div>
+    <!-- Card View for all screen sizes -->
+    <div class="mt-8">
+      <div v-if="pending" class="space-y-4 py-4">
+        <Skeleton class="h-24 w-full" v-for="i in 3" :key="i" />
+      </div>
+      <div v-else-if="error" class="text-center py-4">
+        <p class="text-red-500">Failed to load personas: {{ error.message }}</p>
+      </div>
+      <div v-else-if="personas && personas.length > 0" class="grid grid-cols-[repeat(auto-fit,minmax(360px,1fr))] gap-4">
+        <PersonaCard
+          v-for="persona in personas"
+          :key="persona.persona_id"
+          :persona="persona"
+          @edit="editPersona"
+          @delete="confirmDeletePersona"
+          @view-details="viewPersonaDetails"
+        />
+      </div>
+      <div v-else class="text-center py-12">
+        <Users2 class="mx-auto h-12 w-12 text-gray-400" />
+        <h3 class="mt-2 text-sm font-medium text-gray-900 dark:text-gray-100">No Personas Found</h3>
+        <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">Get started by creating a new persona.</p>
+        <div class="mt-6">
+          <Button @click="openAddPersonaDialog">
+            <CirclePlus class="mr-2 h-4 w-4" />
+            Create Persona
+          </Button>
         </div>
       </div>
     </div>
@@ -241,20 +177,24 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, reactive, watch } from 'vue';
-import { useForm } from 'vee-validate';
 import { toTypedSchema } from '@vee-validate/zod';
+import { useForm } from 'vee-validate';
+import { computed, ref, watch } from 'vue';
 import * as z from 'zod';
 
 // Define a more specific type for what the API returns, including potential joins
-interface ApiPersona {
+export interface ApiPersona {
   persona_id: number;
   name: string;
   description: string | null;
   avatar_url: string | null;
   is_active: boolean | null;
   system_prompt: string | null;
-  voice_settings: string | null;
+  voice_settings: string | null; // Assuming this might be JSON or structured string
+  voice_description?: string | null;
+  tts_provider?: string | null;
+  language_support?: string[] | null;
+  voice_model_identifier?: string | null;
   created_at: string | null;
   updated_at: string | null;
 }
