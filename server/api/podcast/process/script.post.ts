@@ -1,6 +1,7 @@
 import { defineEventHandler, readBody, createError } from 'h3';
 import { processPodcastScript } from '../../../utils/podcastScriptProcessor';
-import { LocalStorageService } from '../../../services/storageService'; // Assuming LocalStorageService for now
+// import { LocalStorageService } from '../../../services/storageService'; // No longer directly instantiating
+import { getStorageService } from '../../../services/storageService'; // Import the factory
 import type { IStorageService } from '../../../services/storageService';
 
 // Interfaces from podcastScriptProcessor.ts - consider moving to a shared types file
@@ -46,10 +47,11 @@ export default defineEventHandler(async (event) => {
           });
     }
     
-    // Initialize storage service (this could be more dynamic if needed)
-    const storageService: IStorageService = new LocalStorageService();
+    // Initialize storage service using the factory
+    // Pass the 'event' object to getStorageService so it can potentially use serverSupabaseClient
+    const storageService: IStorageService = await getStorageService(event);
 
-    console.log(`API: Processing script for podcastId: ${podcastId}`);
+    console.log(`API: Processing script for podcastId: ${podcastId} using ${storageService.constructor.name}`);
     const processedSegments = await processPodcastScript(podcastId, script, personas, storageService);
     
     return {

@@ -1,8 +1,9 @@
 import { defineEventHandler, readBody, createError } from 'h3';
 import { createMergedTimeline } from '../../../utils/timelineUtils';
-import { LocalStorageService } from '../../../services/storageService'; // Assuming LocalStorageService for now
+// import { LocalStorageService } from '../../../services/storageService'; // No longer directly instantiating
+import { getStorageService } from '../../../services/storageService'; // Import the factory
 import type { IStorageService } from '../../../services/storageService';
-import type { TimelineSegment } from '../../../utils/timelineUtils'; // Import if needed for response type
+import type { TimelineSegment } from '../../../utils/timelineUtils';
 
 interface RequestBody {
   podcastId: string;
@@ -21,8 +22,8 @@ export default defineEventHandler(async (event) => {
       });
     }
     
-    // Initialize storage service
-    const storageService: IStorageService = new LocalStorageService();
+    // Initialize storage service using the factory
+    const storageService: IStorageService = await getStorageService(event);
     
     // segmentsDir for createMergedTimeline is relative to public root, e.g., "podcasts/podcastId/segments"
     const segmentsDir = storageService.joinPath('podcasts', podcastId, 'segments');

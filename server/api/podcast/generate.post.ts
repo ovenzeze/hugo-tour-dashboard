@@ -1,10 +1,12 @@
-import { defineEventHandler, createError, readBody } from 'h3'; // Corrected uimport to import
+ import { createError, defineEventHandler, readBody } from 'h3'; // Corrected uimport to import
 import { processPodcastScript } from '../../utils/podcastScriptProcessor';
-import { createMergedTimeline } from '../../utils/timelineUtils';
 import { synthesizeBasicPodcast } from '../../utils/podcastSynthesisUtils';
-import { existsSync } from 'fs'; // For checking timeline file before synthesis
-import { resolve } from 'path'; // For resolving path for existsSync
-import { LocalStorageService, IStorageService } from '../../services/storageService'; // Import storage service
+import { createMergedTimeline } from '../../utils/timelineUtils';
+// import { existsSync } from 'fs'; // existsSync will be handled by storageService
+// import { resolve } from 'path'; // resolve will be handled by storageService
+// import { LocalStorageService, IStorageService } from '../../services/storageService'; // No longer directly instantiating
+import type { IStorageService } from '../../services/storageService';
+import { getStorageService } from '../../services/storageService'; // Import the factory
 
 interface Persona {
   name: string;
@@ -48,7 +50,9 @@ export default defineEventHandler(async (event) => {
 
     console.log(`Generating podcast with ID: ${podcastId} and title: ${podcastTitle}`);
 
-    const storageService: IStorageService = new LocalStorageService();
+    // Initialize storage service using the factory
+    const storageService: IStorageService = await getStorageService(event);
+    console.log(`[PodcastGenerate] Using storage service: ${storageService.constructor.name}`);
 
     // 1. Process script to generate individual segments
     const processedSegments = await processPodcastScript(podcastId, script, personas, storageService);

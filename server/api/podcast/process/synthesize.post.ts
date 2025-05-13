@@ -1,6 +1,7 @@
 import { defineEventHandler, readBody, createError } from 'h3';
 import { synthesizeBasicPodcast } from '../../../utils/podcastSynthesisUtils';
-import { LocalStorageService } from '../../../services/storageService'; // Assuming LocalStorageService for now
+// import { LocalStorageService } from '../../../services/storageService'; // No longer directly instantiating
+import { getStorageService } from '../../../services/storageService'; // Import the factory
 import type { IStorageService } from '../../../services/storageService';
 
 interface RequestBody {
@@ -20,10 +21,10 @@ export default defineEventHandler(async (event) => {
       });
     }
     
-    // Initialize storage service
-    const storageService: IStorageService = new LocalStorageService();
+    // Initialize storage service using the factory
+    const storageService: IStorageService = await getStorageService(event);
 
-    console.log(`API: Synthesizing final podcast for podcastId: ${podcastId}`);
+    console.log(`API: Synthesizing final podcast for podcastId: ${podcastId} using ${storageService.constructor.name}`);
     const finalPodcastUrl = await synthesizeBasicPodcast(podcastId, storageService);
     
     return {

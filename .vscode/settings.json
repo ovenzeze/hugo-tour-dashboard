@@ -2,7 +2,7 @@
   "IDX.aI.enableCodebaseIndexing": true,
   "IDX.aI.enableInlineCompletion": true,
   "[typescript]": {
-    "editor.defaultFormatter": "denoland.vscode-deno"
+    "editor.defaultFormatter": "esbenp.prettier-vscode"
   },
   "cSpell.words": [
     "Noto",

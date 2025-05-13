@@ -18,23 +18,14 @@ ARG ARG_SUPABASE_KEY
 ARG ARG_SUPABASE_SERVICE_KEY
 ARG ARG_NUXT_PUBLIC_SITE_URL
 
-# 设置初始工作目录 (用于克隆)
-WORKDIR /src
-
-# 安装 git
-RUN apk add --no-cache git
-
-# 克隆代码仓库到 /app 目录
-# GIT_CLONE_URL 应为 "https://oauth2:YOUR_TOKEN@github.com/user/repo.git"
-RUN git clone ${GIT_CLONE_URL} /app
-
-# 设置后续操作的工作目录为克隆下来的仓库
+# 设置初始工作目录 (用于构建)
 WORKDIR /app
-
-# package.json 和 pnpm-lock.yaml 现在位于 /app 目录中
 
 # 安装编译原生依赖所需的构建工具
 RUN apk add --no-cache python3 make g++
+
+# 复制本地代码到容器中（Cloud Build会自动上传源码，无需git clone）
+COPY . /app
 
 # 安装 pnpm 并安装项目依赖
 # npm install -g pnpm 确保 pnpm 命令可用
