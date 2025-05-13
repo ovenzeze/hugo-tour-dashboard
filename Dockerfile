@@ -30,7 +30,7 @@ RUN pnpm rebuild better-sqlite3
 
 # 构建应用 (确保构建时需要的 public runtimeConfig 环境变量已设置)
 # Nuxt 会自动从 process.env 读取 NUXT_PUBLIC_ 开头的变量
-RUN pnpm build
+RUN nuxi build
 
 # 第二阶段：运行 Nuxt 应用 (包含 ffmpeg) ✅
 FROM node:18-alpine
@@ -45,6 +45,11 @@ RUN apk update && \
 
 # 从构建阶段复制构建产物 (现在应该是标准的 .output 目录)
 COPY --from=builder /app/.output ./.output
+COPY --from=builder /app/node_modules ./node_modules
+COPY --from=builder /app/package.json ./package.json
+# 如果您有 .npmrc 或 pnpm specific files like .pnpmfile.cjs, copy them too
+# COPY --from=builder /app/.npmrc ./.npmrc
+# COPY --from=builder /app/pnpm-workspace.yaml ./pnpm-workspace.yaml # if applicable
 
 # 设置 Node.js 服务器监听地址
 # Nitro 会自动监听 $PORT 环境变量 (由 Cloud Run 提供) 或默认端口 (3000)
@@ -57,4 +62,6 @@ EXPOSE 3000
 ENV NODE_ENV=production
 
 # 启动 Nuxt 服务器 (使用标准的 Nitro 服务器入口点)
-CMD ["node", ".output/server/index.mjs"]
+# 使用 npx 来执行项目本地安装的 nuxi 命令
+# nuxi start 默认会监听 HOST 和 PORT 环境变量
+CMD ["npx", "nuxi", "start"]

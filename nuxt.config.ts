@@ -54,7 +54,6 @@ export default defineNuxtConfig({
   },
 
   nitro: {
-    preset: 'node-server',
     publicAssets: [
       {
         baseURL: 'docs',
