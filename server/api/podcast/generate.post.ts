@@ -1,4 +1,4 @@
-import { defineEventHandler, createError, readBody } from 'h3';
+import { defineEventHandler, createError, readBody } from 'h3'; // Corrected uimport to import
 import { processPodcastScript } from '../../utils/podcastScriptProcessor';
 import { createMergedTimeline } from '../../utils/timelineUtils';
 import { synthesizeBasicPodcast } from '../../utils/podcastSynthesisUtils';

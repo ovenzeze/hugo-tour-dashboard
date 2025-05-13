@@ -7,7 +7,7 @@ interface AlignmentData {
   character_end_times_seconds: number[];
 }
 
-interface TimelineSegment {
+export interface TimelineSegment { // Added export
   speaker: string;
   audioFile: string;
   timestampFile: string;
@@ -33,10 +33,10 @@ export async function createMergedTimeline(
   const timestampFiles = files
     .filter((file: string) => file.endsWith('.json') && !file.startsWith('merged_timeline.json'))
     .sort((a: string, b: string) => {
-      // Extract timestamp from filename for sorting (e.g., Speaker_Name_1747082049585.json)
-      const timeA = parseInt(a.split('_').pop()?.split('.')[0] || '0');
-      const timeB = parseInt(b.split('_').pop()?.split('.')[0] || '0');
-      return timeA - timeB;
+      // Sort by numeric prefix (e.g., "001_speaker.json", "002_speaker.json")
+      const numA = parseInt(a.split('_')[0] || '0');
+      const numB = parseInt(b.split('_')[0] || '0');
+      return numA - numB;
     });
 
   const timeline: TimelineSegment[] = [];

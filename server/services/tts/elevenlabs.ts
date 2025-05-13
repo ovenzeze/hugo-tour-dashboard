@@ -1,3 +1,5 @@
+
+
 // server/services/tts/elevenlabs.ts
 import type {
   TextToSpeechProvider,
@@ -6,8 +8,10 @@ import type {
   VoiceModel,
   PodcastCreationRequest,
   PodcastCreationResponse,
+  VoiceSynthesisWithTimestampsResponse, // Added import
 } from './types';
 import { $fetch } from 'ofetch'; // Nuxt's built-in fetch utility
+import { ElevenLabsClient } from 'elevenlabs'; // Added import for ElevenLabsClient
 
 // Interface for ElevenLabs specific configuration
 interface ElevenLabsConfig {
@@ -42,6 +46,7 @@ export class ElevenLabsProvider implements TextToSpeechProvider {
   readonly providerId = 'elevenlabs';
   private config: ElevenLabsConfig;
   private elevenLabsBaseUrl: string;
+  private elevenLabsClient: ElevenLabsClient; // Added ElevenLabsClient instance
 
   constructor(runtimeConfig: any) { // Expects the full runtimeConfig or a dedicated part of it
     const elevenlabsConfig = runtimeConfig.elevenlabs || {}; // Assuming config is under runtimeConfig.elevenlabs
@@ -55,6 +60,7 @@ export class ElevenLabsProvider implements TextToSpeechProvider {
         defaultModelId: elevenlabsConfig.defaultModelId || 'eleven_multilingual_v2',
     };
     this.elevenLabsBaseUrl = this.config.baseUrl!; // Assert non-null as it has a default
+    this.elevenLabsClient = new ElevenLabsClient({ apiKey: this.config.apiKey }); // Initialize client
   }
 
   async generateSpeech(request: VoiceSynthesisRequest): Promise<VoiceSynthesisResponse> {
@@ -106,33 +112,99 @@ export class ElevenLabsProvider implements TextToSpeechProvider {
     }
   }
 
-  async listVoices(languageCode?: string): Promise<VoiceModel[]> {
-    const apiUrl = `${this.elevenLabsBaseUrl}/voices`;
-    try {
-      const response = await $fetch(apiUrl, { 
-        method: 'GET',
-        headers: {
-          'xi-api-key': this.config.apiKey,
-        },
-      }) as ElevenLabsVoicesResponse;
+  async generateSpeechWithTimestamps(request: VoiceSynthesisRequest): Promise<VoiceSynthesisWithTimestampsResponse> {
+    const { text, voiceId, modelId, providerOptions, outputFormat } = request;
 
-      if (!response || !Array.isArray(response.voices)) {
-        console.error('Invalid response structure from ElevenLabs /voices endpoint:', response);
+    // Note: providerOptions might contain stability, similarity_boost, style, use_speaker_boost
+    // The ElevenLabsClient's convertWithTimestamps method takes these in an options object.
+    // We've seen that passing modelId, voiceSettings, optimizeStreamingLatency directly in the options object
+    // for textToSpeech.convertWithTimestamps was problematic in the API handler.
+    // Let's try with minimal options first, or structure them as the SDK expects if known.
+    // The API handler `timing.post.ts` ended up with an empty options object for convertWithTimestamps.
+
+    try {
+      console.log(`Calling ElevenLabsClient textToSpeech.convertWithTimestamps for voice: ${voiceId}`);
+      
+      // Changed to pass a single object argument for convertWithTimestamps
+      // Correcting call to convertWithTimestamps: (voiceId, requestObject)
+      // The requestObject should contain 'text' and other valid parameters for TextToSpeechWithTimestampsRequest.
+      const ttsRequestPayload: any = {
+        text: text,
+        // Attempting to add modelId and voiceSettings here, hoping they are valid properties of the request object.
+        // If these still cause "unknown property" errors for TextToSpeechWithTimestampsRequest,
+        // they would need to be removed, implying the SDK does not allow overriding them here for this method.
+      };
+      
+      if (modelId) {
+        ttsRequestPayload.modelId = modelId;
+      } else if (this.config.defaultModelId) {
+        ttsRequestPayload.modelId = this.config.defaultModelId;
+      }
+
+      if (providerOptions) {
+        // Assuming providerOptions directly map to voiceSettings for ElevenLabs
+        // The SDK might expect these directly or nested.
+        // For convertWithTimestamps, voiceSettings might be a top-level property of the request object.
+        ttsRequestPayload.voiceSettings = {
+            stability: providerOptions.stability,
+            similarityBoost: providerOptions.similarity_boost,
+            style: providerOptions.style,
+            useSpeakerBoost: providerOptions.use_speaker_boost
+        };
+      }
+
+      const sdkResponse: any = await this.elevenLabsClient.textToSpeech.convertWithTimestamps(
+        voiceId,          // First argument: voiceId
+        ttsRequestPayload // Second argument: TextToSpeechWithTimestampsRequest object
+      );
+
+      // Assuming sdkResponse structure is { audio: ArrayBuffer, timestamps: any[] }
+      // This is based on the mock and how we tried to make timing.post.ts work.
+      // The actual 'AudioWithTimestampsResponse' type from the SDK might differ.
+      if (!sdkResponse || typeof sdkResponse.audio === 'undefined' || typeof sdkResponse.timestamps === 'undefined') {
+        console.error('Unexpected response structure from ElevenLabsClient.convertWithTimestamps:', sdkResponse);
+        throw new Error('Invalid response structure from ElevenLabs SDK for convertWithTimestamps.');
+      }
+      
+      return {
+        audioData: sdkResponse.audio as ArrayBuffer,
+        contentType: outputFormat === 'pcm' ? 'audio/pcm' : 'audio/mpeg', // Infer or get from SDK if possible
+        timestamps: sdkResponse.timestamps,
+      };
+
+    } catch (error: any) {
+      const errorMessage = error.message || 'Unknown ElevenLabs SDK error in generateSpeechWithTimestamps';
+      console.error(`ElevenLabs SDK error (${this.providerId}) in generateSpeechWithTimestamps: ${errorMessage}`, error);
+      throw new Error(`ElevenLabs TTS generation with timestamps failed: ${errorMessage}`);
+    }
+  }
+
+  async listVoices(languageCode?: string): Promise<VoiceModel[]> {
+    // Using ElevenLabsClient for consistency
+    try {
+      const voicesResponse = await this.elevenLabsClient.voices.getAll();
+      
+      if (!voicesResponse || !Array.isArray(voicesResponse)) {
+        console.error('Invalid response structure from ElevenLabs voices.getAll():', voicesResponse); // Corrected variable name
         throw new Error('Failed to list ElevenLabs voices: Invalid API response structure.');
       }
 
-      const voices: VoiceModel[] = response.voices.map((v: any) => ({
+      const voices: VoiceModel[] = voicesResponse.map((v: ElevenLabsVoice) => ({
         id: v.voice_id,
         name: v.name,
         gender: v.labels?.gender,
-        languageCodes: v.labels?.language ? [v.labels.language] : (v.settings?.language ? [v.settings.language] : []), // Placeholder
+        // Corrected language mapping: remove v.settings.language
+        languageCodes: v.labels?.language ? [v.labels.language] :
+                       (Array.isArray(v.languages) && v.languages.length > 0 ? v.languages.map((lang: any) => lang.language_id) : []),
         provider: this.providerId,
         providerMetadata: {
           category: v.category,
           description: v.description,
           labels: v.labels,
           preview_url: v.preview_url,
-          settings: v.settings,
+          settings: v.settings, // This is the voice_settings object
+          sharing: v.sharing,
+          // Add other relevant fields from ElevenLabsVoice if needed
         },
       }));
 

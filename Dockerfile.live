@@ -1,0 +1,23 @@
+# Dockerfile.live - 使用启动时Git Pull的动态方案
+FROM node:18-alpine
+
+# 安装git和构建工具
+RUN apk add --no-cache git python3 make g++ ffmpeg
+
+# 设置工作目录
+WORKDIR /app
+
+# 安装pnpm
+RUN npm install -g pnpm
+
+# 启动脚本，每次启动时从Git拉取最新代码
+COPY start.sh /app/start.sh
+RUN chmod +x /app/start.sh
+
+# 设置环境变量
+ENV HOST=0.0.0.0
+ENV NODE_ENV=production
+EXPOSE 3000
+
+# 启动命令，执行start.sh脚本
+CMD ["/app/start.sh"]

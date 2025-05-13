@@ -1,4 +1,4 @@
-// server/services/tts/types.ts
+ 不对// server/services/tts/types.ts
 
 /**
  * Represents the common parameters for a text-to-speech synthesis request.
@@ -76,6 +76,23 @@ export interface TextToSpeechProvider {
    * @throws Error if podcast creation fails.
    */
   createPodcastConversation?(request: PodcastCreationRequest): Promise<PodcastCreationResponse>;
+
+  /**
+   * (Optional) Generates speech audio from the given text along with timestamp or alignment data.
+   * This is useful for synchronizing audio with text or animations.
+   * @param request - The parameters for the voice synthesis.
+   * @returns A promise that resolves to the synthesized audio data, its metadata, and timestamp/alignment information.
+   * @throws Error if synthesis with timestamps fails or is not supported.
+   */
+  generateSpeechWithTimestamps?(request: VoiceSynthesisRequest): Promise<VoiceSynthesisWithTimestampsResponse>;
+}
+
+/**
+ * Represents the common response from a text-to-speech synthesis request that includes timestamps.
+ */
+export interface VoiceSynthesisWithTimestampsResponse extends VoiceSynthesisResponse {
+  timestamps: any; // This type should be refined based on what providers typically return (e.g., word/sentence timings, character alignments)
+                  // For ElevenLabs, it might be an array of objects with character, start, and end times.
 }
 
 /**
