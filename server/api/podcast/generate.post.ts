@@ -4,6 +4,7 @@ import { createMergedTimeline } from '../../utils/timelineUtils';
 import { synthesizeBasicPodcast } from '../../utils/podcastSynthesisUtils';
 import { existsSync } from 'fs'; // For checking timeline file before synthesis
 import { resolve } from 'path'; // For resolving path for existsSync
+import { LocalStorageService, IStorageService } from '../../services/storageService'; // Import storage service
 
 interface Persona {
   name: string;
@@ -47,16 +48,19 @@ export default defineEventHandler(async (event) => {
 
     console.log(`Generating podcast with ID: ${podcastId} and title: ${podcastTitle}`);
 
+    const storageService: IStorageService = new LocalStorageService();
+
     // 1. Process script to generate individual segments
-    const processedSegments = await processPodcastScript(podcastId, script, personas);
+    const processedSegments = await processPodcastScript(podcastId, script, personas, storageService);
     console.log(`processPodcastScript for ${podcastId} completed.`);
 
     // 2. Create merged timeline
     let timelineGenerated = false;
     if (processedSegments.some(segment => !segment.error && segment.audio && segment.timestamps)) {
       try {
-        const segmentsDir = `public/podcasts/${podcastId}/segments/`;
-        createMergedTimeline(segmentsDir);
+        // segmentsDir should be relative to public root for createMergedTimeline
+        const segmentsDirForTimeline = `podcasts/${podcastId}/segments`;
+        await createMergedTimeline(segmentsDirForTimeline, storageService);
         timelineGenerated = true;
         console.log(`Merged timeline for ${podcastId} generated successfully.`);
       } catch (timelineError: any) {
@@ -69,12 +73,12 @@ export default defineEventHandler(async (event) => {
 
     // 3. Synthesize basic podcast
     let finalPodcastUrl: string | undefined = undefined;
-    const timelineJsonPath = `public/podcasts/${podcastId}/merged_timeline.json`;
-    const fullTimelinePath = resolve(process.cwd(), timelineJsonPath);
+    // Path for storageService.exists should be relative to project root for LocalStorageService
+    const timelineStoragePath = storageService.joinPath('public', 'podcasts', podcastId, 'merged_timeline.json');
 
-    if (timelineGenerated && existsSync(fullTimelinePath)) {
+    if (timelineGenerated && await storageService.exists(timelineStoragePath)) {
       try {
-        finalPodcastUrl = await synthesizeBasicPodcast(podcastId);
+        finalPodcastUrl = await synthesizeBasicPodcast(podcastId, storageService);
         console.log(`Basic podcast for ${podcastId} synthesized successfully: ${finalPodcastUrl}`);
       } catch (synthesisError: any) {
         console.error(`Error synthesizing basic podcast for ${podcastId}:`, synthesisError.message || synthesisError);

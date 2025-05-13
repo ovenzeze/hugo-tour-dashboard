@@ -1,7 +1,7 @@
 import { useRuntimeConfig } from '#imports';
 import { fetchElevenLabsAPI } from '../utils/elevenlabsClient'; // Import the custom fetch helper
-import { writeFileSync, existsSync, mkdirSync } from 'fs';
-import { resolve, join } from 'path';
+// fs and path imports will be replaced by storageService methods
+import { IStorageService } from '../services/storageService'; // Corrected import path
 
 interface Persona {
   name: string;
@@ -20,29 +20,33 @@ interface ProcessedSegment extends ScriptSegment {
 }
 
 export async function processPodcastScript(
-  podcastId: string, // New parameter for podcast identifier
+  podcastId: string,
   script: ScriptSegment[],
-  personas: { hostPersona?: Persona; guestPersonas?: Persona[] }
+  personas: { hostPersona?: Persona; guestPersonas?: Persona[] },
+  storageService: IStorageService // Add storageService parameter
 ): Promise<ProcessedSegment[]> {
   const runtimeConfig = useRuntimeConfig();
-  // API Key check is now primarily handled by fetchElevenLabsAPI, but good to have here too.
   const apiKey = runtimeConfig.elevenlabs?.apiKey || process.env.ELEVENLABS_API_KEY;
 
   if (!apiKey) {
     console.error('ElevenLabs API key is missing');
     throw new Error('ElevenLabs API key is missing');
   }
- 
-   const baseOutputDir = resolve(process.cwd(), 'public/podcasts', podcastId);
-   const segmentsOutputDir = join(baseOutputDir, 'segments');
-   if (!existsSync(segmentsOutputDir)) {
-     mkdirSync(segmentsOutputDir, { recursive: true });
-   }
+  
+  // Define paths relative to the storage service's public root
+  const podcastPublicPath = storageService.joinPath('podcasts', podcastId);
+  const segmentsPublicPath = storageService.joinPath(podcastPublicPath, 'segments');
+  
+  // Ensure directories exist using storage service
+  // storageService.ensureDir expects path relative to project root for LocalStorageService
+  // For LocalStorageService, public/podcasts/podcastId/segments
+  const segmentsStoragePath = storageService.joinPath('public', segmentsPublicPath);
+  await storageService.ensureDir(segmentsStoragePath);
 
-   const processedSegments: ProcessedSegment[] = [];
-   let segmentIndex = 0;
- 
-   for (const segment of script) {
+  const processedSegments: ProcessedSegment[] = [];
+  let segmentIndex = 0;
+
+  for (const segment of script) {
     segmentIndex++;
     const { speaker, text } = segment;
 
@@ -96,17 +100,21 @@ export async function processPodcastScript(
       if (audioResult.audio_base64) {
         const audioBuffer = Buffer.from(audioResult.audio_base64, 'base64');
         const audioFilename = `${baseFilename}.mp3`;
-        const fullAudioPath = join(segmentsOutputDir, audioFilename);
-        writeFileSync(fullAudioPath, audioBuffer);
-        audioFilePath = `/podcasts/${podcastId}/segments/${audioFilename}`;
+        // Path for storage operations (relative to project root for LocalStorageService)
+        const audioStoragePath = storageService.joinPath(segmentsStoragePath, audioFilename);
+        await storageService.writeFile(audioStoragePath, audioBuffer);
+        // Path for public URL (relative to public dir)
+        audioFilePath = storageService.getPublicUrl(storageService.joinPath(segmentsPublicPath, audioFilename));
         console.log(`Saved audio for ${speaker} to ${audioFilePath}`);
       }
 
       if (audioResult.alignment) {
         const timestampsFilename = `${baseFilename}.json`;
-        const fullTimestampsPath = join(segmentsOutputDir, timestampsFilename);
-        writeFileSync(fullTimestampsPath, JSON.stringify(audioResult.alignment, null, 2));
-        timestampsFilePath = `/podcasts/${podcastId}/segments/${timestampsFilename}`;
+        // Path for storage operations
+        const timestampsStoragePath = storageService.joinPath(segmentsStoragePath, timestampsFilename);
+        await storageService.writeFile(timestampsStoragePath, JSON.stringify(audioResult.alignment, null, 2));
+        // Path for public URL
+        timestampsFilePath = storageService.getPublicUrl(storageService.joinPath(segmentsPublicPath, timestampsFilename));
         console.log(`Saved timestamps for ${speaker} to ${timestampsFilePath}`);
       }
 

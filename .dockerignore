@@ -1,0 +1,20 @@
+# Ignore node_modules directory
+node_modules
+
+# Ignore pnpm debug log
+pnpm-debug.log
+
+# Ignore build artifacts
+.output
+.nuxt
+
+# Ignore .env file (sensitive)
+.env
+
+# Ignore OS-specific files
+.DS_Store
+*.local
+
+# Ignore IDE/editor directories
+.vscode
+.idea

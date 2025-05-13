@@ -4,6 +4,7 @@ import { resolve } from 'path';
 import { processPodcastScript } from '../utils/podcastScriptProcessor'; // Adjust path if necessary
 import { createMergedTimeline } from '../utils/timelineUtils'; // Import the new utility
 import { synthesizeBasicPodcast } from '../utils/podcastSynthesisUtils'; // Import synthesis utility
+import { LocalStorageService, IStorageService } from '../services/storageService'; // Import storage service
 
 interface Persona {
   name: string;
@@ -37,8 +38,10 @@ export default defineEventHandler(async (event) => {
     const podcastId = 'test_podcast_001'; // Define a podcastId for testing
     console.log(`Calling processPodcastScript with test data for podcastId: ${podcastId}...`);
 
+    const storageService: IStorageService = new LocalStorageService();
+
     // Call the processPodcastScript function
-    const processedSegments = await processPodcastScript(podcastId, script, personas);
+    const processedSegments = await processPodcastScript(podcastId, script, personas, storageService);
 
     console.log('processPodcastScript returned:', {
       segmentsCount: processedSegments.length,
@@ -48,8 +51,9 @@ export default defineEventHandler(async (event) => {
     // Automatically generate the merged timeline after processing segments
     if (processedSegments.some(segment => !segment.error)) { // Only generate timeline if segments were processed
       try {
-        const segmentsDir = `public/podcasts/${podcastId}/segments/`;
-        createMergedTimeline(segmentsDir); // Pass the correct segments directory
+        // segmentsDir should be relative to public root for createMergedTimeline
+        const segmentsDirForTimeline = `podcasts/${podcastId}/segments`;
+        await createMergedTimeline(segmentsDirForTimeline, storageService);
         console.log('Merged timeline generation triggered successfully.');
       } catch (timelineError: any) {
         // Log the error but don't fail the main request if timeline generation fails
@@ -63,7 +67,7 @@ export default defineEventHandler(async (event) => {
     // Automatically synthesize the basic podcast after timeline generation
     if (processedSegments.some(segment => !segment.error)) { // Only synthesize if segments and timeline were likely processed
       try {
-        finalPodcastPath = await synthesizeBasicPodcast(podcastId);
+        finalPodcastPath = await synthesizeBasicPodcast(podcastId, storageService);
         console.log(`Basic podcast synthesized successfully: ${finalPodcastPath}`);
       } catch (synthesisError: any) {
         // Log the error but don't fail the main request if synthesis fails

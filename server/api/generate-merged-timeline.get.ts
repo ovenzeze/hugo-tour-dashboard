@@ -1,12 +1,16 @@
 import { defineEventHandler, createError } from 'h3';
 import { createMergedTimeline } from '../utils/timelineUtils'; // Adjust path if necessary
+import { LocalStorageService, IStorageService } from '../services/storageService'; // Import storage service
 
 export default defineEventHandler(async (event) => {
   try {
-    const segmentsDir = 'public/audio/timed_segments';
-    console.log(`Calling createMergedTimeline for directory: ${segmentsDir}`);
+    const podcastId = 'test_podcast_001'; // Use a consistent test podcastId
+    // segmentsDir should be relative to public root for createMergedTimeline
+    const segmentsDirForTimeline = `podcasts/${podcastId}/segments`;
+    console.log(`Calling createMergedTimeline for directory: ${segmentsDirForTimeline}`);
 
-    const mergedTimeline = createMergedTimeline(segmentsDir);
+    const storageService: IStorageService = new LocalStorageService();
+    const mergedTimeline = await createMergedTimeline(segmentsDirForTimeline, storageService);
 
     if (!mergedTimeline || mergedTimeline.length === 0) {
       console.warn('No segments found or timeline generation failed.');
@@ -15,9 +19,10 @@ export default defineEventHandler(async (event) => {
     
     console.log('Merged timeline generated successfully.');
 
+    const timelineJsonPath = `/podcasts/${podcastId}/merged_timeline.json`;
     return {
       success: true,
-      message: `Merged timeline generated and saved to ${segmentsDir}/merged_timeline.json`,
+      message: `Merged timeline generated and saved to public${timelineJsonPath}`,
       timeline: mergedTimeline, // Optionally return the timeline data in the response
     };
 

@@ -1,6 +1,6 @@
-import { readFileSync, writeFileSync, unlinkSync } from 'fs';
-import { resolve, join } from 'path';
+// fs and path imports will be replaced by storageService methods
 import { execSync } from 'child_process'; // For executing ffmpeg
+import { IStorageService } from '../services/storageService'; // Corrected import path
 
 interface TimelineSegment {
   speaker: string;
@@ -12,46 +12,57 @@ interface TimelineSegment {
 }
 
 export async function synthesizeBasicPodcast(
-  podcastId: string
+  podcastId: string,
+  storageService: IStorageService // Add storageService parameter
 ): Promise<string> {
-  const podcastBaseDir = resolve(process.cwd(), 'public/podcasts', podcastId);
-  const timelineFilePath = join(podcastBaseDir, 'merged_timeline.json'); // Corrected path
+  // Paths for storage operations (relative to project root for LocalStorageService)
+  const podcastStoragePath = storageService.joinPath('public', 'podcasts', podcastId);
+  const timelineStoragePath = storageService.joinPath(podcastStoragePath, 'merged_timeline.json');
 
-  if (!readFileSync(timelineFilePath)) { // Check if timeline file exists
-      throw new Error(`Timeline file not found at ${timelineFilePath}`);
+  if (!await storageService.exists(timelineStoragePath)) {
+      throw new Error(`Timeline file not found at ${timelineStoragePath}`);
   }
-  const timelineContent = readFileSync(timelineFilePath, 'utf-8');
+  const timelineContent = await storageService.readFile(timelineStoragePath, 'utf-8') as string;
   const timeline: TimelineSegment[] = JSON.parse(timelineContent);
 
   if (!timeline || timeline.length === 0) {
     throw new Error('Timeline is empty or invalid.');
   }
 
-  const publicDir = resolve(process.cwd(), 'public'); // Used for resolving segment audioFile paths
   const finalOutputFileName = `${podcastId}_final.mp3`;
-  const finalOutputPath = join(podcastBaseDir, finalOutputFileName); // Save in podcastId folder
+  const finalOutputStoragePath = storageService.joinPath(podcastStoragePath, finalOutputFileName);
 
-  const fileListPath = join(podcastBaseDir, 'ffmpeg_filelist.txt'); // Temporary file list in podcastId folder
+  // Declare fileListStoragePath outside try to be accessible in finally
+  const fileListStoragePath = storageService.joinPath(podcastStoragePath, 'ffmpeg_filelist.txt');
+  
+  // For execSync, we need absolute paths if not running from project root,
+  // or paths relative to where execSync runs. storageService.resolvePath can give absolute paths.
+  const absoluteFileListPath = storageService.resolvePath(fileListStoragePath);
+  const absoluteFinalOutputPath = storageService.resolvePath(finalOutputStoragePath);
 
   try {
     // Create a list of absolute file paths for ffmpeg
-    // segment.audioFile is like /podcasts/{podcastId}/segments/file.mp3
-    // We need to join it with publicDir to get absolute path
+    // segment.audioFile is a public URL like /podcasts/{podcastId}/segments/file.mp3
+    // Convert to absolute local path for ffmpeg
     const ffmpegFileListContent = timeline
-      .map(segment => `file '${join(publicDir, segment.audioFile)}'`)
+      .map(segment => {
+        // segment.audioFile starts with '/', remove it for joining with 'public'
+        const pathFromPublic = segment.audioFile.startsWith('/') ? segment.audioFile.substring(1) : segment.audioFile;
+        const absoluteSegmentPath = storageService.resolvePath('public', pathFromPublic);
+        return `file '${absoluteSegmentPath}'`;
+      })
       .join('\n');
-    writeFileSync(fileListPath, ffmpegFileListContent);
+    await storageService.writeFile(fileListStoragePath, ffmpegFileListContent);
 
     // Construct and execute ffmpeg command
-    // Using -safe 0 is necessary if paths are not considered "safe" by ffmpeg by default
-    // -y overwrites output file if it exists
-    const ffmpegCommand = `ffmpeg -y -f concat -safe 0 -i "${fileListPath}" -c copy "${finalOutputPath}"`;
+    const ffmpegCommand = `ffmpeg -y -f concat -safe 0 -i "${absoluteFileListPath}" -c copy "${absoluteFinalOutputPath}"`;
     
     console.log(`Executing ffmpeg command: ${ffmpegCommand}`);
-    execSync(ffmpegCommand, { stdio: 'inherit' }); // stdio: 'inherit' will show ffmpeg output in console
+    execSync(ffmpegCommand, { stdio: 'inherit' });
 
-    console.log(`Successfully synthesized podcast to ${finalOutputPath}`);
-    return `/podcasts/${podcastId}/${finalOutputFileName}`; // Return relative path for URL access
+    console.log(`Successfully synthesized podcast to ${absoluteFinalOutputPath}`);
+    // Return public URL path
+    return storageService.getPublicUrl(storageService.joinPath('podcasts', podcastId, finalOutputFileName));
 
   } catch (error: any) {
     console.error('Error during ffmpeg execution:', error.message);
@@ -65,7 +76,7 @@ export async function synthesizeBasicPodcast(
   } finally {
     // Clean up the temporary file list
     try {
-      unlinkSync(fileListPath);
+      await storageService.unlink(fileListStoragePath);
     } catch (cleanupError) {
       console.warn(`Failed to delete temporary ffmpeg file list: ${fileListPath}`, cleanupError);
     }

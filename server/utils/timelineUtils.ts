@@ -1,5 +1,5 @@
-import { readdirSync, readFileSync, writeFileSync } from 'fs';
-import { resolve, join, parse } from 'path';
+// fs and path imports will be replaced by storageService methods
+import { IStorageService, ParsedPath } from '../services/storageService'; // Corrected import path
 
 interface AlignmentData {
   characters: string[];
@@ -16,13 +16,23 @@ interface TimelineSegment {
   endTime: number;
 }
 
-export function createMergedTimeline(segmentsDir: string): TimelineSegment[] {
-  const fullSegmentsPath = resolve(process.cwd(), segmentsDir);
-  const files = readdirSync(fullSegmentsPath);
+export async function createMergedTimeline(
+  segmentsDir: string, // e.g., "podcasts/podcastId/segments" (relative to public)
+  storageService: IStorageService
+): Promise<TimelineSegment[]> {
+  // For LocalStorageService, paths for fs operations are relative to project root.
+  // So, segmentsStoragePath will be "public/podcasts/podcastId/segments"
+  const segmentsStoragePath = storageService.joinPath('public', segmentsDir);
+  
+  if (!await storageService.exists(segmentsStoragePath) || !await storageService.isDir(segmentsStoragePath)) {
+    console.warn(`Segments directory ${segmentsStoragePath} does not exist or is not a directory.`);
+    return [];
+  }
+  const files = await storageService.listFiles(segmentsStoragePath);
 
   const timestampFiles = files
-    .filter(file => file.endsWith('.json') && !file.startsWith('merged_timeline'))
-    .sort((a, b) => {
+    .filter((file: string) => file.endsWith('.json') && !file.startsWith('merged_timeline.json'))
+    .sort((a: string, b: string) => {
       // Extract timestamp from filename for sorting (e.g., Speaker_Name_1747082049585.json)
       const timeA = parseInt(a.split('_').pop()?.split('.')[0] || '0');
       const timeB = parseInt(b.split('_').pop()?.split('.')[0] || '0');
@@ -32,36 +42,36 @@ export function createMergedTimeline(segmentsDir: string): TimelineSegment[] {
   const timeline: TimelineSegment[] = [];
   let cumulativeTime = 0;
 
-  for (const tsFile of timestampFiles) {
+  for (const tsFileBasename of timestampFiles) { // tsFile is now just the basename
     try {
-      const tsFilePath = join(fullSegmentsPath, tsFile);
-      const tsFileContent = readFileSync(tsFilePath, 'utf-8');
-      const alignmentData: AlignmentData = JSON.parse(tsFileContent);
+      const tsFileStoragePath = storageService.joinPath(segmentsStoragePath, tsFileBasename);
+      const tsFileContent = await storageService.readFile(tsFileStoragePath, 'utf-8');
+      const alignmentData: AlignmentData = JSON.parse(tsFileContent as string);
 
       if (!alignmentData || !alignmentData.character_end_times_seconds || alignmentData.character_end_times_seconds.length === 0) {
-        console.warn(`Skipping ${tsFile} due to missing or empty character_end_times_seconds.`);
+        console.warn(`Skipping ${tsFileBasename} due to missing or empty character_end_times_seconds.`);
         continue;
       }
 
       const duration = alignmentData.character_end_times_seconds[alignmentData.character_end_times_seconds.length - 1];
       
-      const parsedFileName = parse(tsFile);
-      // Extract speaker name: "Cybo___Tech_Guide_1747082049585" -> "Cybo - Tech Guide"
-      const speakerWithTimestamp = parsedFileName.name;
-      const lastUnderscoreIndex = speakerWithTimestamp.lastIndexOf('_');
-      const namePart = lastUnderscoreIndex === -1 ? speakerWithTimestamp : speakerWithTimestamp.substring(0, lastUnderscoreIndex);
-      const speaker = namePart.replace(/___/g, ' - ');
+      // Use storageService.parsePath if it provides similar functionality to path.parse
+      // For now, let's assume tsFileBasename is like "001_Speaker_Name.json"
+      const nameWithoutExt = tsFileBasename.substring(0, tsFileBasename.lastIndexOf('.'));
+      const parts = nameWithoutExt.split('_');
+      const speakerNamePart = parts.slice(1).join('_'); // Get "Speaker_Name"
+      const speaker = speakerNamePart.replace(/___/g, ' - ');
 
 
-      const audioFileName = `${parsedFileName.name}.mp3`;
-      const audioFileRelativePath = join(segmentsDir.replace('public', ''), audioFileName).replace(/\\/g, '/'); // Relative to public
-      const timestampFileRelativePath = join(segmentsDir.replace('public', ''), tsFile).replace(/\\/g, '/');
-
+      const audioFileBasename = `${nameWithoutExt}.mp3`;
+      // Paths for public URLs (relative to public dir)
+      const audioFilePublicPath = storageService.joinPath(segmentsDir, audioFileBasename);
+      const timestampFilePublicPath = storageService.joinPath(segmentsDir, tsFileBasename);
 
       timeline.push({
         speaker,
-        audioFile: audioFileRelativePath,
-        timestampFile: timestampFileRelativePath,
+        audioFile: storageService.getPublicUrl(audioFilePublicPath),
+        timestampFile: storageService.getPublicUrl(timestampFilePublicPath),
         duration,
         startTime: cumulativeTime,
         endTime: cumulativeTime + duration,
@@ -69,17 +79,18 @@ export function createMergedTimeline(segmentsDir: string): TimelineSegment[] {
 
       cumulativeTime += duration;
     } catch (error: any) {
-      console.error(`Error processing timestamp file ${tsFile}:`, error.message);
+      console.error(`Error processing timestamp file ${tsFileBasename}:`, error.message);
     }
   }
 
   // Save the merged timeline
-  const podcastOutputDir = resolve(fullSegmentsPath, '..'); // Go one level up from segmentsDir
-  const mergedTimelinePath = join(podcastOutputDir, 'merged_timeline.json');
-  writeFileSync(mergedTimelinePath, JSON.stringify(timeline, null, 2));
-  // Construct a user-friendly path for the log message
-  const relativeMergedTimelinePath = join(segmentsDir.substring(0, segmentsDir.lastIndexOf('/')), 'merged_timeline.json').replace('public', '');
-  console.log(`Merged timeline saved to public${relativeMergedTimelinePath}`);
+  // podcastPublicDir will be "podcasts/podcastId"
+  const podcastPublicDir = segmentsDir.substring(0, segmentsDir.lastIndexOf('/'));
+  // mergedTimelineStoragePath will be "public/podcasts/podcastId/merged_timeline.json"
+  const mergedTimelineStoragePath = storageService.joinPath('public', podcastPublicDir, 'merged_timeline.json');
+  await storageService.writeFile(mergedTimelineStoragePath, JSON.stringify(timeline, null, 2));
+  
+  console.log(`Merged timeline saved to ${storageService.getPublicUrl(storageService.joinPath(podcastPublicDir, 'merged_timeline.json'))}`);
 
   return timeline;
 }
