@@ -2,11 +2,23 @@ services:
   app:
     build:
       context: .
-      # Dockerfile 名称，如果不是 'Dockerfile'，请修改这里
       dockerfile: Dockerfile
+      args:
+        - ARG_SUPABASE_URL=${SUPABASE_URL}
+        - ARG_SUPABASE_KEY=${SUPABASE_KEY}
+        - ARG_SUPABASE_SERVICE_KEY=${SUPABASE_SERVICE_KEY}
+        - GIT_CLONE_URL=${GIT_CLONE_URL}
+        - ARG_ELEVENLABS_API_KEY=${ELEVENLABS_API_KEY}
+        - ARG_ELEVENLABS_DEFAULT_MODEL_ID=${ELEVENLABS_DEFAULT_MODEL_ID}
+        - ARG_OPENROUTER_MODEL=${OPENROUTER_MODEL}
+        - ARG_OPENROUTER_API_KEY=${OPENROUTER_API_KEY}
+        - ARG_S3_ACESS_ID=${S3_ACESS_ID}
+        - ARG_S3_SECRET_KEY=${S3_SECRET_KEY}
+        - ARG_S3_ENDDPOINT=${S3_ENDDPOINT}
+        - ARG_S3_REGION=${S3_REGION}
+        - ARG_NUXT_PUBLIC_SITE_URL=${NUXT_PUBLIC_SITE_URL}
     container_name: hugo-tour-dashboard-app
     restart: unless-stopped
-    # 从 .env 文件加载环境变量
     env_file:
       - .env
     # 也可以在这里直接定义环境变量，它们会覆盖 .env 文件中的同名变量
