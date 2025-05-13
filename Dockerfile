@@ -30,7 +30,7 @@ RUN pnpm rebuild better-sqlite3
 
 # 构建应用 (确保构建时需要的 public runtimeConfig 环境变量已设置)
 # Nuxt 会自动从 process.env 读取 NUXT_PUBLIC_ 开头的变量
-RUN nuxi build
+RUN pnpm exec nuxi build
 
 # 第二阶段：运行 Nuxt 应用 (包含 ffmpeg) ✅
 FROM node:18-alpine
