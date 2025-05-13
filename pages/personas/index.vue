@@ -1,4 +1,4 @@
-qun'g<template>
+<template>
   <div class="p-4 sm:p-6 lg:p-8">
     <div class="sm:flex sm:items-center">
       <div class="sm:flex-auto">
@@ -9,7 +9,7 @@ qun'g<template>
       </div>
       <div class="mt-4 sm:mt-0 sm:ml-16 sm:flex-none">
         <Button @click="openAddPersonaDialog">
-          <PlusCircle class="mr-2 h-4 w-4" /> Add Persona
+          <CirclePlus class="mr-2 h-4 w-4" /> Add Persona
         </Button>
       </div>
     </div>
@@ -35,6 +35,8 @@ qun'g<template>
                   <TableHead class="w-[100px]">Avatar</TableHead>
                   <TableHead>Name</TableHead>
                   <TableHead>Description</TableHead>
+                  <TableHead>System Prompt</TableHead>
+                  <TableHead>Voice Settings</TableHead>
                   <TableHead>Status</TableHead>
                   <TableHead class="text-right">Actions</TableHead>
                 </TableRow>
@@ -45,14 +47,16 @@ qun'g<template>
                     <Avatar class="h-10 w-10">
                       <AvatarImage v-if="persona.avatar_url" :src="persona.avatar_url" :alt="persona.name" />
                       <AvatarFallback>
-                        <UserCircle2 class="h-6 w-6 text-gray-500 dark:text-gray-400" />
+                        <UserCircle class="h-6 w-6 text-gray-500 dark:text-gray-400" />
                       </AvatarFallback>
                     </Avatar>
                   </TableCell>
                   <TableCell>{{ persona.name }}</TableCell>
-                  <TableCell class="max-w-xs truncate">{{ persona.description || 'N/A' }}</TableCell>
+                  <TableCell class="max-w-xs break-words">{{ persona.description || 'N/A' }}</TableCell>
+                  <TableCell class="max-w-xs break-words">{{ persona.system_prompt || 'N/A' }}</TableCell>
+                  <TableCell class="max-w-xs break-words">{{ persona.voice_settings || 'N/A' }}</TableCell>
                   <TableCell>
-                    <Badge :variant="persona.is_active ? 'default' : 'secondary'">
+                    <Badge :variant="persona.is_active ? 'default' : 'secondary'" :class="persona.is_active ? 'bg-green-500 text-white' : 'bg-red-500 text-white'">
                       {{ persona.is_active ? 'Active' : 'Inactive' }}
                     </Badge>
                   </TableCell>
@@ -68,6 +72,10 @@ qun'g<template>
                         <DropdownMenuItem @click="editPersona(persona.persona_id)">
                           <Pencil class="mr-2 h-4 w-4" />
                           <span>Edit</span>
+                        </DropdownMenuItem>
+                        <DropdownMenuItem @click="viewPersonaDetails(persona.persona_id)">
+                          <Eye class="mr-2 h-4 w-4" />
+                          <span>View Details</span>
                         </DropdownMenuItem>
                         <DropdownMenuItem @click="confirmDeletePersona(persona.persona_id)" class="text-red-600 hover:!text-red-600 dark:text-red-500 dark:hover:!text-red-500">
                           <Trash2 class="mr-2 h-4 w-4" />
@@ -86,19 +94,14 @@ qun'g<template>
             <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">Get started by creating a new persona.</p>
             <div class="mt-6">
               <Button @click="openAddPersonaDialog">
-                <PlusCircle class="mr-2 h-4 w-4" />
+                <CirclePlus class="mr-2 h-4 w-4" />
                 Create Persona
               </Button>
             </div>
           </div>
         </div>
       </div>
-:start_line:78
--------
     </div>
-
-    <!-- Placeholder for Add/Edit Persona Modal/Page logic -->
-    <!-- <AddPersonaModal v-if="showAddPersonaModal" @close="showAddPersonaModal = false" @persona-added="refreshPersonas" /> -->
 
     <AlertDialog :open="!!personaToDelete" @update:open="personaToDelete = null">
       <AlertDialogContent>
@@ -113,11 +116,8 @@ qun'g<template>
           <AlertDialogAction @click="deletePersona(personaToDelete!)">Continue</AlertDialogAction>
         </AlertDialogFooter>
       </AlertDialogContent>
-:start_line:86
--------
     </AlertDialog>
 
-    <!-- Edit Persona Dialog -->
     <Dialog :open="showEditDialog" @update:open="showEditDialog = $event">
       <DialogContent class="sm:max-w-[425px]">
         <DialogHeader>
@@ -133,7 +133,15 @@ qun'g<template>
           </div>
           <div class="grid grid-cols-4 items-center gap-4">
             <Label for="description" class="text-right">Description</Label>
-            <Textarea id="description" v-model="editingPersona.description" class="col-span-3" />
+            <Textarea id="description" v-model="editingPersonaDescription" class="col-span-3" />
+          </div>
+          <div class="grid grid-cols-4 items-center gap-4">
+            <Label for="system_prompt" class="text-right">System Prompt</Label>
+            <Textarea id="system_prompt" v-model="editingPersonaSystemPrompt" class="col-span-3" />
+          </div>
+          <div class="grid grid-cols-4 items-center gap-4">
+            <Label for="voice_settings" class="text-right">Voice Settings</Label>
+            <Textarea id="voice_settings" v-model="editingPersonaVoiceSettings" class="col-span-3" />
           </div>
           <div class="grid grid-cols-4 items-center gap-4">
             <Label for="is_active" class="text-right">Active</Label>
@@ -147,7 +155,6 @@ qun'g<template>
       </DialogContent>
     </Dialog>
 
-    <!-- Add Persona Dialog -->
     <Dialog :open="showAddDialog" @update:open="showAddDialog = $event">
       <DialogContent class="sm:max-w-md">
         <DialogHeader>
@@ -173,6 +180,26 @@ qun'g<template>
                 <FormLabel>Description</FormLabel>
                 <FormControl>
                   <Textarea placeholder="Persona description (optional)" v-bind="componentField" />
+                </FormControl>
+                <FormMessage />
+              </FormItem>
+            </FormField>
+
+            <FormField v-slot="{ componentField }" name="system_prompt">
+              <FormItem>
+                <FormLabel>System Prompt</FormLabel>
+                <FormControl>
+                  <Textarea placeholder="System prompt (optional)" v-bind="componentField" />
+                </FormControl>
+                <FormMessage />
+              </FormItem>
+            </FormField>
+
+            <FormField v-slot="{ componentField }" name="voice_settings">
+              <FormItem>
+                <FormLabel>Voice Settings</FormLabel>
+                <FormControl>
+                  <Textarea placeholder="Voice settings (optional)" v-bind="componentField" />
                 </FormControl>
                 <FormMessage />
               </FormItem>
@@ -215,65 +242,9 @@ qun'g<template>
 
 <script setup lang="ts">
 import { ref, computed, reactive, watch } from 'vue';
-import { Button } from '@/components/ui/button';
-import {
-  Table,
-  TableBody,
-  TableCaption,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from '@/components/ui/table';
-import { Badge } from '@/components/ui/badge';
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-  AlertDialogTrigger,
-} from '@/components/ui/alert-dialog';
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-  DialogTrigger,
-  DialogClose,
-} from '@/components/ui/dialog';
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
-import { Textarea } from '@/components/ui/textarea';
-import { Switch } from '@/components/ui/switch';
-import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
-import { Skeleton } from '@/components/ui/skeleton';
-import {
-  FormControl,
-  FormDescription,
-  FormField,
-  FormItem,
-  FormLabel,
-  FormMessage,
-} from '@/components/ui/form'
-import { UserCircle2, PlusCircle, Pencil, Trash2, Users2, MoreHorizontal } from 'lucide-vue-next';
 import { useForm } from 'vee-validate';
 import { toTypedSchema } from '@vee-validate/zod';
 import * as z from 'zod';
-// Assuming Supabase types are globally available or imported via `~/types/supabase`
-// For example: import type { Database } from '~/types/supabase'
-// type Persona = Database['public']['Tables']['personas']['Row']
 
 // Define a more specific type for what the API returns, including potential joins
 interface ApiPersona {
@@ -282,18 +253,49 @@ interface ApiPersona {
   description: string | null;
   avatar_url: string | null;
   is_active: boolean | null;
-  // Add other fields returned by your /api/personas endpoint if necessary
-  // e.g., system_prompt, voice_settings, created_at, updated_at
+  system_prompt: string | null;
+  voice_settings: string | null;
+  created_at: string | null;
+  updated_at: string | null;
 }
 
 const personaToDelete = ref<number | null>(null);
 const showEditDialog = ref(false);
 const editingPersona = ref<ApiPersona | null>(null);
 const showAddDialog = ref(false);
+
+const editingPersonaDescription = computed({
+  get: () => editingPersona.value?.description || '',
+  set: (val) => {
+    if (editingPersona.value) {
+      editingPersona.value.description = val;
+    }
+  }
+});
+
+const editingPersonaSystemPrompt = computed({
+  get: () => editingPersona.value?.system_prompt || '',
+  set: (val) => {
+    if (editingPersona.value) {
+      editingPersona.value.system_prompt = val;
+    }
+  }
+});
+
+const editingPersonaVoiceSettings = computed({
+  get: () => editingPersona.value?.voice_settings || '',
+  set: (val) => {
+    if (editingPersona.value) {
+      editingPersona.value.voice_settings = val;
+    }
+  }
+});
 // Zod schema for Add Persona form
 const addPersonaFormSchema = toTypedSchema(z.object({
   name: z.string().min(1, { message: "Name is required" }).max(100),
   description: z.string().max(500).optional().nullable(),
+  system_prompt: z.string().max(500).optional().nullable(),
+  voice_settings: z.string().max(500).optional().nullable(),
   avatar_url: z.string().url({ message: "Must be a valid URL" }).optional().or(z.literal('')).nullable(),
   is_active: z.boolean().default(true),
 }));
@@ -303,6 +305,8 @@ const { handleSubmit: handleAddSubmit, resetForm: resetAddForm, setValues: setAd
   initialValues: {
     name: '',
     description: null,
+    system_prompt: null,
+    voice_settings: null,
     avatar_url: null,
     is_active: true,
   }
@@ -312,13 +316,14 @@ const onAddSubmit = handleAddSubmit(async (values) => {
   await saveNewPersona(values);
 });
 
-// Watch showAddDialog to reset form when it opens
 watch(showAddDialog, (newValue) => {
   if (newValue) {
     resetAddForm({
       values: {
         name: '',
         description: null,
+        system_prompt: null,
+        voice_settings: null,
         avatar_url: null,
         is_active: true,
       }
@@ -326,25 +331,21 @@ watch(showAddDialog, (newValue) => {
   }
 });
 
-// Fetch personas
-const { data: personas, pending, error, refresh: refreshPersonas } = await useAsyncData<ApiPersona[]>('personas',
+const { data: personas, pending, error, refresh: refreshPersonas } = await useAsyncData('personas',
   () => $fetch('/api/personas'), {
     transform: (data: any) => {
-      // Ensure data is an array and map to ensure is_active defaults correctly if null
       return Array.isArray(data) ? data.map(p => ({ ...p, is_active: p.is_active ?? false })) : []
     }
   }
-)
-
-definePageMeta({
-  title: 'Personas Management'
-});
+);
 
 const openAddPersonaDialog = () => {
-  resetAddForm({ // Reset with initial values when dialog opens
+  resetAddForm({
     values: {
       name: '',
       description: null,
+      system_prompt: null,
+      voice_settings: null,
       avatar_url: null,
       is_active: true,
     }
@@ -356,31 +357,32 @@ const saveNewPersona = async (formData: Partial<ApiPersona>) => {
   try {
     const payload = {
       name: formData.name,
-      description: formData.description || null, // Ensure null if empty
+      description: formData.description || null,
+      system_prompt: formData.system_prompt || null,
+      voice_settings: formData.voice_settings || null,
       is_active: formData.is_active,
-      avatar_url: formData.avatar_url || null, // Ensure null if empty
+      avatar_url: formData.avatar_url || null,
     };
     const createdPersona = await $fetch('/api/personas', {
       method: 'POST',
       body: payload
     }) as ApiPersona;
-    alert(`Persona "${createdPersona.name}" created successfully.`);
+    useNuxtApp().$alert(`Persona "${createdPersona.name}" created successfully.`);
     showAddDialog.value = false;
     await refreshPersonas();
   } catch (err: any) {
     console.error('Failed to create persona:', err);
-    alert(`Failed to create persona: ${err.data?.message || err.message}`);
+    useNuxtApp().$alert(`Failed to create persona: ${err.data?.message || err.message}`);
   }
 };
 
 const editPersona = (id: number) => {
-  const persona = personas.value?.find(p => p.persona_id === id);
+  const persona = personas.value?.find((p: ApiPersona) => p.persona_id === id);
   if (persona) {
-    // Create a deep copy for editing to avoid mutating the original list directly
     editingPersona.value = JSON.parse(JSON.stringify(persona));
     showEditDialog.value = true;
   }
-}
+};
 
 const saveEditedPersona = async () => {
   if (!editingPersona.value) return;
@@ -389,36 +391,37 @@ const saveEditedPersona = async () => {
       method: 'PUT',
       body: editingPersona.value
     });
-    alert(`Persona ${editingPersona.value.name} updated successfully.`);
+    useNuxtApp().$alert(`Persona ${editingPersona.value.name} updated successfully.`);
     showEditDialog.value = false;
     editingPersona.value = null;
     await refreshPersonas();
   } catch (err: any) {
     console.error('Failed to update persona:', err);
-    alert(`Failed to update persona: ${err.data?.message || err.message}`);
+    useNuxtApp().$alert(`Failed to update persona: ${err.data?.message || err.message}`);
   }
-}
+};
 
 const confirmDeletePersona = (id: number) => {
   console.log('Attempting to delete persona:', id);
   personaToDelete.value = id;
-}
+};
 
 const deletePersona = async (id: number) => {
   try {
     await $fetch(`/api/personas/${id}`, { method: 'DELETE' });
-    alert(`Persona ${id} deleted successfully.`);
-    await refreshPersonas(); // Refresh the list
+    useNuxtApp().$alert(`Persona ${id} deleted successfully.`);
+    await refreshPersonas();
   } catch (err: any) {
     console.error('Failed to delete persona:', err);
-    alert(`Failed to delete persona ${id}: ${err.data?.message || err.message}`);
+    useNuxtApp().$alert(`Failed to delete persona ${id}: ${err.data?.message || err.message}`);
   }
-}
+};
 
-// Example of how a modal for adding might work (implementation needed)
-// const handlePersonaAdded = async () => {
-//   showAddPersonaModal.value = false;
-//   await refreshPersonas();
-// };
+const viewPersonaDetails = (id: number) => {
+  useNuxtApp().$alert(`View persona details for persona ${id}`);
+};
 
+definePageMeta({
+  title: 'Personas Management'
+});
 </script>

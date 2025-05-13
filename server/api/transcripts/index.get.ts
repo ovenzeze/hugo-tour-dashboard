@@ -32,5 +32,6 @@ export default defineEventHandler(async (event) => {
     })
   }
 
+  console.log('Fetched guide texts:', data)
   return data
 })

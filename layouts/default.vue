@@ -44,15 +44,9 @@
 </template>
 
 <script setup lang="ts">
-import { ref } from 'vue'
 import { useRoute } from '#imports'
-import { Icon } from '@iconify/vue'
-import { Button } from '@/components/ui/button'
-import { Sheet, SheetContent } from '@/components/ui/sheet'
-import { Avatar, AvatarImage, AvatarFallback } from '@/components/ui/avatar'
-import SidebarNav from '@/components/layout/SidebarNav.vue'
-import { SidebarProvider, SidebarTrigger } from '@/components/ui/sidebar'
 import MobileBottomBar from '@/components/layout/MobileBottomBar.vue'
+import SidebarNav from '@/components/layout/SidebarNav.vue'
 import type { NavLink } from '@/components/layout/types'
 
 const route = useRoute()
@@ -62,11 +56,10 @@ const navLinks: NavLink[] = [
   { path: '/museums', label: 'Museums', icon: 'heroicons-outline:building-library' },
   { path: '/galleries', label: 'Galleries', icon: 'heroicons-outline:photo' },
   { path: '/objects', label: 'Objects', icon: 'heroicons-outline:archive-box' },
-  { path: '/guide-texts', label: 'Transcripts', icon: 'heroicons-outline:document-text' },
-  { path: '/guide-audios', label: 'Voices', icon: 'heroicons-outline:speaker-wave' },
+  { path: '/transcripts', label: 'Transcripts', icon: 'heroicons-outline:document-text' },
+  { path: '/voices', label: 'Voices', icon: 'heroicons-outline:speaker-wave' },
   { path: '/personas', label: 'Personas', icon: 'heroicons-outline:identification' },
   { path: '/playground', label: 'Playground', icon: 'ph:play-circle' },
-  { path: '/playgroundv2', label: 'Playground V2', icon: 'ph:play-circle-fill' },
   { path: '/users', label: 'Users', icon: 'heroicons-outline:users' }
 ]
 

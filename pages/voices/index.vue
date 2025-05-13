@@ -1,18 +1,25 @@
 <template>
   <div class="p-4 sm:p-6 lg:p-8">
+    <div class="flex items-center justify-between">
+      <h1 class="text-xl font-semibold text-gray-900 dark:text-gray-100 flex items-center">
+        <Icon icon="ph:speaker-high" class="mr-2 h-6 w-6" />
+        Voices (Audios) Management
+      </h1>
+      <Button @click="openAddAudioDialog">
+        <Icon icon="ph:microphone" class="mr-2 h-5 w-5" />
+        Add/Generate Audio
+      </Button>
+    </div>
     <div class="sm:flex sm:items-center">
       <div class="sm:flex-auto">
         <h1 class="text-xl font-semibold text-gray-900 dark:text-gray-100 flex items-center">
           <Icon icon="ph:speaker-high" class="mr-2 h-6 w-6" />
           Voices (Audios) Management
         </h1>
-        <p class="mt-2 text-sm text-gray-700 dark:text-gray-300">
-          Manage all guide audios in the system.
-        </p>
       </div>
       <div class="mt-4 sm:mt-0 sm:ml-16 sm:flex-none">
         <Button @click="openAddAudioDialog">
-          <Icon icon="ph:microphone-plus" class="mr-2 h-5 w-5" />
+          <Icon icon="ph:microphone" class="mr-2 h-5 w-5" />
           Add/Generate Audio
         </Button>
       </div>
@@ -36,34 +43,80 @@
             </p>
           </div>
           <div v-else-if="guideAudios && guideAudios.length > 0" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            <Card v-for="audio in guideAudios" :key="audio.audio_guide_id" class="flex flex-col">
-              <CardHeader>
-                <CardTitle class="flex items-center justify-between">
-                  <span class="truncate">{{ audio.guide_text_preview || `Audio ID: ${audio.audio_guide_id}` }}</span>
-                  <Badge :variant="audio.is_active ? 'default' : 'secondary'" class="ml-2 shrink-0">
-                    {{ audio.is_active ? 'Active' : 'Inactive' }}
-                  </Badge>
-                </CardTitle>
-                <CardDescription>
-                  Persona: {{ audio.persona_name || audio.persona_id }} | Language: {{ audio.language }}
-                </CardDescription>
-              </CardHeader>
-              <CardContent class="flex-grow space-y-3">
-                <div class="flex items-center justify-between text-sm text-muted-foreground">
-                  <span>Duration:</span>
-                  <span>{{ audio.duration_seconds ? `${audio.duration_seconds}s` : 'N/A' }}</span>
+            <Card
+              v-for="audio in guideAudios"
+              :key="audio.audio_guide_id"
+              class="border rounded-xl overflow-hidden shadow-md hover:shadow-xl transition-shadow bg-white/95 dark:bg-zinc-900/90 min-w-[360px] max-w-[480px] flex flex-col"
+            >
+              <!-- 卡片头部：主信息 -->
+              <div class="px-4 border-b flex justify-between items-center bg-gray-100 dark:bg-zinc-800 gap-2">
+                <div class="flex flex-col min-w-0 flex-1 overflow-hidden">
+                  <!-- 主信息：音频名称/摘要 -->
+                  <span class="font-bold text-lg text-primary flex items-center gap-1 min-w-0 truncate">
+                    <Icon icon="ph:speaker-high" class="h-5 w-5 flex-shrink-0 text-primary" />
+                    <span class="truncate">{{ audio.guide_text_preview || `Audio #${audio.audio_guide_id}` }}</span>
+                  </span>
+                  <!-- 主标签区：横向滚动，主标签单行展示 -->
+                  <div
+                    class="flex flex-row items-center gap-2 mt-1 min-w-0 overflow-x-auto no-scrollbar scrollbar-thumb-gray-300 scrollbar-track-transparent"
+                    style="max-width: 100%;"
+                  >
+                    <span class="main-tag truncate max-w-[110px]">
+                      <Icon icon="ph:user" class="h-4 w-4 mr-1" />
+                      {{ audio.persona_name || audio.persona_id }}
+                    </span>
+                    <span class="main-tag truncate max-w-[90px]">
+                      <Icon icon="ph:translate" class="h-4 w-4 mr-1" />
+                      {{ audio.language }}
+                    </span>
+                    <template v-if="audio.is_active">
+                      <span class="main-tag-green">
+                        <Icon icon="ph:check-circle" class="h-4 w-4" />
+                        Active
+                      </span>
+                    </template>
+                    <template v-else>
+                      <span class="sub-tag">
+                        <Icon icon="ph:pause-circle" class="h-4 w-4" />
+                        Inactive
+                      </span>
+                    </template>
+                    <span class="sub-tag truncate max-w-[80px]">
+                      <Icon icon="ph:file-audio" class="h-4 w-4 mr-1" />
+                      v{{ audio.version || 'N/A' }}
+                    </span>
+                    <span v-if="audio.is_latest_version"
+                      class="main-tag-yellow"
+                    >
+                      <Icon icon="ph:star" class="h-4 w-4" />
+                      Latest
+                    </span>
+                  </div>
                 </div>
-                <div class="flex items-center justify-between text-sm text-muted-foreground">
-                  <span>Version:</span>
-                  <span>{{ audio.version || 'N/A' }}</span>
+                <!-- 操作菜单 -->
+                <div class="flex flex-row gap-1 flex-shrink-0 ml-2">
+                  <Button variant="ghost" size="sm" @click="openEditAudioDialog(audio)">
+                    <Icon icon="ph:pencil-simple" class="h-4 w-4" />
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    @click="confirmDeleteAudio(audio.audio_guide_id)"
+                    class="text-destructive"
+                  >
+                    <Icon icon="ph:trash" class="h-4 w-4" />
+                  </Button>
                 </div>
-                 <div class="flex items-center justify-between text-sm">
-                  <span>Latest Version:</span>
-                  <Badge :variant="audio.is_latest_version ? 'default' : 'outline'" size="sm">
-                    {{ audio.is_latest_version ? 'Yes' : 'No' }}
-                  </Badge>
+              </div>
+              <!-- 卡片内容摘要与播放 -->
+              <div class="p-4 flex flex-col gap-3 flex-1">
+                <div class="flex items-center gap-2 min-w-0">
+                  <Icon icon="ph:waveform" class="h-5 w-5 text-primary" />
+                  <span class="text-base font-semibold text-gray-900 dark:text-gray-100 line-clamp-3 leading-relaxed flex-1 truncate">
+                    {{ audio.guide_text_preview || 'No transcript preview.' }}
+                  </span>
                 </div>
-                <div v-if="audio.audio_url">
+                <div v-if="audio.audio_url" class="flex items-center gap-2">
                   <audio
                     :ref="(el: HTMLAudioElement | null) => audioRefs[audio.audio_guide_id] = el"
                     controls
@@ -73,32 +126,45 @@
                   >
                     Your browser does not support the audio element.
                   </audio>
+                  <Button variant="ghost" size="icon" @click="playAudio(audio.audio_url)">
+                    <Icon icon="ph:play-circle" class="h-6 w-6 text-primary" />
+                  </Button>
                 </div>
-                <Button v-else variant="outline" size="sm" disabled class="w-full">
+                <Button v-else variant="outline" size="sm" disabled class="w-full opacity-60">
                   <Icon icon="ph:speaker-x" class="mr-2 h-4 w-4" />
                   Audio Not Available
                 </Button>
-              </CardContent>
-              <CardFooter class="flex justify-end">
-                <DropdownMenu>
-                  <DropdownMenuTrigger as-child>
-                    <Button variant="ghost" class="h-8 w-8 p-0">
-                      <span class="sr-only">Open menu</span>
-                      <Icon icon="ph:dots-three-vertical" class="h-5 w-5" />
-                    </Button>
-                  </DropdownMenuTrigger>
-                  <DropdownMenuContent align="end">
-                    <DropdownMenuItem @click="openEditAudioDialog(audio)">
-                      <Icon icon="ph:pencil-simple" class="mr-2 h-4 w-4" />
-                      <span>Edit</span>
-                    </DropdownMenuItem>
-                    <DropdownMenuItem @click="confirmDeleteAudio(audio.audio_guide_id)" class="text-red-600 hover:!text-red-600 focus:text-red-600 focus:!bg-red-100 dark:text-red-500 dark:hover:!text-red-500 dark:focus:!text-red-500 dark:focus:!bg-red-700/50">
-                      <Icon icon="ph:trash" class="mr-2 h-4 w-4" />
-                      <span>Delete</span>
-                    </DropdownMenuItem>
-                  </DropdownMenuContent>
-                </DropdownMenu>
-              </CardFooter>
+                <!-- 辅助信息分组（底部固定） -->
+                <div class="flex flex-wrap gap-3 text-xs text-gray-500 dark:text-gray-400 mt-auto opacity-80">
+                  <span class="sub-tag truncate max-w-[120px]">
+                    <Icon icon="ph:calendar-blank" class="inline h-4 w-4 mr-1 align-text-bottom" />
+                    {{ formatDisplayDate(audio.generated_at) }}
+                  </span>
+                  <span v-if="audio.object_id" class="sub-tag truncate max-w-[110px]">
+                    <Icon icon="ph:cube" class="inline h-4 w-4 align-text-bottom" />
+                    <span class="font-medium text-blue-500 dark:text-blue-300">Object</span>:
+                    <span>{{ audio.object_id }}</span>
+                  </span>
+                  <span v-if="audio.gallery_id" class="sub-tag truncate max-w-[110px]">
+                    <Icon icon="ph:image-square" class="inline h-4 w-4 align-text-bottom" />
+                    <span class="font-medium text-purple-500 dark:text-purple-300">Gallery</span>:
+                    <span>{{ audio.gallery_id }}</span>
+                  </span>
+                  <span v-if="audio.museum_id" class="sub-tag truncate max-w-[110px]">
+                    <Icon icon="ph:bank" class="inline h-4 w-4 align-text-bottom" />
+                    <span class="font-medium text-green-500 dark:text-green-300">Museum</span>:
+                    <span>{{ audio.museum_id }}</span>
+                  </span>
+                  <span class="sub-tag-id truncate max-w-[90px]">
+                    <Icon icon="ph:identification-card" class="inline h-4 w-4 mr-1 align-text-bottom" />
+                    ID: {{ audio.audio_guide_id }}
+                  </span>
+                  <span class="sub-tag-id truncate max-w-[90px]">
+                    <Icon icon="ph:clock" class="inline h-4 w-4 mr-1 align-text-bottom" />
+                    Duration: {{ audio.duration_seconds ? `${audio.duration_seconds}s` : 'N/A' }}
+                  </span>
+                </div>
+              </div>
             </Card>
           </div>
           <div v-else class="text-center py-8">
@@ -170,7 +236,9 @@
               <SelectContent>
                 <SelectGroup>
                   <SelectItem v-for="persona in availablePersonas" :key="persona.persona_id" :value="persona.persona_id.toString()">
-                    {{ persona.name }}
+<!-- debug log -->
+{{ console.log('persona in SelectItem:', persona) }}
+                    {{ persona?.name ?? 'Unknown' }}
                   </SelectItem>
                 </SelectGroup>
               </SelectContent>
@@ -195,7 +263,7 @@
           <div class="grid items-center gap-1.5">
             <Label for="newAudioMetadata">Metadata (JSON)</Label>
             <Textarea id="newAudioMetadata" v-model="newAudioData.metadata_json_string" placeholder='e.g., {"tts_provider": "elevenlabs", "voice_id": "xyz"}' rows="3" />
-            <p class="text-xs text-muted-foreground mt-1">Enter valid JSON for audio metadata.</p>
+            <p class="text-xs text-gray-500 dark:text-gray-400 mt-1">Enter valid JSON for audio metadata.</p>
           </div>
         </div>
         <DialogFooter>
@@ -232,7 +300,7 @@
               <SelectContent>
                 <SelectGroup>
                   <SelectItem v-for="persona in availablePersonas" :key="persona.persona_id" :value="persona.persona_id.toString()">
-                    {{ persona.name }}
+                    {{ persona?.name ?? 'Unknown' }}
                   </SelectItem>
                 </SelectGroup>
               </SelectContent>
@@ -272,7 +340,7 @@
           <div class="grid items-center gap-1.5">
             <Label for="editAudioMetadata">Metadata (JSON)</Label>
             <Textarea id="editAudioMetadata" v-model="editingAudioData.metadata_json_string" placeholder='e.g., {"tts_provider": "elevenlabs", "voice_id": "xyz"}' rows="3" />
-            <p class="text-xs text-muted-foreground mt-1">Enter valid JSON for audio metadata.</p>
+            <p class="text-xs text-gray-500 dark:text-gray-400 mt-1">Enter valid JSON for audio metadata.</p>
           </div>
         </div>
         <DialogFooter>
@@ -320,26 +388,11 @@
         </DialogFooter>
       </DialogContent>
     </Dialog>
-
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, onBeforeUpdate } from 'vue';
-import { Button } from '@/components/ui/button';
-// import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'; // No longer using table for main display
-import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
-import { Badge } from '@/components/ui/badge';
-import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
-import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
-import { Textarea } from '@/components/ui/textarea';
-import { Switch } from '@/components/ui/switch';
-import { Select, SelectContent, SelectGroup, SelectItem, SelectLabel, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Skeleton } from '@/components/ui/skeleton';
-import { Icon } from '@iconify/vue';
+
 
 interface PersonaInfo { // Assuming this might be shared or defined elsewhere
   persona_id: number;
@@ -596,3 +649,6 @@ definePageMeta({
   title: 'Voices' // Matching menu label
 });
 </script>
+<style scoped>
+
+</style>
