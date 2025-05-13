@@ -4,21 +4,20 @@
       <NuxtPage />
     </NuxtLayout>
     <Toaster 
-      position="top-center" 
-      closeButton 
+      position="top-right"  
       richColors
       :toastOptions="{
         duration: 4000
       }"
-      class="toaster-safe-area"
+      class="toaster-safe-area opacity-90 hover:opacity-100 transition-opacity duration-300"
     />
   </div>
 </template>
 
 <script setup lang="ts">
 import { Toaster } from '@/components/ui/sonner'
-import { usePwa } from '~/composables/usePwa'
 import { useColorMode } from '@vueuse/core'
+import { usePwa } from '~/composables/usePwa'
 
 const { isPwa } = usePwa()
 

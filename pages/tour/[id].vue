@@ -2,12 +2,12 @@
   <div class="h-full w-full max-h-full relative bg-gray-50" v-motion :initial="{ opacity: 0 }"
     :enter="{ opacity: 1, transition: { duration: 300 } }">
 
-    <!-- 地图组件 - 设置合理的内边距，避免被其他组件完全覆盖 -->
+    <!-- Map Component - Set reasonable padding to avoid being completely covered by other components -->
     <div class="absolute inset-0 z-0">
       <MapSection v-model:currentFloor="currentFloor" ref="mapSectionRef" @exhibit-selected="onExhibitSelected" />
     </div>
 
-    <!-- 顶部信息栏 -->
+    <!-- Top Info Bar -->
     <div class="absolute top-0 left-0 right-0 z-10 bg-white bg-opacity-90 backdrop-blur-sm p-3 shadow-md">
       <div class="flex justify-between items-center max-w-screen-xl mx-auto">
         <div class="flex items-center">
@@ -17,7 +17,7 @@
           <h1 class="text-lg font-bold text-gray-900 truncate" v-if="currentMuseum">{{ currentMuseum.name }}</h1>
         </div>
         <div class="flex space-x-2">
-          <!-- 楼层切换按钮 - 移到顶部栏 -->
+          <!-- Floor Switch Buttons - Moved to Top Bar -->
           <div class="flex space-x-1 items-center">
             <Button
               v-for="floor in ['G', '1', '2-3']"
@@ -35,7 +35,7 @@
       </div>
     </div>
 
-    <!-- 右侧面板 - 使用 Collapsible -->
+    <!-- Right Panel - Using Collapsible -->
     <Collapsible
       v-model:open="showRoutePanel"
       class="absolute top-16 right-0 bottom-16 z-10 w-80 bg-white border-l border-gray-200 flex flex-col"
@@ -54,7 +54,7 @@
           <div v-for="(item, index) in filteredRouteItems" :key="item.id"
             class="p-3 flex bg-white hover:bg-gray-50 transition-colors cursor-pointer"
             :class="{ 'bg-blue-50 hover:bg-blue-100': item.highlight }" @click="highlightExhibit(item)">
-            <!-- 编号圆圈 -->
+            <!-- Number Circle -->
             <div class="mr-3 flex-shrink-0">
               <div
                 class="bg-blue-500 text-white w-8 h-8 rounded-full flex items-center justify-center font-bold text-sm">
@@ -62,7 +62,7 @@
               </div>
             </div>
 
-            <!-- 项目信息 -->
+            <!-- Item Info -->
             <div class="flex-1 min-w-0">
               <div class="font-medium text-gray-900 mb-1 text-sm truncate">{{ item.name }}</div>
               <div class="flex items-center text-gray-500 text-xs">
@@ -76,7 +76,7 @@
       <!-- CollapsibleTrigger moved to the Floating Action Button -->
     </Collapsible>
 
-    <!-- 展品详情面板 - 使用 BottomDrawer -->
+    <!-- Exhibit Details Panel - Using BottomDrawer -->
     <BottomDrawer v-model="showExhibitPanel">
       <div v-if="selectedExhibit" class="flex flex-col gap-4">
         <!-- Header -->
@@ -100,7 +100,7 @@
       <div v-else class="text-center text-gray-500 py-8">Select an exhibit to see details.</div>
     </BottomDrawer>
 
-    <!-- 悬浮控制按钮组 -->
+    <!-- Floating Control Button Group -->
     <div class="fixed bottom-20 right-4 z-30 flex flex-col gap-2">
        <CollapsibleTrigger as-child>
          <Button
@@ -114,7 +114,7 @@
        </CollapsibleTrigger>
     </div>
 
-    <!-- 导览工具栏 - Updated with Play/Pause -->
+    <!-- Tour Toolbar - Updated with Play/Pause -->
     <div class="fixed bottom-0 left-0 right-0 h-14 bg-white bg-opacity-90 backdrop-blur-sm shadow-lg z-40">
       <div class="flex items-center justify-between px-4 h-full max-w-screen-xl mx-auto">
         <!-- Guide Info & Playback Controls -->
@@ -196,17 +196,17 @@ import BottomDrawer from '~/components/ui/bottom-drawer'
 import { Button } from '@/components/ui/button'
 import { Icon } from '#components'
 
-// 获取路由参数
+// Get route parameters
 const route = useRoute()
 const router = useRouter()
 const museumId = computed(() => route.params.id as string)
 
-// 使用store
+// Use store
 const chatStore = useChatStore()
 const tourStore = useTourStore()
 const { routeItems, featuredExhibits, currentMuseum } = storeToRefs(tourStore)
 
-// 面板状态
+// Panel state
 const showRoutePanel = ref(false)
 const showExhibitPanel = ref(false)
 const selectedExhibit = ref<ExhibitItem | null>(null)
@@ -261,28 +261,28 @@ useHead(() => ({
   ]
 }))
 
-// 地图相关状态
+// Map related state
 const currentFloor = ref(1)
 const mapSectionRef = ref<any>(null) // Use any or define MapSectionComponent type
 
-// 楼层字符串
+// Floor string
 const currentFloorStr = computed(() => {
   return currentFloor.value === 0 ? 'G' : 
          currentFloor.value === 1 ? '1' : 
          currentFloor.value === 2 ? '2-3' : '1'
 })
 
-// 更新楼层
+// Update floor
 function updateFloor(floor: number) {
   currentFloor.value = floor
 }
 
-// 计算属性：过滤路线项目
+// Computed property: Filter route items
 const filteredRouteItems = computed(() => {
   return routeItems.value.filter(item => item.floor === currentFloor.value)
 })
 
-// 处理展品选择 (地图点击)
+// Handle exhibit selection (map click)
 function onExhibitSelected(exhibit: ExhibitItem) {
   selectedExhibit.value = exhibit
   showExhibitPanel.value = true
@@ -291,13 +291,13 @@ function onExhibitSelected(exhibit: ExhibitItem) {
   explainExhibit(exhibit)
 }
 
-// 导航方法
+// Navigation method
 function goBack() {
   stopAudio() // Stop any speech before navigating back
   router.back()
 }
 
-// 高亮展品 (路线列表点击)
+// Highlight exhibit (route list click)
 function highlightExhibit(item: ExhibitItem) {
   tourStore.highlightExhibit(item) // Use store's highlight method
   currentFloor.value = item.floor

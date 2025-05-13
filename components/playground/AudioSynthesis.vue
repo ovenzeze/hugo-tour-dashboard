@@ -7,8 +7,8 @@
     <!-- Script Preview -->
     <div class="space-y-2">
       <div class="flex items-center justify-between">
-        <Label>脚本预览</Label>
-        <Badge variant="outline" class="text-xs">只读</Badge>
+        <Label>Script Preview</Label>
+        <Badge variant="outline" class="text-xs">Read-only</Badge>
       </div>
       <!-- <ScrollArea class="h-[200px] w-full rounded-md border p-4">
         <pre class="text-sm font-mono whitespace-pre-wrap">{{ scriptContent }}</pre>
@@ -18,7 +18,7 @@
     <!-- Synthesis Controls -->
     <div class="space-y-4">
       <div class="space-y-2">
-        <Label>输出文件名</Label>
+        <Label>Output Filename</Label>
         <Input 
           v-model="localOutputFilename" 
           placeholder="podcast_output.mp3"
@@ -28,7 +28,7 @@
 
       <div class="space-y-2">
         <div class="flex items-center justify-between">
-          <Label>语音温度 ({{ synthesisParams.temperature }})</Label>
+          <Label>Voice Temperature ({{ synthesisParams.temperature }})</Label>
           <HoverCard>
             <HoverCardTrigger>
               <Button variant="ghost" size="icon">
@@ -36,7 +36,7 @@
               </Button>
             </HoverCardTrigger>
             <HoverCardContent>
-              <p class="text-sm">控制语音的变化程度。较高的值会产生更多变化，较低的值会产生更稳定的输出。</p>
+              <p class="text-sm">Controls the degree of voice variation. Higher values produce more variation, while lower values result in more stable output.</p>
             </HoverCardContent>
           </HoverCard>
         </div>
@@ -51,7 +51,7 @@
 
       <div class="space-y-2">
         <div class="flex items-center justify-between">
-          <Label>语速 ({{ synthesisParams.speed }}x)</Label>
+          <Label>Speech Rate ({{ synthesisParams.speed }}x)</Label>
           <HoverCard>
             <HoverCardTrigger>
               <Button variant="ghost" size="icon">
@@ -59,7 +59,7 @@
               </Button>
             </HoverCardTrigger>
             <HoverCardContent>
-              <p class="text-sm">调整语音的播放速度。1.0 是正常速度，大于 1.0 加快，小于 1.0 减慢。</p>
+              <p class="text-sm">Adjust the playback speed of the voice. 1.0 is normal speed, greater than 1.0 speeds up, less than 1.0 slows down.</p>
             </HoverCardContent>
           </HoverCard>
         </div>
@@ -73,24 +73,24 @@
       </div>
     </div>
 
-    <!-- 添加时间戳信息展示区域 -->
+    <!-- Add timestamp information display area -->
     <div v-if="props.performanceConfig?.useTimestamps" class="mt-4 border-t pt-4">
       <div class="flex items-center justify-between">
-        <h4 class="text-sm font-medium">时间戳信息可视化</h4>
+        <h4 class="text-sm font-medium">Timestamp Information Visualization</h4>
         <Badge variant="outline">Beta</Badge>
       </div>
       
       <div class="mt-2 p-3 bg-muted rounded-md text-xs">
-        <p>已从步骤2导入时间戳数据，将用于高级音频处理</p>
+        <p>Timestamp data imported from Step 2 will be used for advanced audio processing</p>
       </div>
       
-      <!-- 可以添加一个开关来控制是否使用时间戳 -->
+      <!-- Can add a switch to control whether to use timestamps -->
       <div class="mt-3 flex items-center space-x-2">
         <Checkbox
           id="use-timestamps"
           v-model:checked="useTimestampsForSynthesis"
         />
-        <Label for="use-timestamps">使用预生成的时间戳数据</Label>
+        <Label for="use-timestamps">Use pre-generated timestamp data</Label>
       </div>
     </div>
 
@@ -102,7 +102,7 @@
       >
         <Loader2 v-if="isLoading" class="w-4 h-4 mr-2 animate-spin" />
         <RadioTower v-else class="w-4 h-4 mr-2" />
-        {{ isLoading ? '生成中...' : '生成音频' }}
+        {{ isLoading ? 'Generating...' : 'Generate Audio' }}
       </Button>
       <Button 
         v-if="modelValue" 
@@ -111,13 +111,13 @@
         :disabled="isLoading"
       >
         <Download class="w-4 h-4 mr-2" />
-        下载音频
+        Download Audio
       </Button>
     </div>
 
     <!-- Audio Player -->
     <div v-if="modelValue" class="space-y-2">
-      <Label>播客音频</Label>
+      <Label>Podcast Audio</Label>
       <div class="rounded-lg border bg-card p-4">
         <audio :src="modelValue" controls class="w-full" />
       </div>

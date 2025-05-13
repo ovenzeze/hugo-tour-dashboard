@@ -5,14 +5,14 @@
       <!-- Table of Contents - Desktop Sidebar (Hidden on small screens) -->
       <aside class="lg:block lg:w-72 sticky top-20 self-start h-[calc(100dvh-10rem)] overflow-hidden flex flex-col pr-4">
         <div class="bg-gray-50 dark:bg-gray-800/40 rounded-lg border border-gray-200 dark:border-gray-700 h-full flex flex-col">
-          <!-- 固定头部 -->
+          <!-- Fixed Header -->
           <div class="p-4 border-b border-gray-200 dark:border-gray-700">
             <h3 class="font-bold text-lg text-gray-800 dark:text-gray-200">
               Contents
             </h3>
           </div>
           
-          <!-- 可滚动内容区域 -->
+          <!-- Scrollable Content Area -->
           <div class="flex-1 overflow-y-auto p-4 toc-content">
             <TableOfContents 
               :links="toc?.links || []" 
@@ -22,7 +22,7 @@
             <p v-if="!toc?.links?.length" class="text-sm text-muted-foreground">No contents available</p>
           </div>
           
-          <!-- 固定底部 -->
+          <!-- Fixed Footer -->
           <div class="p-4 border-t border-gray-200 dark:border-gray-700 mt-auto mx-auto">
             <NuxtLink 
               to="/docs" 
@@ -49,12 +49,12 @@
             </SheetTrigger>
             <SheetContent side="left" class="w-72 sm:w-80 p-0">
               <div class="flex flex-col h-full">
-                <!-- 固定头部 -->
+                <!-- Fixed Header -->
                 <SheetHeader class="p-4 border-b border-gray-200 dark:border-gray-700">
                   <SheetTitle>Contents</SheetTitle>
                 </SheetHeader>
                 
-                <!-- 可滚动内容区域 -->
+                <!-- Scrollable Content Area -->
                 <div class="flex-1 overflow-y-auto p-4 toc-content">
                   <TableOfContents 
                     :links="toc?.links || []" 
@@ -63,7 +63,7 @@
                   />
                 </div>
                 
-                <!-- 固定底部 -->
+                <!-- Fixed Footer -->
                 <div class="p-4 border-t border-gray-200 dark:border-gray-700 flex items-center justify-between">
                   <NuxtLink 
                     to="/docs" 
@@ -143,7 +143,7 @@ import { useMotion } from '@vueuse/motion'
 definePageMeta({
   layout: 'fullscreen',
   pageTransition: {
-    name: 'none' // 禁用默认页面转场动画
+    name: 'none' // Disable default page transition animation
   }
 })
 
@@ -161,7 +161,7 @@ const { data: doc, pending, error } = await useAsyncData(
   () => queryCollection('docs').path(`/docs/${slug.value}`).first()
 )
 
-// 页面主容器的ref和动画效果
+// Ref for the main page container and animation effect
 const mainContentRef = ref(null)
 useMotion(mainContentRef, {
   initial: { opacity: 0, y: 20 },
@@ -253,7 +253,7 @@ const closeSheet = () => {
   isSheetOpen.value = false
 }
 
-// 平滑滚动到目标位置的函数 - 使用更加平滑的滚动行为
+// Function to smooth scroll to target position - Using smoother scrolling behavior
 const smoothScrollTo = (id) => {
   const element = document.getElementById(id)
   if (element) {
@@ -290,18 +290,18 @@ const smoothScrollTo = (id) => {
   white-space: normal;
 }
 
-/* 移除滚动效果的弹性回弹 */
+/* Remove scroll bounce effect */
 html {
   scroll-behavior: auto !important;
   overscroll-behavior: none;
 }
 
-/* 优化文档内容动画效果 */
+/* Optimize document content animation effect */
 .prose-lg > * {
   transition: opacity 0.2s ease-out;
 }
 
-/* 优化目录滚动行为 */
+/* Optimize table of contents scrolling behavior */
 .toc-content {
   scrollbar-width: thin;
   scrollbar-color: rgba(156, 163, 175, 0.5) transparent;
@@ -310,7 +310,7 @@ html {
   padding-right: 10px;
 }
 
-/* 目录内项目的动画 */
+/* Animation for items within the table of contents */
 .toc-item, .toc-subitem, .toc-subsubitem {
   transform: translateX(0);
   transition: transform 0.2s ease;
@@ -320,7 +320,7 @@ html {
   transform: translateX(3px);
 }
 
-/* 活动项样式优化 */
+/* Active item style optimization */
 .toc-nav a.active {
   background-color: rgba(59, 130, 246, 0.1);
   color: rgb(59, 130, 246);

@@ -35,7 +35,7 @@
           size="sm"
         >
           <BookOpenText class="w-4 h-4 mr-2" />
-          使用预设脚本
+          Use Preset Script
         </Button>
         <Button 
           v-if="currentStepIndex === 1" 

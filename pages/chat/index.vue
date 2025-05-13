@@ -66,7 +66,7 @@
                 <Slider
                   :id="`stability-slider-${_uid}`"
                   :model-value="[ttsSettings.stability]"
-                  @update:model-value="val => ttsSettings.stability = val[0]"
+                  @update:model-value="val => { if (val && val.length > 0) ttsSettings.stability = val[0] }"
                   :min="0" :max="1" :step="0.05"
                   :default-value="[elevenLabsConfig.defaultSettings.stability ?? 0.5]"
                   class="my-2"
@@ -79,7 +79,7 @@
                 <Slider
                   :id="`similarity-slider-${_uid}`"
                   :model-value="[ttsSettings.similarity_boost]"
-                  @update:model-value="val => ttsSettings.similarity_boost = val[0]"
+                  @update:model-value="val => { if (val && val.length > 0) ttsSettings.similarity_boost = val[0] }"
                   :min="0" :max="1" :step="0.05"
                   :default-value="[elevenLabsConfig.defaultSettings.similarity_boost ?? 0.75]"
                   class="my-2"
@@ -92,7 +92,7 @@
                 <Slider
                   :id="`style-slider-${_uid}`"
                   :model-value="[ttsSettings.style]"
-                  @update:model-value="val => ttsSettings.style = val[0]"
+                  @update:model-value="val => { if (val && val.length > 0) ttsSettings.style = val[0] }"
                   :min="0" :max="1" :step="0.05"
                   :default-value="[elevenLabsConfig.defaultSettings.style ?? 0]"
                   class="my-2"
@@ -301,7 +301,7 @@ const presetTexts = [
   "Hello, this is a test of the Eleven Labs text-to-speech synthesis.",
   "The quick brown fox jumps over the lazy dog.",
   "To be, or not to be, that is the question.",
-  "你好，这是一个测试。", // Example Chinese
+  "Hello, this is a test in Chinese.", // Example Chinese
 ];
 
 // Get component instance uid for unique IDs

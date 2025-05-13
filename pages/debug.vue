@@ -73,47 +73,47 @@
                 class="px-4 py-2 bg-gray-800 text-white rounded hover:bg-gray-700 transition text-sm flex items-center"
               >
                 <Icon name="ph:bell" class="mr-2 w-4 h-4" />
-                默认通知
+                Default Notification
               </button>
               <button
                 @click="() => toast.success('操作成功', { 
-                  description: '您的内容已经保存',
+                  description: 'Your content has been saved',
                   duration: 4000
                 })"
                 class="px-4 py-2 bg-green-600 text-white rounded hover:bg-green-700 transition text-sm flex items-center"
               >
                 <Icon name="ph:check-circle" class="mr-2 w-4 h-4" />
-                成功通知
+                Success Notification
               </button>
               <button
                 @click="() => toast.error('操作失败', { 
-                  description: '请检查您的输入并重试',
+                  description: 'Please check your input and try again',
                   duration: 4000
                 })"
                 class="px-4 py-2 bg-red-600 text-white rounded hover:bg-red-700 transition text-sm flex items-center"
               >
                 <Icon name="ph:x-circle" class="mr-2 w-4 h-4" />
-                错误通知
+                Error Notification
               </button>
               <button
                 @click="() => toast.info('信息通知', { 
-                  description: '有新的消息等待查看',
+                  description: 'There are new messages to view',
                   duration: 4000
                 })"
                 class="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 transition text-sm flex items-center"
               >
                 <Icon name="ph:info" class="mr-2 w-4 h-4" />
-                信息通知
+                Info Notification
               </button>
               <button
                 @click="() => toast.warning('警告提示', { 
-                  description: '此操作可能导致数据丢失',
+                  description: 'This operation may result in data loss',
                   duration: 4000
                 })"
                 class="px-4 py-2 bg-amber-600 text-white rounded hover:bg-amber-700 transition text-sm flex items-center"
               >
                 <Icon name="ph:warning" class="mr-2 w-4 h-4" />
-                警告通知
+                Warning Notification
               </button>
             </div>
           </section>
@@ -258,13 +258,13 @@ const clearStoreState = () => {
 }
 
 const testSpeak = () => {
-  voiceNavState.speak('这是语音导航测试。')
+  voiceNavState.speak('This is a voice navigation test.')
 }
 
 const testNotification = () => {
   console.log('Testing Notification...');
-  toast('默认通知标题', { 
-    description: '这是默认通知的描述文本',
+  toast('Default Notification Title', {
+    description: 'This is the description text for the default notification',
     duration: 4000
   });
 }

@@ -185,9 +185,9 @@ const currentStepIndex = ref(1);
 const podcastPerformanceConfig = ref<object | null>(null);
 
 const podcastSteps = [
-  { step: 1, title: '脚本生成', description: '选择角色和脚本设置。' },
-  { step: 2, title: '语音表现', description: '配置声音、角色和风格。' },
-  { step: 3, title: '音频合成', description: '合成和下载音频。' },
+  { step: 1, title: 'Script Generation', description: 'Select roles and script settings.' },
+  { step: 2, title: 'Voice Performance', description: 'Configure voice, roles, and style.' },
+  { step: 3, title: 'Audio Synthesis', description: 'Synthesize and download audio.' },
 ];
 
 watch(() => playgroundStore.createPodcast, () => {
@@ -232,18 +232,18 @@ async function handleToolbarGenerateScript() {
   });
   
   if (!playgroundStore.canGeneratePodcastScript) {
-    toast.warning("请完成所有播客设置后再生成脚本。");
+    toast.warning("Please complete all podcast settings before generating the script.");
     return;
   }
   await playgroundStore.generateScript();
   if (!playgroundStore.scriptGenerationError) {
-    toast.success("脚本生成成功！");
+    toast.success("Script generated successfully!");
   }
 }
 
 function handleToolbarSkipScript() {
   if (!mainEditorContent.value.trim()) {
-    toast.info("请在编辑器中输入您的脚本。");
+    toast.info("Please enter your script in the editor.");
     return;
   }
   currentStepIndex.value = 2;
@@ -256,7 +256,7 @@ function onPerformanceSettingsNextForPodcast(config: object) {
 
 async function onSynthesizeAudioForPodcast(payload: { useTimestamps: boolean, synthesisParams?: any, performanceConfig?: any }) {
   if (!podcastPerformanceConfig.value) {
-    toast.error("缺少性能配置。");
+    toast.error("Missing performance configuration.");
     return;
   }
   
@@ -280,13 +280,13 @@ async function onSynthesizeAudioForPodcast(payload: { useTimestamps: boolean, sy
   });
 
   if (!playgroundStore.synthesisError) {
-    toast.success("播客音频合成成功！");
+    toast.success("Podcast audio synthesized successfully!");
   }
 }
 
 function handleToolbarProceedToSynthesis() {
   if (!mainEditorContent.value.trim()) {
-    toast.info("脚本内容为空。请生成或编写脚本。");
+    toast.info("Script content is empty. Please generate or write a script.");
     return;
   }
   currentStepIndex.value = 3;
@@ -302,7 +302,7 @@ function handleToolbarSynthesizePodcastAudio() {
 
 function handleDownloadCurrentAudio() {
   if (!playgroundStore.audioUrl) {
-    toast.error("没有可下载的音频。");
+    toast.error("No audio available for download.");
     return;
   }
   const link = document.createElement('a');
@@ -314,14 +314,14 @@ function handleDownloadCurrentAudio() {
   document.body.appendChild(link);
   link.click();
   document.body.removeChild(link);
-  toast.success("音频下载已开始。");
+  toast.success("Audio download started.");
 }
 
 function resetPodcastView() {
   playgroundStore.resetPlaygroundState();
   podcastPerformanceConfig.value = null;
   currentStepIndex.value = 1;
-  toast.info("准备创建新播客。");
+  toast.info("Ready to create a new podcast.");
 }
 
 function handleUsePresetScript() {

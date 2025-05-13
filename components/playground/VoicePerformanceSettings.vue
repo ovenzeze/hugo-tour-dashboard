@@ -172,10 +172,10 @@
     </div>
   </div>
 
-  <!-- 在组件底部添加预览和确认区域 -->
+  <!-- Add preview and confirmation area at the bottom of the component -->
   <div class="flex flex-col space-y-4 mt-6 pt-4 border-t">
     <div class="flex justify-between">
-      <h3 class="text-base font-medium">全局预览和提交</h3>
+      <h3 class="text-base font-medium">Global Preview and Submission</h3>
       <Button
         variant="outline"
         size="sm"
@@ -183,12 +183,12 @@
         @click="previewAll"
       >
         <Play class="w-4 h-4 mr-2" />
-        预览全部
+        Preview All
       </Button>
     </div>
     
     <div v-if="combinedPreviewUrl" class="border rounded-md p-4 bg-muted/30">
-      <p class="text-sm font-medium mb-2">完整音频预览:</p>
+      <p class="text-sm font-medium mb-2">Full Audio Preview:</p>
       <audio :src="combinedPreviewUrl" controls class="w-full" />
     </div>
     
@@ -197,13 +197,13 @@
         variant="secondary"
         @click="$emit('back')"
       >
-        上一步
+        Previous Step
       </Button>
       <Button
         @click="submitWithTimestamps"
         :disabled="!canProceed"
       >
-        下一步：音频合成
+        Next Step: Audio Synthesis
         <ArrowRight class="w-4 h-4 ml-2" />
       </Button>
     </div>
@@ -240,7 +240,7 @@ const selectedVoice = ref('');
 const isLoadingVoices = ref(false);
 const speakerAssignments = ref<Record<string, string>>({});
 
-// 预览状态管理
+// Preview state management
 const isPreviewingSegment = ref<number | null>(null);
 const segmentPreviews = ref<Record<number, { audioUrl: string, timestamps?: any[] }>>({});
 
@@ -345,19 +345,19 @@ const canProceed = computed(() => {
   return !!selectedVoice.value && availableVoices.value.some(v => v.id === selectedVoice.value);
 });
 
-// 添加这些状态管理变量
+// Add these state management variables
 const combinedPreviewUrl = ref<string | null>(null);
 
-// 预览单个片段的方法
+// Method to preview a single segment
 async function previewSegment(segment: { speakerTag: string, text: string }, index: number) {
   if (!segment.text || !speakerAssignments.value[segment.speakerTag]) return;
   
   isPreviewingSegment.value = index;
   try {
-    // 获取语音ID
+    // Get voice ID
     const voiceId = speakerAssignments.value[segment.speakerTag];
     
-    // 调用带时间戳的TTS API
+    // Call TTS API with timestamps
     const response = await fetch('/api/elevenlabs/tts-with-timestamps', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -376,12 +376,12 @@ async function previewSegment(segment: { speakerTag: string, text: string }, ind
     });
     
     if (!response.ok) {
-      throw new Error('预览音频生成失败');
+      throw new Error('Failed to generate preview audio');
     }
     
     const data = await response.json();
     
-    // 创建临时音频URL - 使用浏览器兼容的方式处理base64数据
+    // Create temporary audio URL - Handle base64 data in a browser-compatible way
     const binary = atob(data.audio);
     const bytes = new Uint8Array(binary.length);
     for (let i = 0; i < binary.length; i++) {
@@ -390,21 +390,21 @@ async function previewSegment(segment: { speakerTag: string, text: string }, ind
     const audioBlob = new Blob([bytes], { type: 'audio/mpeg' });
     const audioUrl = URL.createObjectURL(audioBlob);
     
-    // 保存预览结果
+    // Save preview result
     segmentPreviews.value[index] = {
       audioUrl,
       timestamps: data.timestamps
     };
     
   } catch (error) {
-    console.error('预览生成失败:', error);
-    toast.error('预览生成失败，请重试');
+    console.error('Preview generation failed:', error);
+    toast.error('Preview generation failed, please try again');
   } finally {
     isPreviewingSegment.value = null;
   }
 }
 
-// 预览全部的方法
+// Method to preview all segments
 async function previewAll() {
   const previewKeys = Object.keys(segmentPreviews.value);
   if (previewKeys.length === 0) {
@@ -413,7 +413,7 @@ async function previewAll() {
   }
   
   if (previewKeys.length === 1) {
-    // 如果只有一个片段，直接使用它
+    // If there is only one segment, use it directly
     const firstKey = previewKeys[0];
     combinedPreviewUrl.value = segmentPreviews.value[Number(firstKey)].audioUrl;
     toast.info("Only one segment previewed. Showing that segment.");
@@ -423,15 +423,15 @@ async function previewAll() {
   try {
     toast.info("Combining audio segments...");
     
-    // 按照索引顺序排序预览片段
+    // Sort preview segments by index
     const sortedKeys = previewKeys.map(Number).sort((a, b) => a - b);
     
-    // 创建一个新的AudioContext
+    // Create a new AudioContext
     const AudioContextClass = window.AudioContext || (window as any).webkitAudioContext;
     const audioContext = new AudioContextClass();
     const audioBuffers: AudioBuffer[] = [];
     
-    // 加载所有音频片段
+    // Load all audio segments
     for (const key of sortedKeys) {
       const audioUrl = segmentPreviews.value[key].audioUrl;
       const response = await fetch(audioUrl);
@@ -440,17 +440,17 @@ async function previewAll() {
       audioBuffers.push(audioBuffer);
     }
     
-    // 计算合并后的总长度
+    // Calculate the total length of the combined buffer
     const totalLength = audioBuffers.reduce((acc, buffer) => acc + buffer.length, 0);
     
-    // 创建一个新的AudioBuffer来存储合并后的音频
+    // Create a new AudioBuffer to store the combined audio
     const combinedBuffer = audioContext.createBuffer(
       audioBuffers[0].numberOfChannels,
       totalLength,
       audioBuffers[0].sampleRate
     );
     
-    // 合并音频片段
+    // Merge audio segments
     let offset = 0;
     for (let i = 0; i < audioBuffers.length; i++) {
       const buffer = audioBuffers[i];
@@ -461,7 +461,7 @@ async function previewAll() {
       offset += buffer.length;
     }
     
-    // 将合并后的AudioBuffer转换为Blob
+    // Convert the combined AudioBuffer to a Blob
     const offlineContext = new OfflineAudioContext(
       combinedBuffer.numberOfChannels,
       combinedBuffer.length,
@@ -475,7 +475,7 @@ async function previewAll() {
     const renderedBuffer = await offlineContext.startRendering();
     const wavBlob = await audioBufferToWav(renderedBuffer);
     
-    // 创建URL并设置
+    // Create URL and set
     combinedPreviewUrl.value = URL.createObjectURL(wavBlob);
     toast.success("Combined preview created successfully!");
   } catch (error) {
@@ -486,7 +486,7 @@ async function previewAll() {
   }
 }
 
-// 辅助函数：将AudioBuffer转换为WAV格式的Blob
+// Helper function: Convert AudioBuffer to WAV format Blob
 function audioBufferToWav(buffer: AudioBuffer): Promise<Blob> {
   return new Promise((resolve) => {
     const numOfChannels = buffer.numberOfChannels;
@@ -494,34 +494,34 @@ function audioBufferToWav(buffer: AudioBuffer): Promise<Blob> {
     const sampleRate = buffer.sampleRate;
     const wavDataView = new DataView(new ArrayBuffer(44 + length));
     
-    // RIFF标识符
+    // RIFF identifier
     writeString(wavDataView, 0, 'RIFF');
-    // 文件长度
+    // File length
     wavDataView.setUint32(4, 36 + length, true);
-    // WAVE标识符
+    // WAVE identifier
     writeString(wavDataView, 8, 'WAVE');
-    // fmt子块标识符
+    // fmt subchunk identifier
     writeString(wavDataView, 12, 'fmt ');
-    // 子块1大小
+    // Subchunk 1 size
     wavDataView.setUint32(16, 16, true);
-    // 音频格式（PCM）
+    // Audio format (PCM)
     wavDataView.setUint16(20, 1, true);
-    // 通道数
+    // Number of channels
     wavDataView.setUint16(22, numOfChannels, true);
-    // 采样率
+    // Sample rate
     wavDataView.setUint32(24, sampleRate, true);
-    // 字节率
+    // Byte rate
     wavDataView.setUint32(28, sampleRate * numOfChannels * 2, true);
-    // 块对齐
+    // Block align
     wavDataView.setUint16(32, numOfChannels * 2, true);
-    // 每个样本的位数
+    // Bits per sample
     wavDataView.setUint16(34, 16, true);
-    // data子块标识符
+    // data subchunk identifier
     writeString(wavDataView, 36, 'data');
-    // 数据长度
+    // Data length
     wavDataView.setUint32(40, length, true);
     
-    // 写入PCM数据
+    // Write PCM data
     let offset = 44;
     for (let i = 0; i < buffer.length; i++) {
       for (let channel = 0; channel < numOfChannels; channel++) {
@@ -535,18 +535,18 @@ function audioBufferToWav(buffer: AudioBuffer): Promise<Blob> {
   });
 }
 
-// 辅助函数：将字符串写入DataView
+// Helper function: Write string to DataView
 function writeString(dataView: DataView, offset: number, str: string): void {
   for (let i = 0; i < str.length; i++) {
     dataView.setUint8(offset + i, str.charCodeAt(i));
   }
 }
 
-// 提交带时间戳的配置
+// Submit configuration with timestamps
 function submitWithTimestamps() {
   if (!canProceed.value) return;
   
-  // 获取基础配置
+  // Get base configuration
   const baseConfig = {
     taskType: performanceTaskType.value,
     provider: ttsProvider.value,
@@ -554,7 +554,7 @@ function submitWithTimestamps() {
     availableVoices: availableVoices.value,
   };
   
-  // 整合时间戳信息
+  // Integrate timestamp information
   const configWithTimestamps = {
     ...baseConfig,
     segments: Object.entries(speakerAssignments.value).map(([speakerTag, voiceId]) => {
@@ -580,7 +580,7 @@ function submitWithTimestamps() {
         timestamps: segmentPreview?.timestamps || []
       };
     }),
-    useTimestamps: true // 标记使用时间戳功能
+    useTimestamps: true // Mark to use timestamp feature
   };
   
   emit('next', configWithTimestamps);

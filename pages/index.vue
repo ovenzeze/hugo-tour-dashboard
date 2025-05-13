@@ -3,7 +3,7 @@
        v-motion
        :initial="{ opacity: 0 }"
        :enter="{ opacity: 1, transition: { duration: 300 } }">
-    <!-- 筛选栏 -->
+    <!-- Filter Bar -->
     <div
       class="flex flex-wrap gap-3 items-center mb-4"
       v-motion
@@ -18,7 +18,7 @@
         <label for="onlyFavorite" class="text-sm select-none cursor-pointer">Only Favorites</label>
       </div>
     </div>
-    <!-- 列表区 -->
+    <!-- List Area -->
     <TransitionGroup
       name="list"
       tag="div"
@@ -85,7 +85,7 @@
         
       </Card>
     </TransitionGroup>
-    <!-- 空状态 -->
+    <!-- Empty State -->
     <div
       v-if="filteredList.length === 0"
       class="flex flex-col items-center justify-center h-60"
@@ -119,7 +119,7 @@ import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle }
 import { Checkbox } from '~/components/ui/checkbox'
 import { Combobox } from '~/components/ui/combobox'
 import { Select } from '~/components/ui/select'
-import { useAsyncData } from '#app'
+import { useAsyncData } from '#imports'
 
 const typeOptions = [
   { label: 'All', value: '' }, { label: 'Museum', value: 'museum' }, { label: 'Local', value: 'local' }
@@ -135,7 +135,7 @@ const selectedType = ref('')
 const selectedRegion = ref('')
 const selectedTime = ref('')
 
-// 定义项目类型
+// Define item type
 interface TourItem {
   id: string
   name: string
@@ -149,7 +149,7 @@ interface TourItem {
   region: string
 }
 
-// 使用 useAsyncData 加载数据
+// Load data using useAsyncData
 const { data: items, pending, error } = await useAsyncData(
   'tour-items',
   async () => {
@@ -166,7 +166,7 @@ const { data: items, pending, error } = await useAsyncData(
   }
 )
 
-// 处理加载错误 (可选)
+// Handle loading error (optional)
 if (error.value) {
   console.error('Failed to load tour items:', error.value)
 }
@@ -188,7 +188,7 @@ function toggleFavorite(item: TourItem) {
   }
 }
 
-// 导航到详情页
+// Navigate to detail page
 function navigateToDetail(item: TourItem) {
   navigateTo('/tour');
 }

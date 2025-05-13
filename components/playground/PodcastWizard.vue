@@ -3,13 +3,13 @@
     <Stepper v-model:current-step="currentStepValue" class="w-full" orientation="vertical">
       <StepperItem
         v-for="step in steps"
-        :key="step.value"
+        :key="step.step"
         v-slot="{ state }"
-        :value="step.value"
+        :step="step.step"
         :disabled="step.disabled && !step.canActivate()"
         class="relative flex w-full flex-col items-start justify-start mb-4"
       >
-        <StepperSeparator v-if="step.value !== steps[steps.length - 1].value" class="absolute left-6 right-0 top-6 h-0.5 bg-muted group-data-[state=completed]:bg-primary" />
+        <StepperSeparator v-if="step.step !== steps[steps.length - 1].step" class="absolute left-6 right-0 top-6 h-0.5 bg-muted group-data-[state=completed]:bg-primary" />
         <StepperTrigger as-child>
           <Button
             :variant="state === 'completed' || state === 'active' ? 'default' : 'outline'"
@@ -55,7 +55,7 @@ import {
   StepperDescription
 } from '@/components/ui/stepper';
 import { toast } from 'vue-sonner';
-import PodcastSettings from '@/components/playground/PodcastSettings.vue';
+import PodcastSettingsForm from '@/components/playground/PodcastSettingsForm.vue';
 // import ScriptEditor from '@/components/playground/ScriptEditor.vue'; // Commented out
 import AudioSynthesis from '@/components/playground/AudioSynthesis.vue';
 import { usePlaygroundStore, type FullPodcastSettings } from '@/stores/playground';
@@ -75,7 +75,7 @@ const emit = defineEmits<{
 
 const playgroundStore = usePlaygroundStore();
 
-const currentStepValue = ref('1');
+const currentStepValue = ref(1);
 
 // Step completion status
 const scriptGenerated = ref(false);
@@ -104,13 +104,13 @@ const isGeneratingScript = ref(false);
 const isSynthesizing = ref(false);
 
 // Navigation logic
-const navigateToStep = (step: string) => {
-  if (step === '1') {
-    currentStepValue.value = '1';
-  } else if (step === '2' && scriptGenerated.value) {
-    currentStepValue.value = '2';
-  } else if (step === '3' && transcriptionCompleted.value) {
-    currentStepValue.value = '3';
+const navigateToStep = (step: number) => {
+  if (step === 1) {
+    currentStepValue.value = 1;
+  } else if (step === 2 && scriptGenerated.value) {
+    currentStepValue.value = 2;
+  } else if (step === 3 && transcriptionCompleted.value) {
+    currentStepValue.value = 3;
   }
 };
 
@@ -166,7 +166,7 @@ const handleGenerateScriptAndProceed = async () => {
       toast.success('Script generated successfully!');
       emit('script-generated', scriptContent.value);
       scriptGenerated.value = true;
-      currentStepValue.value = '2'; 
+      currentStepValue.value = 2;
     } else {
       throw new Error('Generated script content is empty.');
     }
@@ -184,7 +184,7 @@ const handleCompleteTranscriptionAndProceed = () => {
     return;
   }
   transcriptionCompleted.value = true;
-  currentStepValue.value = '3'; 
+  currentStepValue.value = 3;
 };
 
 const handleSynthesizeAudio = async () => {
@@ -258,8 +258,8 @@ watch(() => playgroundStore.podcastSettings, (newSettings) => {
 
 watch(currentStepValue, (newStep, oldStep) => {
   if (newStep === oldStep) return; // No change
-  const newStepNum = parseInt(newStep);
-  const oldStepNum = parseInt(oldStep);
+  const newStepNum = newStep;
+  const oldStepNum = oldStep;
 
   if (newStepNum < oldStepNum) { 
     if (newStepNum < 3) {
@@ -272,16 +272,16 @@ watch(currentStepValue, (newStep, oldStep) => {
 });
 
 // Add a function to determine step state
-const getStepState = (step: string) => {
-  if (step === '1') {
+const getStepState = (step: number) => {
+  if (step === 1) {
     if (scriptGenerated.value) return 'completed';
-    if (currentStepValue.value === '1') return 'active';
-  } else if (step === '2') {
+    if (currentStepValue.value === 1) return 'active';
+  } else if (step === 2) {
     if (transcriptionCompleted.value) return 'completed';
-    if (currentStepValue.value === '2') return 'active';
-  } else if (step === '3') {
+    if (currentStepValue.value === 2) return 'active';
+  } else if (step === 3) {
     if (audioGenerated.value) return 'completed';
-    if (currentStepValue.value === '3') return 'active';
+    if (currentStepValue.value === 3) return 'active';
   }
   return undefined;
 };
@@ -289,10 +289,10 @@ const getStepState = (step: string) => {
 // 步骤配置
 const steps = computed(() => [
   {
-    value: '1',
-    title: '播客设置与脚本生成',
+    step: 1,
+    title: 'Podcast Settings & Script Generation',
     icon: '🎙️',
-    component: PodcastSettings,
+    component: PodcastSettingsForm,
     props: {
       modelValue: podcastSettings.value,
       providers: props.providers,
@@ -305,18 +305,18 @@ const steps = computed(() => [
       onGenerateScript: handleGenerateScriptAndProceed,
     },
     disabled: false,
-    getDescription: () => '配置播客详情并生成初始脚本',
-    canActivate: () => true,
+    getDescription: (): string => 'Configure podcast details and generate initial script',
+    canActivate: (): boolean => true,
   },
   {
-    value: '2',
-    title: '编辑脚本',
+    step: 2,
+    title: 'Edit Script',
     icon: '✏️',
     component: {
       template: `
         <div class="space-y-4">
           <div class="flex items-center justify-between">
-            <Label>脚本编辑器</Label>
+            <Label>Script Editor</Label>
             <div class="flex items-center gap-2">
               <Button 
                 variant="ghost" 
@@ -325,7 +325,7 @@ const steps = computed(() => [
                 :disabled="!hasChanges"
               >
                 <RotateCcw class="h-4 w-4 mr-1" />
-                重置
+                Reset
               </Button>
               <Button 
                 variant="outline" 
@@ -334,32 +334,32 @@ const steps = computed(() => [
                 :disabled="!hasChanges"
               >
                 <Save class="h-4 w-4 mr-1" />
-                保存
+                Save
               </Button>
             </div>
           </div>
           <Textarea
             v-model="localScript"
-            :placeholder="'在此编辑生成的脚本...'"
+            :placeholder="'Edit the generated script here...'"
             class="font-mono min-h-[400px]"
             :disabled="disabled"
           />
           <div class="flex justify-between items-center">
             <p class="text-sm text-muted-foreground">
-              {{ hasChanges ? '有未保存的更改' : '无更改' }}
+              {{ hasChanges ? 'Unsaved changes' : 'No changes' }}
             </p>
             <Button 
               @click="onNext" 
               :disabled="!localScript.trim() || disabled"
             >
-              继续
+              Continue
               <ArrowRight class="h-4 w-4 ml-2" />
             </Button>
           </div>
         </div>
       `,
       props: ['script', 'onNext', 'disabled'],
-      setup(props, { emit }) {
+      setup(props: { script: string, onNext: () => void, disabled: boolean }, { emit }: { emit: (event: 'update:script', value: string) => void }) {
         const localScript = ref(props.script || '')
         const hasChanges = computed(() => localScript.value !== props.script)
         
@@ -391,16 +391,16 @@ const steps = computed(() => [
       disabled: isGeneratingScript.value,
       'onUpdate:script': (value: string) => {
         scriptContent.value = value
-        toast.success('脚本已保存')
+        toast.success('Script saved')
       }
     },
     disabled: !scriptGenerated.value,
-    getDescription: () => scriptGenerated.value ? '审阅并修改 AI 生成的脚本' : '请先生成脚本',
-    canActivate: () => scriptGenerated.value,
+    getDescription: (): string => scriptGenerated.value ? 'Review and modify the AI generated script' : 'Please generate the script first',
+    canActivate: (): boolean => scriptGenerated.value,
   },
   {
-    value: '3',
-    title: '音频合成与下载',
+    step: 3,
+    title: 'Audio Synthesis & Download',
     icon: '🎧',
     component: AudioSynthesis,
     props: {
@@ -415,8 +415,8 @@ const steps = computed(() => [
       disabled: !transcriptionCompleted.value || isSynthesizing.value,
     },
     disabled: !transcriptionCompleted.value,
-    getDescription: () => transcriptionCompleted.value ? '合成播客音频并下载文件' : '请先完成脚本编辑',
-    canActivate: () => transcriptionCompleted.value,
+    getDescription: (): string => transcriptionCompleted.value ? 'Synthesize podcast audio and download file' : 'Please complete script editing first',
+    canActivate: (): boolean => transcriptionCompleted.value,
   },
 ]);
 

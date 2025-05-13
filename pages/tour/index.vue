@@ -1,6 +1,6 @@
 <template>
   <div class="relative h-full w-full bg-gray-50">
-    <!-- 欢迎弹窗 -->
+    <!-- Welcome Popup -->
     <TourWelcome 
       v-if="!userHasInteracted" 
       @start="startWithUserInteraction" 
@@ -9,7 +9,7 @@
       class="absolute inset-0 z-30"
     />
 
-    <!-- 地图组件 -->
+    <!-- Map Component -->
     <TourMap 
       v-model:currentFloor="currentFloor" 
       :museum-id="currentMuseumId"
@@ -18,7 +18,7 @@
       class="absolute inset-0 z-0"
     />
 
-    <!-- 顶部导航栏 -->
+    <!-- Top Navigation Bar -->
     <div class="absolute top-[20px] left-0 right-0  z-10" :class="{ 'top-[60px]': isPwa }">
       <TourHeader 
         :museum-name="museumName"
@@ -26,7 +26,7 @@
       />
     </div>
 
-    <!-- 底部信息卡片 -->
+    <!-- Bottom Info Card -->
     <InfoCard 
       v-if="infoCardData" 
       :data="infoCardData"
@@ -37,7 +37,7 @@
       @play-audio="playAudio"
     />
 
-    <!-- 底部工具栏 -->
+    <!-- Bottom Toolbar -->
     <TourToolbar 
       v-model:currentFloor="currentFloor"
       :is-playing="isPlaying"
@@ -64,12 +64,12 @@ import TourMap from '~/components/TourMap.vue'
 import InfoCard from '~/components/InfoCard.vue'
 import TourToolbar from '~/components/TourToolbar.vue'
 
-// 页面元数据
+// Page metadata
 definePageMeta({
   layout: 'fullscreen-map'
 })
 
-// 设置页面标题和元数据
+// Set page title and metadata
 useHead({
   title: 'Museum Tour Guide',
   meta: [
@@ -77,14 +77,14 @@ useHead({
   ]
 })
 
-// 获取路由器
+// Get router
 const router = useRouter()
 
-// 使用store
+// Use store
 const tourStore = useTourStore()
 const { currentMuseum } = tourStore
 const { isPwa } = usePwa()
-// 使用语音导航
+// Use voice navigation
 const { 
   playWelcomeIntroduction, 
   speak, 
@@ -98,7 +98,7 @@ const {
   resumeAudio
 } = useVoiceNavigation()
 
-// 定义接口
+// Define interface
 interface Exhibit {
   id: number;
   name: string;
@@ -119,7 +119,7 @@ interface WelcomeData {
   image?: string;
 }
 
-// 状态管理
+// State management
 const userHasInteracted = ref(false)
 const currentFloor = ref(1)
 const infoCardType = ref<'welcome' | 'exhibit' | 'step'>('welcome')
@@ -127,10 +127,10 @@ const infoCardData = ref<Exhibit | StepData | WelcomeData | null>(null)
 const mapRef = ref(null)
 const currentMuseumId = ref('metropolitan')
 
-// 计算属性
+// Computed property
 const museumName = computed(() => currentMuseum?.name || 'Metropolitan Museum of Art')
 
-// 用户交互后开始导览
+// Start tour after user interaction
 function startWithUserInteraction() {
   userHasInteracted.value = true
   showWelcomeCard()
@@ -139,7 +139,7 @@ function startWithUserInteraction() {
   }, 100)
 }
 
-// 处理展品选择
+// Handle exhibit selection
 function onExhibitSelected(exhibit: Exhibit) {
   if (exhibit) {
     showExhibitCard(exhibit)
@@ -157,7 +157,7 @@ function onExhibitSelected(exhibit: Exhibit) {
   }
 }
 
-// 显示欢迎卡片
+// Show welcome card
 function showWelcomeCard() {
   infoCardType.value = 'welcome'
   infoCardData.value = {
@@ -167,7 +167,7 @@ function showWelcomeCard() {
   }
 }
 
-// 显示展品卡片
+// Show exhibit card
 function showExhibitCard(exhibit: Exhibit) {
   infoCardType.value = 'exhibit'
   infoCardData.value = {
@@ -178,7 +178,7 @@ function showExhibitCard(exhibit: Exhibit) {
   }
 }
 
-// 显示路线步骤卡片
+// Show route step card
 function showStepCard(step: StepData) {
   infoCardType.value = 'step'
   infoCardData.value = {
@@ -188,18 +188,18 @@ function showStepCard(step: StepData) {
   }
 }
 
-// 关闭信息卡片
+// Close info card
 function closeInfoCard() {
   infoCardData.value = null
 }
 
-// 查看展品详情
+// View exhibit details
 function viewExhibitDetails(exhibit: Exhibit) {
   // 可以导航到详情页面或显示更多信息
   console.log('View details for:', exhibit.name)
 }
 
-// 开始导览
+// Start guided tour
 function startGuidedTour() {
   const firstStep: StepData = {
     number: 1,
@@ -211,24 +211,24 @@ function startGuidedTour() {
   speak('Starting your guided tour. I\'ll accompany you through the highlights of the collection.')
 }
 
-// 开始语音识别
+// Start speech recognition
 function startListening() {
   // 语音识别开始逻辑
 }
 
-// 停止语音识别
+// Stop speech recognition
 function stopListening() {
   if (isListening.value) {
     openGuideDialog()
   }
 }
 
-// 打开导游对话框
+// Open guide dialog
 function openGuideDialog() {
   // 打开导游对话框逻辑
 }
 
-// 返回上一页
+// Go back to previous page
 function goBack() {
   router.back()
 }
@@ -239,9 +239,9 @@ function playAudio(data: any) {
   // Implement actual audio playback logic here using useVoiceNavigation or similar
 }
 
-// 生命周期钩子
+// Lifecycle hook
 onMounted(() => {
-  // 加载Material Icons字体
+  // Load Material Icons font
   const link = document.createElement('link')
   link.href = 'https://fonts.googleapis.com/icon?family=Material+Icons'
   link.rel = 'stylesheet'
@@ -250,7 +250,7 @@ onMounted(() => {
 </script>
 
 <style scoped>
-/* 底部工具栏容器，利用全局变量添加底部安全区域 */
+/* Bottom toolbar container, using global variable to add bottom safe area */
 .tour-toolbar-container {
   padding-bottom: var(--safe-area-bottom, 0px);
 }

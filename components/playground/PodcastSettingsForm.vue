@@ -116,7 +116,7 @@
 
 <script setup lang="ts">
 import { computed, watch } from 'vue';
-// 忽略类型导入的 linter 错误
+// Ignore linter errors for type imports
 // @ts-ignore
 import type { FullPodcastSettings, Persona } from '~/types/playground';
 
@@ -133,22 +133,22 @@ const emit = defineEmits<{
 const editableSettings = computed({
   get: () => props.modelValue,
   set: (value) => {
-    // 确保正确处理数值类型
+    // Ensure correct handling of numeric types
     const processedValue = {
       ...value,
       numberOfSegments: Number(value.numberOfSegments) || 1, 
       hostPersonaId: value.hostPersonaId ? Number(value.hostPersonaId) : undefined,
-      // 确保 guestPersonaIds 是数组，并且每个元素都是数字
+      // Ensure guestPersonaIds is an array and each element is a number
       guestPersonaIds: Array.isArray(value.guestPersonaIds) ? 
                       value.guestPersonaIds
                         .map((id: string | number | undefined) => Number(id))
                         .filter((id: number) => !isNaN(id) && id > 0) : 
                       []
     };
-    console.log('编辑表单 - 发送更新:', {
-      原始值: value,
-      处理后: processedValue,
-      guestPersonaIds类型: Array.isArray(processedValue.guestPersonaIds) ? 
+    console.log('Edit form - Sending update:', {
+      originalValue: value,
+      processedValue: processedValue,
+      guestPersonaIdsType: Array.isArray(processedValue.guestPersonaIds) ?
                          processedValue.guestPersonaIds.map((id: number) => typeof id) : 
                          'not an array'
     });
@@ -161,77 +161,79 @@ const availableGuestPersonas = computed(() => {
   return props.personas.filter(p => p.persona_id !== Number(editableSettings.value.hostPersonaId));
 });
 
-// 检查嘉宾是否被选中
+// Check if guest is selected
 function isGuestSelected(personaId: number): boolean {
   if (!Array.isArray(editableSettings.value.guestPersonaIds)) {
     return false;
   }
   
   const numericPersonaId = Number(personaId);
-  // 确保使用 Number() 进行比较，避免类型不匹配问题
+  // Ensure using Number() for comparison to avoid type mismatch issues
   return editableSettings.value.guestPersonaIds.some((id: number | string | undefined) => 
     Number(id) === numericPersonaId
   );
 }
 
 function toggleGuestPersona(personaId: number, isChecked: boolean) {
-  console.log('toggleGuestPersona 调用:', { personaId, isChecked });
+  console.log('toggleGuestPersona called:', { personaId, isChecked });
   
-  // 获取当前嘉宾列表的副本
+  // Get a copy of the current guest list
   let guestPersonaIds = Array.isArray(editableSettings.value.guestPersonaIds) ? 
                         [...editableSettings.value.guestPersonaIds] : 
                         [];
   
-  // 确保所有 ID 都是数字
+  // Ensure all IDs are numbers
   guestPersonaIds = guestPersonaIds.map((id: string | number | undefined) => Number(id))
                                   .filter((id: number) => !isNaN(id));
                         
-  console.log('当前嘉宾:', { 
+  console.log('Current guests:', {
     guestPersonaIds, 
-    类型: typeof guestPersonaIds, 
-    是数组: Array.isArray(guestPersonaIds),
-    长度: guestPersonaIds.length
+    type: typeof guestPersonaIds,
+    isArray: Array.isArray(guestPersonaIds),
+    length: guestPersonaIds.length
   });
   
   const numericPersonaId = Number(personaId);
 
   if (isChecked) {
-    // 添加嘉宾（如果不存在）
+    // Add guest (if not already present)
     if (!guestPersonaIds.includes(numericPersonaId)) {
       guestPersonaIds.push(numericPersonaId);
-      console.log('添加嘉宾:', numericPersonaId);
+      console.log('Adding guest:', numericPersonaId);
     }
   } else {
-    // 移除嘉宾
+    // Remove guest
     const index = guestPersonaIds.indexOf(numericPersonaId);
     if (index > -1) {
       guestPersonaIds.splice(index, 1);
-      console.log('移除嘉宾:', numericPersonaId);
+      console.log('Removing guest:', numericPersonaId);
     }
   }
   
-  console.log('更新后的嘉宾:', guestPersonaIds);
+  console.log('Updated guests:', guestPersonaIds);
   
-  // 创建一个新的设置对象，确保 guestPersonaIds 是数字数组
+  // Create a new settings object, ensuring guestPersonaIds is a number array
   const updatedSettings = { 
     ...editableSettings.value, 
     guestPersonaIds: guestPersonaIds 
   };
   
-  console.log('发送更新:', { 
+  console.log('Sending update:', {
     guestPersonaIds: updatedSettings.guestPersonaIds,
-    类型: typeof updatedSettings.guestPersonaIds,
-    是数组: Array.isArray(updatedSettings.guestPersonaIds)
+    type: typeof updatedSettings.guestPersonaIds,
+    isArray: Array.isArray(updatedSettings.guestPersonaIds)
   });
   
-  // 更新设置
+  // Update settings
   emit('update:modelValue', updatedSettings);
 }
 
 watch(() => props.modelValue.hostPersonaId, (newHostId: number | string | undefined) => {
   const numericNewHostId = Number(newHostId);
   if (Array.isArray(editableSettings.value.guestPersonaIds) && editableSettings.value.guestPersonaIds.includes(numericNewHostId)) {
-    const updatedGuests = editableSettings.value.guestPersonaIds.filter((id: number) => id !== numericNewHostId);
+    const updatedGuests = editableSettings.value.guestPersonaIds
+      .map((id: string | number | undefined) => Number(id)) // Convert all elements to number
+      .filter((id: number) => !isNaN(id) && id !== numericNewHostId); // Filter out NaN and the new host ID
     emit('update:modelValue', { ...editableSettings.value, guestPersonaIds: updatedGuests });
   }
 });

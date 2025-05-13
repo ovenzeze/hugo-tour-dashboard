@@ -26,7 +26,7 @@
 <script setup lang="ts">
 import { useTourStore } from '~/stores/tourStore'
 
-// 设置页面标题
+// Set page title
 useHead({
   title: 'Available Museums - Tour Guide',
   meta: [
@@ -34,7 +34,7 @@ useHead({
   ]
 })
 
-// 获取博物馆列表
+// Get museum list
 const tourStore = useTourStore()
 const { museums } = storeToRefs(tourStore)
 </script>
