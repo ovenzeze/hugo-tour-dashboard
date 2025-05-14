@@ -2,28 +2,15 @@
   <div class="p-4 sm:p-6 lg:p-8">
     <div class="flex items-center justify-between">
       <h1 class="text-xl font-semibold text-gray-900 dark:text-gray-100 flex items-center">
-        <Icon icon="ph:speaker-high" class="mr-2 h-6 w-6" />
-        Voices (Audios) Management
+        <Icon name="ph:speaker-high" class="mr-2 h-6 w-6" />
+        Voices
       </h1>
       <Button @click="openAddAudioDialog">
-        <Icon icon="ph:microphone" class="mr-2 h-5 w-5" />
+        <Icon name="ph:microphone" class="mr-2 h-5 w-5" />
         Add/Generate Audio
       </Button>
     </div>
-    <div class="sm:flex sm:items-center">
-      <div class="sm:flex-auto">
-        <h1 class="text-xl font-semibold text-gray-900 dark:text-gray-100 flex items-center">
-          <Icon icon="ph:speaker-high" class="mr-2 h-6 w-6" />
-          Voices (Audios) Management
-        </h1>
-      </div>
-      <div class="mt-4 sm:mt-0 sm:ml-16 sm:flex-none">
-        <Button @click="openAddAudioDialog">
-          <Icon icon="ph:microphone" class="mr-2 h-5 w-5" />
-          Add/Generate Audio
-        </Button>
-      </div>
-    </div>
+
 
     <div class="mt-8 flex flex-col">
       <div class="-my-2 -mx-4 overflow-x-auto sm:-mx-6 lg:-mx-8">
@@ -38,65 +25,65 @@
           </div>
           <div v-else-if="error" class="text-center py-4">
             <p class="text-red-500 flex items-center justify-center">
-              <Icon icon="ph:warning-octagon" class="mr-2 h-5 w-5" />
+              <Icon name="ph:warning-octagon" class="mr-2 h-5 w-5" />
               Failed to load audios: {{ error.message }}
             </p>
           </div>
-          <div v-else-if="guideAudios && guideAudios.length > 0" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+          <div v-else-if="guideAudios && guideAudios.length > 0" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mt-4 mx-auto px-6">
             <Card
               v-for="audio in guideAudios"
               :key="audio.audio_guide_id"
-              class="border rounded-xl overflow-hidden shadow-md hover:shadow-xl transition-shadow bg-white/95 dark:bg-zinc-900/90 min-w-[360px] max-w-[480px] flex flex-col"
+              class="border rounded-xl overflow-hidden shadow-md hover:shadow-xl transition-shadow bg-white/95 dark:bg-zinc-900/90 flex flex-col py-0 min-w-[300px]"
             >
               <!-- 卡片头部：主信息 -->
-              <div class="px-4 border-b flex justify-between items-center bg-gray-100 dark:bg-zinc-800 gap-2">
+              <div class="px-4 py-3 border-b flex justify-between items-center gap-2">
                 <div class="flex flex-col min-w-0 flex-1 overflow-hidden">
                   <!-- 主信息：音频名称/摘要 -->
                   <span class="font-bold text-lg text-primary flex items-center gap-1 min-w-0 truncate">
-                    <Icon icon="ph:speaker-high" class="h-5 w-5 flex-shrink-0 text-primary" />
+                    <Icon name="ph:speaker-high" class="h-5 w-5 flex-shrink-0 text-primary" />
                     <span class="truncate">{{ audio.guide_text_preview || `Audio #${audio.audio_guide_id}` }}</span>
                   </span>
                   <!-- 主标签区：横向滚动，主标签单行展示 -->
                   <div
-                    class="flex flex-row items-center gap-2 mt-1 min-w-0 overflow-x-auto no-scrollbar scrollbar-thumb-gray-300 scrollbar-track-transparent"
+                    class="flex flex-row items-center gap-2 min-w-0 overflow-x-auto no-scrollbar scrollbar-thumb-gray-300 scrollbar-track-transparent"
                     style="max-width: 100%;"
                   >
-                    <span class="main-tag truncate max-w-[110px]">
-                      <Icon icon="ph:user" class="h-4 w-4 mr-1" />
-                      {{ audio.persona_name || audio.persona_id }}
+                    <span class="main-tag truncate max-w-[110px] whitespace-nowrap flex items-center">
+                      <Icon name="ph:user" class="h-4 w-4 mr-1 flex-shrink-0" />
+                      <span>{{ audio.persona_name || audio.persona_id }}</span>
                     </span>
-                    <span class="main-tag truncate max-w-[90px]">
-                      <Icon icon="ph:translate" class="h-4 w-4 mr-1" />
-                      {{ audio.language }}
+                    <span class="main-tag truncate max-w-[90px] whitespace-nowrap flex items-center">
+                      <Icon name="ph:translate" class="h-4 w-4 mr-1 flex-shrink-0" />
+                      <span>{{ audio.language }}</span>
                     </span>
                     <template v-if="audio.is_active">
-                      <span class="main-tag-green">
-                        <Icon icon="ph:check-circle" class="h-4 w-4" />
-                        Active
+                      <span class="main-tag-green whitespace-nowrap flex items-center">
+                        <Icon name="ph:check-circle" class="h-4 w-4 mr-1 flex-shrink-0" />
+                        <span>Active</span>
                       </span>
                     </template>
                     <template v-else>
-                      <span class="sub-tag">
-                        <Icon icon="ph:pause-circle" class="h-4 w-4" />
-                        Inactive
+                      <span class="sub-tag whitespace-nowrap flex items-center">
+                        <Icon name="ph:pause-circle" class="h-4 w-4 mr-1 flex-shrink-0" />
+                        <span>Inactive</span>
                       </span>
                     </template>
-                    <span class="sub-tag truncate max-w-[80px]">
-                      <Icon icon="ph:file-audio" class="h-4 w-4 mr-1" />
-                      v{{ audio.version || 'N/A' }}
+                    <span class="sub-tag truncate max-w-[80px] whitespace-nowrap flex items-center">
+                      <Icon name="ph:file-audio" class="h-4 w-4 mr-1 flex-shrink-0" />
+                      <span>v{{ audio.version || 'N/A' }}</span>
                     </span>
                     <span v-if="audio.is_latest_version"
-                      class="main-tag-yellow"
+                      class="main-tag-yellow whitespace-nowrap flex items-center"
                     >
-                      <Icon icon="ph:star" class="h-4 w-4" />
-                      Latest
+                      <Icon name="ph:star" class="h-4 w-4 mr-1 flex-shrink-0" />
+                      <span>Latest</span>
                     </span>
                   </div>
                 </div>
                 <!-- 操作菜单 -->
                 <div class="flex flex-row gap-1 flex-shrink-0 ml-2">
                   <Button variant="ghost" size="sm" @click="openEditAudioDialog(audio)">
-                    <Icon icon="ph:pencil-simple" class="h-4 w-4" />
+                    <Icon name="ph:pencil-simple" class="h-4 w-4" />
                   </Button>
                   <Button
                     variant="ghost"
@@ -104,14 +91,14 @@
                     @click="confirmDeleteAudio(audio.audio_guide_id)"
                     class="text-destructive"
                   >
-                    <Icon icon="ph:trash" class="h-4 w-4" />
+                    <Icon name="ph:trash" class="h-4 w-4" />
                   </Button>
                 </div>
               </div>
               <!-- 卡片内容摘要与播放 -->
               <div class="p-4 flex flex-col gap-3 flex-1">
                 <div class="flex items-center gap-2 min-w-0">
-                  <Icon icon="ph:waveform" class="h-5 w-5 text-primary" />
+                  <Icon name="ph:waveform" class="h-5 w-5 text-primary" />
                   <span class="text-base font-semibold text-gray-900 dark:text-gray-100 line-clamp-3 leading-relaxed flex-1 truncate">
                     {{ audio.guide_text_preview || 'No transcript preview.' }}
                   </span>
@@ -126,50 +113,74 @@
                   >
                     Your browser does not support the audio element.
                   </audio>
-                  <Button variant="ghost" size="icon" @click="playAudio(audio.audio_url)">
-                    <Icon icon="ph:play-circle" class="h-6 w-6 text-primary" />
-                  </Button>
+                  <!-- 移除弹窗播放按钮，避免与原生 audio 冲突 -->
                 </div>
                 <Button v-else variant="outline" size="sm" disabled class="w-full opacity-60">
-                  <Icon icon="ph:speaker-x" class="mr-2 h-4 w-4" />
+                  <Icon name="ph:speaker-x" class="mr-2 h-4 w-4" />
                   Audio Not Available
                 </Button>
                 <!-- 辅助信息分组（底部固定） -->
-                <div class="flex flex-wrap gap-3 text-xs text-gray-500 dark:text-gray-400 mt-auto opacity-80">
-                  <span class="sub-tag truncate max-w-[120px]">
-                    <Icon icon="ph:calendar-blank" class="inline h-4 w-4 mr-1 align-text-bottom" />
-                    {{ formatDisplayDate(audio.generated_at) }}
+                <!-- 辅助信息分组（底部固定） -->
+                <div class="flex flex-wrap gap-2 text-xs text-muted-foreground mt-auto pt-3 border-t border-border/50">
+                  <span class="metadata-pill">
+                    <Icon name="ph:calendar-blank" class="h-3.5 w-3.5 mr-1 flex-shrink-0" />
+                    <span>{{ formatDisplayDate(audio.generated_at) }}</span>
                   </span>
-                  <span v-if="audio.object_id" class="sub-tag truncate max-w-[110px]">
-                    <Icon icon="ph:cube" class="inline h-4 w-4 align-text-bottom" />
-                    <span class="font-medium text-blue-500 dark:text-blue-300">Object</span>:
+                  <span v-if="audio.object_id" class="metadata-pill">
+                    <Icon name="ph:cube" class="h-3.5 w-3.5 mr-1 flex-shrink-0" />
+                    <span class="font-medium text-blue-600 dark:text-blue-400 mr-1">Object:</span>
                     <span>{{ audio.object_id }}</span>
                   </span>
-                  <span v-if="audio.gallery_id" class="sub-tag truncate max-w-[110px]">
-                    <Icon icon="ph:image-square" class="inline h-4 w-4 align-text-bottom" />
-                    <span class="font-medium text-purple-500 dark:text-purple-300">Gallery</span>:
+                  <span v-if="audio.gallery_id" class="metadata-pill">
+                    <Icon name="ph:image-square" class="h-3.5 w-3.5 mr-1 flex-shrink-0" />
+                    <span class="font-medium text-purple-600 dark:text-purple-400 mr-1">Gallery:</span>
                     <span>{{ audio.gallery_id }}</span>
                   </span>
-                  <span v-if="audio.museum_id" class="sub-tag truncate max-w-[110px]">
-                    <Icon icon="ph:bank" class="inline h-4 w-4 align-text-bottom" />
-                    <span class="font-medium text-green-500 dark:text-green-300">Museum</span>:
+                  <span v-if="audio.museum_id" class="metadata-pill">
+                    <Icon name="ph:bank" class="h-3.5 w-3.5 mr-1 flex-shrink-0" />
+                    <span class="font-medium text-green-600 dark:text-green-400 mr-1">Museum:</span>
                     <span>{{ audio.museum_id }}</span>
                   </span>
-                  <span class="sub-tag-id truncate max-w-[90px]">
-                    <Icon icon="ph:identification-card" class="inline h-4 w-4 mr-1 align-text-bottom" />
-                    ID: {{ audio.audio_guide_id }}
+                  <span class="metadata-pill">
+                    <Icon name="ph:identification-card" class="h-3.5 w-3.5 mr-1 flex-shrink-0" />
+                    <span class="mr-1">ID:</span>
+                    <span>{{ audio.audio_guide_id }}</span>
                   </span>
-                  <span class="sub-tag-id truncate max-w-[90px]">
-                    <Icon icon="ph:clock" class="inline h-4 w-4 mr-1 align-text-bottom" />
-                    Duration: {{ audio.duration_seconds ? `${audio.duration_seconds}s` : 'N/A' }}
+                  <span class="metadata-pill">
+                    <Icon name="ph:clock" class="h-3.5 w-3.5 mr-1 flex-shrink-0" />
+                    <span class="mr-1">Duration:</span>
+                    <span>{{ audio.duration_seconds ? `${audio.duration_seconds}s` : 'N/A' }}</span>
                   </span>
+                  <!-- 新增：metadata 主要字段展示 -->
+                  <template v-if="audio.metadata">
+                    <span v-if="audio.metadata.tts_provider" class="metadata-pill">
+                      <Icon name="ph:robot" class="h-3.5 w-3.5 mr-1 flex-shrink-0" />
+                      <span class="mr-1">TTS:</span>
+                      <span>{{ audio.metadata.tts_provider }}</span>
+                    </span>
+                    <span v-if="audio.metadata.voice_id" class="metadata-pill">
+                      <Icon name="ph:user-voice" class="h-3.5 w-3.5 mr-1 flex-shrink-0" />
+                      <span class="mr-1">Voice:</span>
+                      <span>{{ audio.metadata.voice_id }}</span>
+                    </span>
+                    <span v-if="audio.metadata.source" class="metadata-pill">
+                      <Icon name="ph:waveform" class="h-3.5 w-3.5 mr-1 flex-shrink-0" />
+                      <span class="mr-1">Source:</span>
+                      <span>{{ audio.metadata.source }}</span>
+                    </span>
+                    <span v-if="audio.metadata.recorder" class="metadata-pill">
+                      <Icon name="ph:user" class="h-3.5 w-3.5 mr-1 flex-shrink-0" />
+                      <span class="mr-1">Recorder:</span>
+                      <span>{{ audio.metadata.recorder }}</span>
+                    </span>
+                  </template>
                 </div>
-              </div>
+              </div> <!-- Closing tag for the div started on line 99 -->
             </Card>
           </div>
           <div v-else class="text-center py-8">
             <div class="text-center py-8">
-              <Icon icon="ph:speaker-slash" class="mx-auto h-12 w-12 text-gray-400" />
+              <Icon name="ph:speaker-slash" class="mx-auto h-12 w-12 text-gray-400" />
               <h3 class="mt-2 text-sm font-medium text-gray-900 dark:text-gray-100">No audios</h3>
               <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">Get started by adding or generating a new audio.</p>
             </div>
@@ -183,7 +194,7 @@
       <DialogContent class="sm:max-w-lg">
         <DialogHeader>
           <DialogTitle class="flex items-center">
-            <Icon icon="ph:waveform" class="mr-2 h-5 w-5" />
+            <Icon name="ph:waveform" class="mr-2 h-5 w-5" />
             Add or Generate Audio
           </DialogTitle>
           <DialogDescription>
@@ -278,7 +289,7 @@
       <DialogContent class="sm:max-w-md">
         <DialogHeader>
           <DialogTitle class="flex items-center">
-            <Icon icon="ph:sliders-horizontal" class="mr-2 h-5 w-5" />
+            <Icon name="ph:sliders-horizontal" class="mr-2 h-5 w-5" />
             Edit Audio Details
           </DialogTitle>
         </DialogHeader>
@@ -355,7 +366,7 @@
       <AlertDialogContent>
         <AlertDialogHeader>
           <AlertDialogTitle class="flex items-center">
-            <Icon icon="ph:warning-circle" class="mr-2 h-5 w-5 text-red-600 dark:text-red-400" />
+            <Icon name="ph:warning-circle" class="mr-2 h-5 w-5 text-red-600 dark:text-red-400" />
             Are you sure?
           </AlertDialogTitle>
           <AlertDialogDescription>
@@ -369,30 +380,14 @@
       </AlertDialogContent>
     </AlertDialog>
 
-    <!-- Audio Player Dialog -->
-    <Dialog :open="showAudioPlayerDialog" @update:open="showAudioPlayerDialog = false">
-      <DialogContent class="sm:max-w-md">
-        <DialogHeader>
-          <DialogTitle class="flex items-center">
-            <Icon icon="ph:play" class="mr-2 h-5 w-5" />
-            Play Audio
-          </DialogTitle>
-        </DialogHeader>
-        <div class="py-4">
-          <audio v-if="currentAudioUrl" :src="currentAudioUrl" controls autoplay class="w-full">
-            Your browser does not support the audio element.
-          </audio>
-        </div>
-        <DialogFooter>
-          <Button type="button" @click="showAudioPlayerDialog = false">Close</Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
+    <!-- 移除弹窗播放器 Dialog，避免与卡片内 audio 冲突 -->
   </div>
 </template>
 
 <script setup lang="ts">
 
+
+import { onBeforeUpdate, reactive, ref } from 'vue';
 
 interface PersonaInfo { // Assuming this might be shared or defined elsewhere
   persona_id: number;
@@ -415,6 +410,16 @@ interface GuideAudio {
   is_active: boolean | null;
   is_latest_version: boolean | null;
   language: string;
+  /**
+   * metadata 字段结构示例：
+   * {
+   *   tts_provider?: string;
+   *   voice_id?: string;
+   *   source?: string;
+   *   recorder?: string;
+   *   [key: string]: any;
+   * }
+   */
   metadata: Record<string, any> | null;
   museum_id: number | null;
   object_id: number | null;
@@ -431,6 +436,9 @@ interface GuideAudioFormData extends Omit<Partial<GuideAudio>, 'metadata'> {
 const guideAudios = ref<GuideAudio[]>([]);
 const pending = ref(false);
 const error = ref<Error | null>(null);
+const supabase = useSupabaseClient();
+const runtimeConfig = useRuntimeConfig();
+const bucketName = runtimeConfig.public.supabaseStorageBucketName;
 
 const showAddAudioDialog = ref(false);
 const newAudioData = reactive<GuideAudioFormData>({
@@ -453,7 +461,7 @@ const showAudioPlayerDialog = ref(false);
 const currentAudioUrl = ref<string | null>(null); // Keep for the dialog player if still used elsewhere, or remove if fully deprecated.
 
 // Refs for audio elements in cards
-const audioRefs = ref<Record<number, HTMLAudioElement | null>>({});
+const audioRefs = ref<Record<number, any | null>>({}); // Workaround for HTMLAudioElement TS error
 
 // Ensure refs are cleared before each update to avoid stale refs on list changes
 onBeforeUpdate(() => {
@@ -472,20 +480,40 @@ async function fetchGuideAudios() {
   pending.value = true;
   error.value = null;
   try {
-    // const response = await $fetch<GuideAudio[]>('/api/guide-audios');
-    // guideAudios.value = response.map(audio => ({
-    //   ...audio,
-    //   metadata_json_string: audio.metadata ? JSON.stringify(audio.metadata, null, 2) : '{}'
-    // }));
-    // Placeholder data for now
-    // TODO: Fetch actual persona names and guide text previews or include them in the API response
-    guideAudios.value = [
-      { audio_guide_id: 1, audio_url: 'https://example.com/audio1.mp3', duration_seconds: 120, language: 'en', persona_id: 1, persona_name: 'Enthusiastic Historian', guide_text_id: 1, guide_text_preview: 'Transcript 1 preview...', is_active: true, is_latest_version: true, version: 1, generated_at: new Date(2023, 10, 16, 11,0).toISOString(), metadata: { provider: 'elevenlabs' }, gallery_id: 1, museum_id: 1, object_id: 101 },
-      { audio_guide_id: 2, audio_url: 'https://example.com/audio2.mp3', duration_seconds: 180, language: 'fr', persona_id: 2, persona_name: 'Art Critic', guide_text_id: 2, guide_text_preview: 'Transcript 2 preview...', is_active: false, is_latest_version: true, version: 1, generated_at: new Date(2023, 11, 2, 15,30).toISOString(), metadata: { provider: 'google' }, gallery_id: 1, museum_id: 1, object_id: 102 },
-    ];
-    guideAudios.value.forEach(audio => (audio as GuideAudioFormData).metadata_json_string = audio.metadata ? JSON.stringify(audio.metadata, null, 2) : '{}');
-    await new Promise(resolve => setTimeout(resolve, 500));
+    const response = await $fetch<GuideAudio[] | { data: GuideAudio[] }>('/api/guide-audios');
+    let audios: GuideAudio[] = [];
+    if (Array.isArray(response)) {
+      audios = response;
+    } else if (response && Array.isArray((response as any).data)) {
+      audios = (response as any).data;
+    } else {
+      // 打印API实际返回内容，便于调试
+      // eslint-disable-next-line no-console
+      console.error('API /api/guide-audios 返回内容:', response);
+      throw new Error('API response is not an array or does not contain a data array');
+    }
+    console.log('Original audio data from API:', JSON.parse(JSON.stringify(audios)));
+
+    guideAudios.value = audios.map(audio => {
+      let publicUrl = '';
+      if (audio.audio_url) {
+        const { data } = supabase.storage.from(bucketName).getPublicUrl(audio.audio_url);
+        if (data && data.publicUrl) {
+          publicUrl = data.publicUrl;
+        } else {
+          console.error(`Could not get public URL for Supabase path: ${audio.audio_url}`);
+        }
+      }
+      return {
+        ...audio,
+        audio_url: publicUrl, // Use the public URL from Supabase
+        metadata_json_string: audio.metadata ? JSON.stringify(audio.metadata, null, 2) : '{}'
+      };
+    });
+    console.log('Processed guideAudios with Supabase public URLs:', JSON.parse(JSON.stringify(guideAudios.value)));
   } catch (e: any) {
+    // eslint-disable-next-line no-console
+    console.error('fetchGuideAudios error:', e);
     error.value = e;
   } finally {
     pending.value = false;
@@ -525,13 +553,32 @@ const openAddAudioDialog = () => {
   showAddAudioDialog.value = true;
 };
 
+const openEditAudioDialog = (audio: GuideAudio) => {
+  // Deep copy and prepare for form
+  editingAudioData.audio_guide_id = audio.audio_guide_id;
+  editingAudioData.audio_url = audio.audio_url;
+  editingAudioData.duration_seconds = audio.duration_seconds;
+  editingAudioData.gallery_id = audio.gallery_id;
+  editingAudioData.generated_at = audio.generated_at;
+  editingAudioData.guide_text_id = audio.guide_text_id;
+  editingAudioData.is_active = audio.is_active;
+  editingAudioData.is_latest_version = audio.is_latest_version;
+  editingAudioData.language = audio.language;
+  editingAudioData.metadata_json_string = audio.metadata ? JSON.stringify(audio.metadata, null, 2) : '{}';
+  editingAudioData.museum_id = audio.museum_id;
+  editingAudioData.object_id = audio.object_id;
+  editingAudioData.persona_id = audio.persona_id;
+  editingAudioData.version = audio.version;
+  showEditAudioDialog.value = true;
+};
+
 const saveNewAudio = async () => {
   if (!newAudioData.persona_id || !newAudioData.language) {
-    alert('Persona ID and Language are required.');
+    console.error('Persona ID and Language are required.');
     return;
   }
   if (!newAudioData.audio_url && !newAudioData.guide_text_id) {
-    alert('Either an Audio URL or a Guide Text ID for generation must be provided.');
+    console.error('Either an Audio URL or a Guide Text ID for generation must be provided.');
     return;
   }
 
@@ -539,7 +586,7 @@ const saveNewAudio = async () => {
   try {
     metadata = newAudioData.metadata_json_string ? JSON.parse(newAudioData.metadata_json_string) : null;
   } catch (e) {
-    alert('Invalid JSON in metadata.');
+    console.error('Invalid JSON in metadata.');
     return;
   }
 
@@ -548,49 +595,28 @@ const saveNewAudio = async () => {
 
   try {
     pending.value = true;
-    // const created = await $fetch<GuideAudio>('/api/guide-audios', { method: 'POST', body: payload });
-    console.log('Saving new audio:', payload);
-    const newId = guideAudios.value.length > 0 ? Math.max(...guideAudios.value.map(a => a.audio_guide_id)) + 1 : 1;
-    const newAudioEntry = { ...payload, audio_guide_id: newId, generated_at: new Date().toISOString() } as GuideAudio;
-    (newAudioEntry as any).metadata_json_string = newAudioData.metadata_json_string;
-    guideAudios.value.push(newAudioEntry);
-    
-    await new Promise(resolve => setTimeout(resolve, 500));
-    alert('Audio created/generated successfully (simulated).');
+    await $fetch<GuideAudio>('/api/guide-audios', { method: 'POST', body: payload });
+    await fetchGuideAudios();
+    console.error('Audio created/generated successfully.');
     showAddAudioDialog.value = false;
   } catch (e: any) {
     error.value = e;
-    alert(`Failed to save audio: ${e.message}`);
+    console.error(`Failed to save audio: ${e.message}`);
   } finally {
     pending.value = false;
   }
 };
 
-const openEditAudioDialog = (audio: GuideAudio) => {
-  const dataToEdit = JSON.parse(JSON.stringify(audio));
-  editingAudioData.audio_guide_id = dataToEdit.audio_guide_id;
-  editingAudioData.audio_url = dataToEdit.audio_url;
-  editingAudioData.duration_seconds = dataToEdit.duration_seconds;
-  editingAudioData.guide_text_id = dataToEdit.guide_text_id;
-  editingAudioData.persona_id = dataToEdit.persona_id;
-  editingAudioData.language = dataToEdit.language;
-  editingAudioData.is_active = dataToEdit.is_active;
-  editingAudioData.is_latest_version = dataToEdit.is_latest_version;
-  editingAudioData.version = dataToEdit.version;
-  editingAudioData.metadata_json_string = dataToEdit.metadata ? JSON.stringify(dataToEdit.metadata, null, 2) : '{}';
-  showEditAudioDialog.value = true;
-};
-
 const saveEditedAudio = async () => {
   if (!editingAudioData.audio_guide_id || !editingAudioData.audio_url || !editingAudioData.persona_id || !editingAudioData.language) {
-    alert('ID, Audio URL, Persona ID, and Language are required.');
+    console.error('ID, Audio URL, Persona ID, and Language are required.');
     return;
   }
   let metadata;
   try {
     metadata = editingAudioData.metadata_json_string ? JSON.parse(editingAudioData.metadata_json_string) : null;
   } catch (e) {
-    alert('Invalid JSON in metadata.');
+    console.error('Invalid JSON in metadata.');
     return;
   }
   const payload = { ...editingAudioData, metadata };
@@ -598,20 +624,13 @@ const saveEditedAudio = async () => {
 
   try {
     pending.value = true;
-    // const updated = await $fetch<GuideAudio>(`/api/guide-audios/${editingAudioData.audio_guide_id}`, { method: 'PUT', body: payload });
-    console.log('Saving edited audio:', payload);
-    const index = guideAudios.value.findIndex(a => a.audio_guide_id === editingAudioData.audio_guide_id);
-    if (index !== -1) {
-      const updatedAudio = { ...guideAudios.value[index], ...payload } as GuideAudio;
-      (updatedAudio as any).metadata_json_string = editingAudioData.metadata_json_string;
-      guideAudios.value[index] = updatedAudio;
-    }
-    await new Promise(resolve => setTimeout(resolve, 500));
-    alert('Audio updated successfully (simulated).');
+    await $fetch<GuideAudio>(`/api/guide-audios/${editingAudioData.audio_guide_id}`, { method: 'PUT', body: payload });
+    await fetchGuideAudios();
+    console.error('Audio updated successfully.');
     showEditAudioDialog.value = false;
   } catch (e: any) {
     error.value = e;
-    alert(`Failed to update audio: ${e.message}`);
+    console.error(`Failed to update audio: ${e.message}`);
   } finally {
     pending.value = false;
   }
@@ -625,15 +644,13 @@ const deleteAudio = async () => {
   if (audioToDeleteId.value === null) return;
   try {
     pending.value = true;
-    // await $fetch(`/api/guide-audios/${audioToDeleteId.value}`, { method: 'DELETE' });
-    console.log('Deleting audio ID:', audioToDeleteId.value);
-    guideAudios.value = guideAudios.value.filter(a => a.audio_guide_id !== audioToDeleteId.value);
-    await new Promise(resolve => setTimeout(resolve, 500));
-    alert(`Audio ${audioToDeleteId.value} deleted successfully (simulated).`);
+    await $fetch(`/api/guide-audios/${audioToDeleteId.value}`, { method: 'DELETE' });
+    await fetchGuideAudios();
+    console.error(`Audio ${audioToDeleteId.value} deleted successfully.`);
     audioToDeleteId.value = null;
   } catch (e: any) {
     error.value = e;
-    alert(`Failed to delete audio: ${e.message}`);
+    console.error(`Failed to delete audio: ${e.message}`);
   } finally {
     pending.value = false;
   }
@@ -644,11 +661,29 @@ const playAudio = (url: string) => {
   showAudioPlayerDialog.value = true;
 };
 
-definePageMeta({
-  layout: 'default',
-  title: 'Voices' // Matching menu label
-});
-</script>
-<style scoped>
 
+</script>
+
+<style scoped>
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+.no-scrollbar {
+  -ms-overflow-style: none;  /* IE and Edge */
+  scrollbar-width: none;  /* Firefox */
+}
+
+.metadata-pill {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.125rem 0.3rem; /* py-0.5 px-2 */
+  border-radius: 0.75rem; /* rounded-full */
+  background-color: hsl(var(--muted) / 0.7); /* bg-muted/70 */
+  /* color: hsl(var(--muted-foreground)); */ /* Already on parent */
+  font-size: 0.75rem; /* text-xs */
+  line-height: 1rem;
+  white-space: nowrap;
+  /* max-width needed if we don't want them to grow too much, but flex-wrap should handle overall line breaking */
+}
 </style>
+

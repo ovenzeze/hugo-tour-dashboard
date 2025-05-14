@@ -51,7 +51,7 @@
     <!-- Bottom Section: Settings Panel (Left) and Editor/Output (Right) -->
     <div class="flex flex-col md:flex-row gap-x-8 gap-y-4 flex-1 min-h-0">
       <!-- Left Panel: Settings for Current Step -->
-      <div class="flex flex-col space-y-6 min-h-0 overflow-y-auto pr-4 pb-4 border rounded-lg p-4 min-w-[300px]">
+      <div class="flex flex-col space-y-6 min-h-0 overflow-y-auto pr-4 pb-4 border rounded-lg p-4 md:min-w-[300px]">
         <!-- Podcast Creation Steps Content -->
         <PodcastSettingsForm
           v-if="currentStepIndex === 1"
@@ -134,6 +134,7 @@
 </template>
 
 <script setup lang="ts">
+import { computed, ref, watch, onMounted } from 'vue';
 import PodcastSettingsForm from '@/components/playground/PodcastSettingsForm.vue';
 import VoicePerformanceSettings from '../components/playground/VoicePerformanceSettings.vue';
 import AudioSynthesis from '../components/playground/AudioSynthesis.vue';
@@ -141,7 +142,7 @@ import AudioSynthesis from '../components/playground/AudioSynthesis.vue';
 import PlaygroundV2Toolbar from '../components/playground/PlaygroundV2Toolbar.vue';
 import { toast } from 'vue-sonner';
 import { usePlaygroundStore } from '../stores/playground';
-import type { FullPodcastSettings, Persona } from '../types/playground'; // Note: This import might still cause errors if the file doesn't exist, but we'll ignore them as per user instructions.
+import type { Persona, FullPodcastSettings } from '../stores/playground';
 
 const playgroundStore = usePlaygroundStore();
 
@@ -198,7 +199,7 @@ watch(() => playgroundStore.createPodcast, () => {
 
 const mainEditorContent = computed({
   get: () => playgroundStore.textToSynthesize,
-  set: (value) => {
+  set: (value: string) => {
     playgroundStore.textToSynthesize = value;
   }
 });
@@ -215,7 +216,7 @@ onMounted(async () => {
 const getVoiceNameFromId = (voiceIdParam: string | number | undefined): string => {
   if (!voiceIdParam) return 'N/A';
   const voiceId = Number(voiceIdParam);
-  const persona = playgroundStore.personas.find((p: Persona) => p.persona_id === voiceId || p.voice_id === String(voiceIdParam));
+  const persona = playgroundStore.personas.find(p => p.persona_id === voiceId || p.voice_model_identifier === String(voiceIdParam));
   return persona?.name || String(voiceIdParam);
 };
 
@@ -304,19 +305,23 @@ function handleDownloadCurrentAudio() {
   if (!playgroundStore.audioUrl) {
     toast.error("No audio available for download.");
     return;
-  }
+  return;
+}
+if (process.client) {
   const link = document.createElement('a');
   link.href = playgroundStore.audioUrl;
-  const filename = playgroundStore.outputFilename || 
-                   (playgroundStore.audioUrl.includes('/') ? playgroundStore.audioUrl.substring(playgroundStore.audioUrl.lastIndexOf('/') + 1) : 'podcast_output.mp3') || 
+  const filename = playgroundStore.outputFilename ||
+                   (playgroundStore.audioUrl.includes('/') ? playgroundStore.audioUrl.substring(playgroundStore.audioUrl.lastIndexOf('/') + 1) : 'podcast_output.mp3') ||
                    'podcast_output.mp3';
   link.download = filename;
   document.body.appendChild(link);
   link.click();
   document.body.removeChild(link);
   toast.success("Audio download started.");
+} else {
+  toast.error("Download is only available in the browser.");
 }
-
+}
 function resetPodcastView() {
   playgroundStore.resetPlaygroundState();
   podcastPerformanceConfig.value = null;
@@ -330,7 +335,7 @@ function handleUsePresetScript() {
 
 }
 
-watch(currentStepIndex, (newStep, oldStep) => {
+watch(currentStepIndex, (newStep: number, oldStep: number | undefined) => {
   // 步骤变化时的逻辑可以在这里添加
 });
 </script>

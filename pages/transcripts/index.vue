@@ -56,7 +56,7 @@
       <div
         v-for="transcript in guideTexts"
         :key="transcript.guide_text_id"
-        class="border rounded-xl overflow-hidden shadow-md hover:shadow-xl transition-shadow bg-white/95 dark:bg-zinc-900/90 min-w-[360px] flex flex-col"
+        class="border rounded-xl overflow-hidden shadow-md hover:shadow-xl transition-shadow bg-white/95 dark:bg-zinc-900/90 min-w-[300px] flex flex-col"
       >
         <!-- 卡片头部：角色、语言、版本、最新标记 -->
         <div class="px-4 py-3 border-b flex justify-between items-center bg-muted/40">

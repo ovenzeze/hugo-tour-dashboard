@@ -11,12 +11,27 @@
     <!-- Card View for all screen sizes -->
     <div class="mt-8">
       <div v-if="pending" class="space-y-4 py-4">
-        <Skeleton class="h-24 w-full" v-for="i in 3" :key="i" />
+        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+          <div v-for="i in 6" :key="i" class="space-y-4 p-4 border rounded-xl shadow-md bg-white/95 dark:bg-zinc-900/90">
+            <div class="flex items-center space-x-3 mb-3">
+              <Skeleton class="h-8 w-8 rounded-full" />
+              <Skeleton class="h-4 w-1/2" />
+              <Skeleton class="h-4 w-1/4 ml-auto" />
+            </div>
+            <Skeleton class="h-4 w-3/4" />
+            <Skeleton class="h-4 w-full" />
+            <Skeleton class="h-4 w-5/6" />
+            <div class="flex justify-between mt-4">
+              <Skeleton class="h-4 w-1/3" />
+              <Skeleton class="h-4 w-1/3" />
+            </div>
+          </div>
+        </div>
       </div>
       <div v-else-if="error" class="text-center py-4">
         <p class="text-red-500">Failed to load personas: {{ error.message }}</p>
       </div>
-      <div v-else-if="personas && personas.length > 0" class="grid grid-cols-[repeat(auto-fit,minmax(360px,1fr))] gap-4">
+      <div v-else-if="personas && personas.length > 0" class="grid grid-cols-[repeat(auto-fit,minmax(300px,1fr))] gap-6">
         <PersonaCard
           v-for="persona in personas"
           :key="persona.persona_id"
@@ -27,12 +42,12 @@
         />
       </div>
       <div v-else class="text-center py-12">
-        <Users2 class="mx-auto h-12 w-12 text-gray-400" />
+        <Icon name="ph:users-three" class="mx-auto h-12 w-12 text-gray-400" />
         <h3 class="mt-2 text-sm font-medium text-gray-900 dark:text-gray-100">No Personas Found</h3>
         <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">Get started by creating a new persona.</p>
         <div class="mt-6">
           <Button @click="openAddPersonaDialog">
-            <CirclePlus class="mr-2 h-4 w-4" />
+            <Icon name="ph:plus-circle" class="mr-2 h-4 w-4" />
             Create Persona
           </Button>
         </div>

@@ -2,7 +2,7 @@
   <Sidebar class="flex h-full max-h-screen flex-col">
     <div class="flex h-14 items-center  px-4 lg:h-[60px] lg:px-6">
       <NuxtLink to="/" class="flex items-center gap-2 font-semibold">
-        <Icon icon="ph:compass-tool" class="h-6 w-6 text-primary" />
+        <Icon name="ph:compass-tool" class="h-6 w-6 text-primary" />
         <span>Hugo Tour Dashboard</span>
       </NuxtLink>
       <!-- 如果有其他头部元素，例如通知按钮，可以放在这里 -->
@@ -21,7 +21,7 @@
               @click="$emit('close')"
             >
               <NuxtLink :to="link.path" class="flex items-center">
-                <Icon :icon="link.icon" class="mr-2 h-6 w-6 shrink-0" />
+                <Icon :name="link.icon" class="mr-2 h-6 w-6 shrink-0" />
                 <span class="truncate text-sm font-medium">{{ link.label }}</span>
               </NuxtLink>
             </SidebarMenuButton>
@@ -41,10 +41,10 @@
 </template>
 
 <script setup lang="ts">
-import { Icon } from '@iconify/vue';
-import { defineProps, defineEmits } from 'vue';
-import { Button } from '@/components/ui/button';
-import { Sidebar, SidebarContent, SidebarGroup, SidebarMenu, SidebarMenuItem, SidebarMenuButton } from '@/components/ui/sidebar';
+import { Sidebar, SidebarContent, SidebarGroup, SidebarMenu, SidebarMenuButton, SidebarMenuItem } from '@/components/ui/sidebar';
+import { defineEmits, defineProps } from 'vue';
+// Use Nuxt's Icon component instead of Iconify
+// import { Icon } from '@iconify/vue';
 // NuxtLink 通常是自动导入的，如果遇到问题，可以从 '#components' 或 'nuxt/link' 导入
 // import { NuxtLink } from '#components';
 

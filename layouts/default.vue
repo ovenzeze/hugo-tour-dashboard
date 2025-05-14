@@ -19,7 +19,7 @@
               <Sheet v-model:open="sidebarOpen">
                 <SidebarTrigger as-child>
                   <Button variant="ghost" size="icon" class="mr-2">
-                    <Icon icon="ph:list" class="h-5 w-5" />
+                    <Icon name="ph:list" class="h-5 w-5" />
                   </Button>
                 </SidebarTrigger>
                 <SheetContent side="left" class="w-[300px] p-0">

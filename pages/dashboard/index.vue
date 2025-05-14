@@ -25,7 +25,7 @@
               <CardTitle class="text-sm font-medium">
                 Total Revenue
               </CardTitle>
-              <Icon icon="ph:currency-dollar-simple" class="h-4 w-4 text-muted-foreground" />
+              <Icon name="ph:currency-dollar-simple" class="h-4 w-4 text-muted-foreground" />
             </CardHeader>
             <CardContent>
               <div class="text-2xl font-bold">$45,231.89</div>
@@ -39,7 +39,7 @@
               <CardTitle class="text-sm font-medium">
                 Subscriptions
               </CardTitle>
-              <Icon icon="ph:users" class="h-4 w-4 text-muted-foreground" />
+              <Icon name="ph:users" class="h-4 w-4 text-muted-foreground" />
             </CardHeader>
             <CardContent>
               <div class="text-2xl font-bold">+2350</div>
@@ -51,7 +51,7 @@
           <Card>
             <CardHeader class="flex flex-row items-center justify-between space-y-0 pb-2">
               <CardTitle class="text-sm font-medium">Sales</CardTitle>
-              <Icon icon="ph:credits-card" class="h-4 w-4 text-muted-foreground" />
+              <Icon name="ph:credits-card" class="h-4 w-4 text-muted-foreground" />
             </CardHeader>
             <CardContent>
               <div class="text-2xl font-bold">+12,234</div>
@@ -63,7 +63,7 @@
           <Card>
             <CardHeader class="flex flex-row items-center justify-between space-y-0 pb-2">
               <CardTitle class="text-sm font-medium">Active Now</CardTitle>
-              <Icon icon="ph:activity" class="h-4 w-4 text-muted-foreground" />
+              <Icon name="ph:activity" class="h-4 w-4 text-muted-foreground" />
             </CardHeader>
             <CardContent>
               <div class="text-2xl font-bold">+573</div>
@@ -115,27 +115,26 @@
 </template>
 
 <script setup lang="ts">
-import { ref } from 'vue'
-import { Icon } from '@iconify/vue'
-import { Button } from '@/components/ui/button'
+// Using Nuxt's built-in Icon component instead of Iconify
+// import { Icon } from '@iconify/vue'
 import {
-  Tabs,
-  TabsContent,
-  TabsList,
-  TabsTrigger,
-} from '@/components/ui/tabs'
+  Avatar,
+  AvatarFallback,
+  AvatarImage,
+} from '@/components/ui/avatar';
 import {
   Card,
   CardContent,
   CardDescription,
   CardHeader,
   CardTitle,
-} from '@/components/ui/card'
+} from '@/components/ui/card';
 import {
-  Avatar,
-  AvatarFallback,
-  AvatarImage,
-} from '@/components/ui/avatar'
+  Tabs,
+  TabsContent,
+  TabsList,
+  TabsTrigger,
+} from '@/components/ui/tabs';
 
 definePageMeta({
   title: 'Dashboard Overview'
