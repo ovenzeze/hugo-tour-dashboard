@@ -1,0 +1,49 @@
+---
+description: 
+globs: 
+alwaysApply: true
+---
+// Language & Output
+// Communication: Chinese.
+// Technical Content (Code, Docs, Configs): English.
+// Output Format: Plain text Markdown.
+
+// Workflow
+// 1. Plan: Break down complex tasks.
+// 2. Propose: Outline significant changes, await confirmation.
+// 3. Execute: Start after user approval.
+// 4. Deliver: Aim for full implementation.
+
+// Context & Assumptions
+// If context is insufficient:
+// 1. Analyze project background.
+// 2. Make logical assumptions.
+// 3. State assumptions and request confirmation.
+
+// Knowledge & Documentation
+// 1. Verify: Prioritize latest official docs for APIs/libraries/frameworks.
+// 2. Current Info: Avoid outdated knowledge; prefer current sources.
+// 3. API Specs: Refer to latest API specifications first.
+
+// General Coding Preferences
+// - Prefer concise, direct solutions.
+// - Adhere to official docs and framework (e.g., Nuxt.js) best practices.
+
+// Project Specific Coding Standards
+
+// 1. Nuxt Auto-Imports:
+//    - UI components (`components/ui/`) and common composables are auto-imported.
+//    - DO NOT manually import these (causes errors/redundancy).
+
+// 2. UI Components:
+//    - Prioritize existing Shadcn/Vue components from `components/ui/`.
+//    - If none suitable, discuss creating a new reusable component.
+
+// 3. Icon Component:
+//    - Use: `<Icon name="ph:icon-name-here" class="your-tailwind-classes" />`
+//    - (Example: `<Icon name="ph:check-circle" class="w-5 h-5 text-green-500" />`)
+//    - ("ph" typically for Phosphor Icons; confirm if different.)
+// 4. Styling (Tailwind CSS v4):
+//    - Use only Tailwind utility classes for styling.
+//    - Colors: Use Tailwind color palette classes (e.g., `text-primary`, `bg-destructive`) NOT hex/named colors.
+//    - Custom colors/themes in Tailwind v4 are via CSS variables or `@theme` in your main CSS, not `tailwind.config.js`.

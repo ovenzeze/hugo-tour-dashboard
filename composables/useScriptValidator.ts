@@ -172,7 +172,6 @@ export function useScriptValidator() {
       // 调用API
       const response = await $fetch<ValidateScriptResponse>('/api/podcast/process/validate', {
         method: 'POST',
-        params: {},
         body: requestBody
       });
       
