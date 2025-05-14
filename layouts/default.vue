@@ -31,7 +31,7 @@
           </header>
 
           <!-- 主内容区 -->
-          <main class="flex-1 flex flex-col">
+          <main class="flex-1 flex flex-col pb-20 md:pb-0">
             <slot />
           </main>
         </div>

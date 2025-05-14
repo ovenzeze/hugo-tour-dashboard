@@ -1,5 +1,3 @@
-
-
 // server/services/tts/elevenlabs.ts
 import type {
   TextToSpeechProvider,
@@ -115,24 +113,11 @@ export class ElevenLabsProvider implements TextToSpeechProvider {
   async generateSpeechWithTimestamps(request: VoiceSynthesisRequest): Promise<VoiceSynthesisWithTimestampsResponse> {
     const { text, voiceId, modelId, providerOptions, outputFormat } = request;
 
-    // Note: providerOptions might contain stability, similarity_boost, style, use_speaker_boost
-    // The ElevenLabsClient's convertWithTimestamps method takes these in an options object.
-    // We've seen that passing modelId, voiceSettings, optimizeStreamingLatency directly in the options object
-    // for textToSpeech.convertWithTimestamps was problematic in the API handler.
-    // Let's try with minimal options first, or structure them as the SDK expects if known.
-    // The API handler `timing.post.ts` ended up with an empty options object for convertWithTimestamps.
-
     try {
       console.log(`Calling ElevenLabsClient textToSpeech.convertWithTimestamps for voice: ${voiceId}`);
       
-      // Changed to pass a single object argument for convertWithTimestamps
-      // Correcting call to convertWithTimestamps: (voiceId, requestObject)
-      // The requestObject should contain 'text' and other valid parameters for TextToSpeechWithTimestampsRequest.
       const ttsRequestPayload: any = {
         text: text,
-        // Attempting to add modelId and voiceSettings here, hoping they are valid properties of the request object.
-        // If these still cause "unknown property" errors for TextToSpeechWithTimestampsRequest,
-        // they would need to be removed, implying the SDK does not allow overriding them here for this method.
       };
       
       if (modelId) {
@@ -142,9 +127,6 @@ export class ElevenLabsProvider implements TextToSpeechProvider {
       }
 
       if (providerOptions) {
-        // Assuming providerOptions directly map to voiceSettings for ElevenLabs
-        // The SDK might expect these directly or nested.
-        // For convertWithTimestamps, voiceSettings might be a top-level property of the request object.
         ttsRequestPayload.voiceSettings = {
             stability: providerOptions.stability,
             similarityBoost: providerOptions.similarity_boost,
@@ -154,29 +136,127 @@ export class ElevenLabsProvider implements TextToSpeechProvider {
       }
 
       const sdkResponse: any = await this.elevenLabsClient.textToSpeech.convertWithTimestamps(
-        voiceId,          // First argument: voiceId
-        ttsRequestPayload // Second argument: TextToSpeechWithTimestampsRequest object
+        voiceId,
+        ttsRequestPayload
       );
 
-      // Assuming sdkResponse structure is { audio: ArrayBuffer, timestamps: any[] }
-      // This is based on the mock and how we tried to make timing.post.ts work.
-      // The actual 'AudioWithTimestampsResponse' type from the SDK might differ.
-      if (!sdkResponse || typeof sdkResponse.audio === 'undefined' || typeof sdkResponse.timestamps === 'undefined') {
-        console.error('Unexpected response structure from ElevenLabsClient.convertWithTimestamps:', sdkResponse);
-        throw new Error('Invalid response structure from ElevenLabs SDK for convertWithTimestamps.');
+      // 处理新的响应格式
+      // 检查是否有audio_base64字段（新格式）
+      if (sdkResponse && sdkResponse.audio_base64) {
+        console.log('Processing new ElevenLabs response format with audio_base64');
+        
+        // 将Base64字符串转换为ArrayBuffer
+        const binaryString = atob(sdkResponse.audio_base64);
+        const bytes = new Uint8Array(binaryString.length);
+        for (let i = 0; i < binaryString.length; i++) {
+          bytes[i] = binaryString.charCodeAt(i);
+        }
+        const audioData = bytes.buffer;
+        
+        // 从alignment或normalized_alignment中提取时间戳
+        let timestamps = [];
+        if (sdkResponse.alignment && sdkResponse.alignment.characters) {
+          timestamps = this.extractTimestampsFromAlignment(sdkResponse.alignment);
+        } else if (sdkResponse.normalized_alignment && sdkResponse.normalized_alignment.characters) {
+          timestamps = this.extractTimestampsFromAlignment(sdkResponse.normalized_alignment);
+        }
+        
+        return {
+          audioData,
+          contentType: outputFormat === 'pcm' ? 'audio/pcm' : 'audio/mpeg',
+          timestamps,
+        };
+      }
+      // 处理旧的响应格式
+      else if (sdkResponse && typeof sdkResponse.audio !== 'undefined' && typeof sdkResponse.timestamps !== 'undefined') {
+        console.log('Processing old ElevenLabs response format with audio and timestamps');
+        
+        return {
+          audioData: sdkResponse.audio as ArrayBuffer,
+          contentType: outputFormat === 'pcm' ? 'audio/pcm' : 'audio/mpeg',
+          timestamps: sdkResponse.timestamps,
+        };
       }
       
-      return {
-        audioData: sdkResponse.audio as ArrayBuffer,
-        contentType: outputFormat === 'pcm' ? 'audio/pcm' : 'audio/mpeg', // Infer or get from SDK if possible
-        timestamps: sdkResponse.timestamps,
-      };
-
+      // 如果都不匹配，抛出错误
+      console.error('Unexpected response structure from ElevenLabsClient.convertWithTimestamps:', sdkResponse);
+      throw new Error('Invalid response structure from ElevenLabs SDK for convertWithTimestamps.');
     } catch (error: any) {
       const errorMessage = error.message || 'Unknown ElevenLabs SDK error in generateSpeechWithTimestamps';
       console.error(`ElevenLabs SDK error (${this.providerId}) in generateSpeechWithTimestamps: ${errorMessage}`, error);
       throw new Error(`ElevenLabs TTS generation with timestamps failed: ${errorMessage}`);
     }
+  }
+
+  // 辅助方法：从alignment对象中提取时间戳
+  private extractTimestampsFromAlignment(alignment: any): any[] {
+    if (!alignment || !alignment.characters || !Array.isArray(alignment.characters)) {
+      return [];
+    }
+    
+    // 创建与ElevenLabs旧格式兼容的时间戳数组
+    const timestamps = [];
+    const characters = alignment.characters;
+    const startTimes = alignment.character_start_times_seconds || [];
+    const endTimes = alignment.character_end_times_seconds || [];
+    
+    // 按单词分组字符
+    let currentWord = '';
+    let wordStartTime = 0;
+    let wordEndTime = 0;
+    let inWord = false;
+    
+    for (let i = 0; i < characters.length; i++) {
+      const char = characters[i];
+      const startTime = startTimes[i] || 0;
+      const endTime = endTimes[i] || 0;
+      
+      // 如果是空格或标点，结束当前单词
+      if (char === ' ' || /[.,!?;:]/.test(char)) {
+        if (inWord) {
+          // 添加当前单词的时间戳
+          timestamps.push({
+            word: currentWord,
+            start_time: wordStartTime,
+            end_time: wordEndTime
+          });
+          
+          // 重置单词状态
+          currentWord = '';
+          inWord = false;
+        }
+        
+        // 如果是标点，也将其作为单独的"单词"
+        if (char !== ' ') {
+          timestamps.push({
+            word: char,
+            start_time: startTime,
+            end_time: endTime
+          });
+        }
+      } else {
+        // 如果是字母，添加到当前单词
+        if (!inWord) {
+          // 开始新单词
+          inWord = true;
+          wordStartTime = startTime;
+        }
+        
+        currentWord += char;
+        wordEndTime = endTime;
+      }
+    }
+    
+    // 添加最后一个单词（如果有）
+    if (currentWord) {
+      timestamps.push({
+        word: currentWord,
+        start_time: wordStartTime,
+        end_time: wordEndTime
+      });
+    }
+    
+    return timestamps;
   }
 
   async listVoices(languageCode?: string): Promise<VoiceModel[]> {

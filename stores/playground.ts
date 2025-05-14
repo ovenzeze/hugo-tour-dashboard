@@ -2,6 +2,7 @@ import { defineStore } from 'pinia';
 import { toast } from 'vue-sonner';
 // @ts-ignore - Nuxt 自动导入，IDE 可能会显示错误但实际运行没问题
 import type { Database, Tables } from '~/types/supabase';
+import { ValidateScriptResponse } from '~/composables/useScriptValidator';
 
 // Define Persona type based on your Supabase types
 // If Persona is already globally defined or imported from a central types file, use that.
@@ -49,6 +50,9 @@ export interface PlaygroundState {
   streamingPreviewError: string | null;
   selectedPersonaIdForHighlighting: number | null; // New state for selected persona for script highlighting
   segmentTimestamps: any[]; // Added for timestamp data
+  isValidatingScript: boolean;
+  validationError: string | null;
+  validationResult: ValidateScriptResponse | null;
 }
 
 const defaultSynthesisParams: SynthesisParams = {
@@ -93,6 +97,9 @@ export const usePlaygroundStore = defineStore('playground', {
     streamingPreviewError: null,
     selectedPersonaIdForHighlighting: null, // Initialize new state
     segmentTimestamps: [], // Initialize segmentTimestamps
+    isValidatingScript: false,
+    validationError: null,
+    validationResult: null,
   }),
 
   getters: {
@@ -323,6 +330,141 @@ Host: Couldn't agree more. Thanks for joining us, Elliot, and thank you to our l
       }
     },
 
+    async validateScript(): Promise<{ success: boolean; data?: any; error?: string }> {
+      // 使用 useScriptValidator 中的方法进行验证
+      // 由于 composable 需要在 setup 上下文中使用，我们不能直接在 store 中使用它
+      // 所以我们在这里实现一个简化版本，或者在组件中使用 composable
+      
+      if (this.isValidatingScript) {
+        return { success: false, error: '验证已在进行中' };
+      }
+      
+      this.isValidatingScript = true;
+      this.validationError = null;
+      this.validationResult = null;
+      
+      try {
+        // 验证基本设置
+        if (!this.podcastSettings?.title) {
+          toast.error('请设置播客标题');
+          return { success: false, error: '请设置播客标题' };
+        }
+        
+        if (!this.podcastSettings?.hostPersonaId) {
+          toast.error('请选择主持人');
+          return { success: false, error: '请选择主持人' };
+        }
+        
+        if (!this.textToSynthesize) {
+          toast.error('脚本内容为空');
+          return { success: false, error: '脚本内容为空' };
+        }
+        
+        // 获取主持人信息
+        const hostId = Number(this.podcastSettings.hostPersonaId);
+        const hostPersona = this.personas.find((p) => p.persona_id === hostId);
+        
+        if (!hostPersona) {
+          toast.error('所选主持人未找到');
+          return { success: false, error: '所选主持人未找到' };
+        }
+        
+        // 获取嘉宾信息
+        const guestIds = this.podcastSettings.guestPersonaIds
+          .map(id => Number(id))
+          .filter(id => !isNaN(id) && id > 0);
+          
+        const guestPersonas = guestIds
+          .map(id => this.personas.find(p => p.persona_id === id))
+          .filter(p => p !== undefined) as any[];
+        
+        if (guestPersonas.length === 0) {
+          toast.error('请至少选择一位嘉宾');
+          return { success: false, error: '请至少选择一位嘉宾' };
+        }
+        
+        // 解析脚本
+        const scriptSegments = this.parseScriptToSegments(this.textToSynthesize);
+        
+        if (scriptSegments.length === 0) {
+          toast.error('无法解析脚本。请确保格式为"说话者: 文本内容"');
+          return { success: false, error: '无法解析脚本' };
+        }
+        
+        // 构建请求体
+        const requestBody = {
+          title: this.podcastSettings.title,
+          rawScript: this.textToSynthesize,
+          personas: {
+            hostPersona: {
+              id: hostPersona.persona_id,
+              name: hostPersona.name,
+              voice_model_identifier: hostPersona.voice_model_identifier || ''
+            },
+            guestPersonas: guestPersonas.map(persona => ({
+              id: persona.persona_id,
+              name: persona.name,
+              voice_model_identifier: persona.voice_model_identifier || ''
+            }))
+          },
+          preferences: {
+            style: this.podcastSettings.style || '对话式',
+            language: 'en-US',
+            keywords: this.podcastSettings.keywords || '',
+            numberOfSegments: this.podcastSettings.numberOfSegments || 3,
+            backgroundMusic: this.podcastSettings.backgroundMusic
+          }
+        };
+        
+        console.log('[DEBUG] Store API request body (validation):', JSON.stringify(requestBody, null, 2));
+        
+        // 调用API
+        const response = await $fetch<ValidateScriptResponse>('/api/podcast/process/validate', {
+          method: 'POST',
+          body: requestBody
+        });
+        
+        console.log('[DEBUG] Store API response (validation):', response);
+        
+        this.validationResult = response;
+        
+        if (response.success) {
+          toast.success('脚本验证通过');
+          return { success: true, data: response.structuredData };
+        } else {
+          const errorMsg = response.error || response.message || '验证失败';
+          toast.error(`验证失败: ${errorMsg}`);
+          this.validationError = errorMsg;
+          return { success: false, error: errorMsg };
+        }
+      } catch (err: any) {
+        console.error('[ERROR] Store API request failed (validation):', err);
+        const errorMessage = err.data?.message || err.message || '服务器错误';
+        toast.error(`请求错误: ${errorMessage}`);
+        this.validationError = errorMessage;
+        return { success: false, error: errorMessage };
+      } finally {
+        this.isValidatingScript = false;
+      }
+    },
+
+    parseScriptToSegments(content: string) {
+      if (!content) return [];
+      
+      return content
+        .split('\n')
+        .map(line => {
+          const colonIndex = line.indexOf(':');
+          if (colonIndex <= 0) return null; // 无效行
+          
+          const speaker = line.substring(0, colonIndex).trim();
+          const text = line.substring(colonIndex + 1).trim();
+          
+          return { speaker, text };
+        })
+        .filter(segment => segment && segment.speaker && segment.text);
+    },
+
     async generateScript() {
       if (this.isGeneratingScript) return;
       
@@ -441,40 +583,42 @@ Host: Couldn't agree more. Thanks for joining us, Elliot, and thank you to our l
 请生成一个完整的播客脚本，包含主持人和嘉宾之间的对话。脚本应该清晰标明每个说话者的名字，并且内容要围绕主题展开，符合指定的风格和关键词。
         `.trim();
         
-        console.log('准备发送请求:', {
+        console.log('准备发送请求 (generateScript action):', {
           fullPrompt,
           topic: this.podcastSettings.topic,
           persona_id: hostId
         });
         
-        // @ts-ignore - Nuxt 自动导入的 $fetch
+        console.log('>>> [generateScript] ABOUT TO CALL $fetch for /api/generate-script');
+        // @ts-ignore - Nuxt 自动导入的 $fetch. Keeping @ts-ignore for now as the type issue might be project-specific.
         const response = await $fetch<{ script: string }>('/api/generate-script', {
           method: 'POST',
+          headers: { 'Content-Type': 'application/json' }, // Explicitly add Content-Type
           body: {
             user_instruction: fullPrompt,
-            createPodcast: true,
-            persona_id: hostId,
+            // createPodcast: true, // API generate-script.post.ts doesn't expect this directly
+            // persona_id: hostId,    // API generate-script.post.ts doesn't expect this directly
+                                    // It expects them within podcastSettings if needed by the LLM prompt construction.
             
-            // 使用后端期望的参数名称
-            podcastName: this.podcastSettings.title,
-            hostVoiceId: hostPersona.voice_model_identifier,
-            guestVoiceId: guestPersonas.length > 0 && guestPersonas[0] ? guestPersonas[0]!.voice_model_identifier : undefined,
-            
-            // 保留podcastSettings以便后端可以使用其他字段
-            podcastSettings: {
+            // Pass podcastSettings directly as expected by the new API
+            podcastSettings: { // This matches the GenerateScriptRequestBody in generate-script.post.ts
               ...this.podcastSettings,
               hostPersonaId: hostId,
               guestPersonaIds: guestIds
-            }
+            },
           },
         });
+        console.log('<<< [generateScript] $fetch for /api/generate-script COMPLETED. Response:', response);
         
         this.textToSynthesize = response.script;
         toast.success('脚本生成成功！', {
           description: '脚本已经可以在编辑器中查看。',
         });
       } catch (error: any) {
-        console.error('脚本生成失败:', error);
+        console.error('!!! [generateScript] ERROR caught:', error);
+        // Simpler console log to ensure it always prints
+        console.log('Raw error object in catch block:', JSON.stringify(error, Object.getOwnPropertyNames(error)));
+        
         const errorMessage = error.data?.message || error.data?.statusMessage || error.message || '脚本生成过程中发生未知错误。';
         this.scriptGenerationError = errorMessage;
         toast.error('脚本生成失败', { description: errorMessage });

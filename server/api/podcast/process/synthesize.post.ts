@@ -13,9 +13,15 @@ interface InputSegment {
   speakerName: string;
 }
 
+/**
+ * 支持两种输入格式：
+ * 1. 传统格式：{ podcastId, segments, ... }
+ * 2. validate结构化格式：{ podcastTitle, script, voiceMap, hostPersonaId, language, ... }
+ */
 interface RequestBody {
-  podcastId: string;
-  segments: InputSegment[];
+  // 传统格式
+  podcastId?: string;
+  segments?: InputSegment[];
   defaultModelId?: string;
   voiceSettings?: {
     stability?: number;
@@ -23,12 +29,40 @@ interface RequestBody {
     style?: number;
     use_speaker_boost?: boolean;
   };
+  // validate结构化格式
+  podcastTitle?: string;
+  script?: Array<{ role: string; name?: string; text: string }>;
+  voiceMap?: Record<string, { personaId: number; voice_model_identifier: string }>;
+  hostPersonaId?: number;
+  language?: string;
 }
 
 export default defineEventHandler(async (event) => {
   try {
     const body = await readBody(event) as RequestBody;
-    const { podcastId, segments, defaultModelId, voiceSettings } = body;
+
+    // 支持validate结构化数据自动组装segments
+    let podcastId = body.podcastId;
+    let segments = body.segments;
+    const defaultModelId = body.defaultModelId;
+    const voiceSettings = body.voiceSettings;
+
+    if ((!podcastId || !segments || segments.length === 0) && body.script && body.voiceMap) {
+      // 自动组装segments
+      podcastId = body.podcastId || body.podcastTitle || 'untitled';
+      segments = body.script.map((seg, idx) => {
+        // 优先用name查voiceMap，否则用role
+        const voiceMap = body.voiceMap ?? {};
+        let voiceKey = seg.name && voiceMap[seg.name] ? seg.name : seg.role;
+        let voice = voiceMap[voiceKey] || voiceMap[seg.role] || {};
+        return {
+          segmentIndex: idx,
+          text: seg.text,
+          voiceId: voice.voice_model_identifier || '',
+          speakerName: seg.name || seg.role
+        };
+      });
+    }
 
     if (!podcastId || !Array.isArray(segments) || segments.length === 0) {
       throw createError({

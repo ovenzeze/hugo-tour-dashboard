@@ -23,9 +23,10 @@
           :disabled="isGenerating"
           size="sm"
         >
-          <Loader2 v-if="isGenerating" class="w-4 h-4 mr-2 animate-spin" />
+          <Loader2 v-if="isScriptGenerating" class="w-4 h-4 mr-2 animate-spin" />
           <Sparkles v-else class="w-4 h-4 mr-2" />
-          Generate Script
+          <span v-if="isScriptGenerating">生成中...</span>
+          <span v-else>Generate Script</span>
         </Button>
         <Button 
           v-if="currentStepIndex === 1"
@@ -37,15 +38,29 @@
           <BookOpenText class="w-4 h-4 mr-2" />
           Use Preset Script
         </Button>
+
         <Button 
-          v-if="currentStepIndex === 1" 
-          variant="outline" 
-          @click="$emit('skip-script')"
-          :disabled="isGenerating"
+          v-if="currentStepIndex === 1"
+          variant="outline"
+          :disabled="isGenerating || !hasScript"
+          @click="$emit('just-validate-script')"
           size="sm"
         >
-          <SkipForward class="w-4 h-4 mr-2" />
-          Use My Script
+          <Loader2 v-if="isValidating" class="w-4 h-4 mr-2 animate-spin" />
+          <CheckCircle v-else class="w-4 h-4 mr-2" />
+          <span v-if="isValidating">校验中...</span>
+          <span v-else>Validate Script</span>
+        </Button>
+
+        <Button 
+          v-if="currentStepIndex === 1"
+          variant="default"
+          :disabled="!hasScript || isGenerating || isValidating"
+          @click="$emit('proceed-without-validation')"
+          size="sm"
+        >
+          <ArrowRight class="w-4 h-4 mr-2" />
+          Next Step
         </Button>
 
         <Button 
@@ -55,7 +70,7 @@
           size="sm"
         >
           <!-- Potentially add a check icon or similar later based on state -->
-          Next: Synthesize Audio
+          Next: Audio Settings
           <ArrowRight class="w-4 h-4 ml-2" />
         </Button>
 
@@ -98,14 +113,16 @@
 
 <script setup lang="ts">
 import { defineProps, defineEmits } from 'vue';
-import { Button } from '@/components/ui/button';
-import { Loader2, Wand2, Sparkles, SkipForward, ArrowRight, RadioTower, Download, RotateCcw, BookOpenText } from 'lucide-vue-next';
+import { Loader2, Wand2, Sparkles, SkipForward, ArrowRight, RadioTower, Download, RotateCcw, BookOpenText, CheckCircle } from 'lucide-vue-next';
 
 interface Props {
   synthesisMode: 'podcast' | 'standard';
   currentStepIndex: number;
   currentAudioUrl?: string | null;
   isGenerating?: boolean;
+  isScriptGenerating?: boolean;
+  isValidating?: boolean;
+  hasScript?: boolean;
   // Add more specific loading states if needed, e.g., isScriptGenerating, isAudioSynthesizing
 }
 
@@ -113,13 +130,14 @@ const props = defineProps<Props>();
 
 const emit = defineEmits([
   'generate-script',
-  'skip-script',
   'proceed-to-synthesis',
   'synthesize-standard',
   'synthesize-podcast-audio',
   'download-audio',
   'reset-view',
-  'use-preset-script'
+  'use-preset-script',
+  'just-validate-script',
+  'proceed-without-validation'
 ]);
 
 // Logic for button disabled states or visibility can be refined here
