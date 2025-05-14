@@ -249,7 +249,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, ref, watch, onMounted } from 'vue';
+import { computed, ref, watch, onMounted, onUnmounted } from 'vue';
 import PodcastSettingsForm from '../components/playground/PodcastSettingsForm.vue';
 import VoicePerformanceSettings from '../components/playground/VoicePerformanceSettings.vue';
 import AudioSynthesis from '../components/playground/AudioSynthesis.vue';
@@ -263,7 +263,80 @@ const playgroundStore = usePlaygroundStore();
 const { isValidating, validateScript } = useScriptValidator();
 
 const voicePerformanceSettingsRef = ref(null);
+const currentStepIndex = ref(1);
+const isScriptGenerating = ref(false);
+const podcastPerformanceConfig = ref(null);
+const lastPodcastUrlForDownload = ref(null);
 const isGeneratingAudioPreview = ref(false);
+
+// Setup global event listeners to prevent page refreshes on audio file access
+onMounted(async () => {
+  await playgroundStore.fetchPersonas();
+  currentStepIndex.value = 2;
+  
+  // Add event listener to prevent audio links from refreshing page
+  document.addEventListener('click', preventAudioRefresh, true);
+  
+  // Also add event listener for a elements that might be created dynamically
+  window.addEventListener('DOMContentLoaded', () => {
+    interceptDownloadLinks();
+  });
+  
+  // Apply Playground store initialization
+  if (!playgroundStore.isInitialized) {
+    playgroundStore.initializeStore();
+  }
+});
+
+// Clean up event listeners when component is unmounted
+onUnmounted(() => {
+  document.removeEventListener('click', preventAudioRefresh, true);
+});
+
+// Function to prevent audio links from causing page refresh
+function preventAudioRefresh(event) {
+  const target = event.target;
+  const link = target.closest('a');
+  
+  if (link && link.href) {
+    // Check if link points to audio files or podcast segments
+    if (
+      link.href.includes('/podcasts/') ||
+      link.href.includes('/segments/') ||
+      link.href.includes('.mp3') ||
+      link.href.includes('.wav') ||
+      link.href.includes('.ogg')
+    ) {
+      console.log('拦截到音频链接:', link.href);
+      event.preventDefault();
+      event.stopPropagation();
+    }
+  }
+}
+
+// Function to intercept dynamically created download links
+function interceptDownloadLinks() {
+  // Find all link elements that might be for audio downloads
+  const links = document.querySelectorAll('a[href*="/podcasts/"], a[href*="/segments/"], a[href*=".mp3"]');
+  
+  links.forEach(link => {
+    if (!link.hasAttribute('data-intercepted')) {
+      link.setAttribute('data-intercepted', 'true');
+      link.addEventListener('click', function(e) {
+        e.preventDefault();
+        e.stopPropagation();
+        console.log('Intercepted download link click:', link.href);
+      });
+    }
+  });
+}
+
+// Handle previous step navigation
+function handlePreviousStep() {
+  if (currentStepIndex.value > 1) {
+    currentStepIndex.value--;
+  }
+}
 
 // Computed property to map personas for the form
 const personasForForm = computed(() => {
@@ -310,10 +383,6 @@ const highlightedScript = computed(() => {
 
   return highlightedHtml;
 });
-
-const currentStepIndex = ref(2);
-const podcastPerformanceConfig = ref<object | null>(null);
-const isScriptGenerating = ref(false);
 
 const podcastSteps = [
   { step: 1, title: 'Script Generation', description: 'Select roles and script settings' },
@@ -371,18 +440,6 @@ function getAssignedVoicesString() {
     .join(', ');
 }
 
-onMounted(async () => {
-  await playgroundStore.fetchPersonas();
-  currentStepIndex.value = 2;
-});
-
-// Handle previous step navigation
-function handlePreviousStep() {
-  if (currentStepIndex.value > 1) {
-    currentStepIndex.value--;
-  }
-}
-
 // Generate audio preview in step 2
 async function generateAudioPreview() {
   if (!voicePerformanceSettingsRef.value || !canProceedFromStep2.value) {
@@ -392,16 +449,32 @@ async function generateAudioPreview() {
   
   isGeneratingAudioPreview.value = true;
   try {
-    // Call the generateAudio method from the VoicePerformanceSettings component
+    // 创建并设置一个阻止默认操作的事件处理器
+    const preventDefaultHandler = (e) => {
+      e.preventDefault();
+      return false;
+    };
+    
+    // 在生成音频前，临时阻止所有a标签的默认行为
+    document.addEventListener('click', preventDefaultHandler, true);
+
+    // 延迟一小段时间以确保事件处理器已经添加
+    await new Promise(resolve => setTimeout(resolve, 100));
+    
+    // 调用VoicePerformanceSettings组件的generateAudio方法
     const result = await (voicePerformanceSettingsRef.value as any).generateAudio();
-    if (result) {
-      toast.success("Audio preview generated successfully!");
+    
+    // 移除事件处理器
+    document.removeEventListener('click', preventDefaultHandler, true);
+    
+    if (result && result.success) {
+      toast.success("音频生成成功！点击播放按钮可以预览。");
     } else {
-      toast.warning("Audio preview generation was not successful. Please check voice assignments.");
+      toast.warning("音频生成不成功，请检查语音配置。");
     }
   } catch (error) {
-    console.error("Failed to generate audio preview:", error);
-    toast.error("Failed to generate audio preview: " + (error instanceof Error ? error.message : "Unknown error"));
+    console.error("生成音频预览失败:", error);
+    toast.error("生成音频预览失败：" + (error instanceof Error ? error.message : "未知错误"));
   } finally {
     isGeneratingAudioPreview.value = false;
   }
@@ -488,9 +561,17 @@ function handleDownloadCurrentAudio() {
   const link = document.createElement('a');
   link.href = playgroundStore.audioUrl;
   link.download = playgroundStore.outputFilename || 'podcast_output.mp3';
+  link.className = 'temp-download-link';
+  link.style.display = 'none';
   document.body.appendChild(link);
   link.click();
-  document.body.removeChild(link);
+  
+  // 设置延时移除下载链接，避免页面刷新
+  setTimeout(() => {
+    if (document.body.contains(link)) {
+      document.body.removeChild(link);
+    }
+  }, 100);
 }
 
 function resetPodcastView() {
@@ -662,6 +743,25 @@ function handlePlayCurrentAudio() {
     toast.error('播放失败: ' + error.message);
   });
 }
+
+// Load script from file or use default
+const initializeScript = async () => {
+  isScriptGenerating.value = true;
+  try {
+    // You could load script from API or state here
+    // For now, just use a simple default script if empty
+    if (!playgroundStore.textToSynthesize) {
+      playgroundStore.textToSynthesize = `Host: 您好，欢迎来到预设的第二步测试环境。`;
+      toast.success("Default script loaded. Please review the content.");
+    }
+    validateScript();
+  } catch (err) {
+    console.error('Error initializing script:', err);
+    toast.error(`Failed to initialize script: ${err instanceof Error ? err.message : 'Unknown error'}`);
+  } finally {
+    isScriptGenerating.value = false;
+  }
+};
 </script>
 
 <style scoped>
