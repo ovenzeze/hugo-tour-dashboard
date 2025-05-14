@@ -1,0 +1,22 @@
+---
+description: Project Standardization Checklist
+globs: 
+alwaysApply: false
+---
+# Project Standardization Checklist
+
+Please review the following items to ensure project consistency and quality:
+
+1.  **All Copy/Text is in English:**
+    *   [ ] Verify that all user-facing text content (UI labels, buttons, messages, alerts, etc.) is in English.
+    *   [ ] Ensure any comments or log messages intended for general understanding (not just debug) are also in English if they are part of shared code.
+
+2.  **Code File Length Limit (Max 500 Lines):**
+    *   [ ] Check that each individual code file (e.g., `.vue`, `.ts`, `.js`, etc.) does not significantly exceed 500 lines.
+    *   [ ] Consider refactoring overly long files into smaller, more manageable modules.
+
+3.  **README Documentation Links are Up-to-Date:**
+    *   [ ] Review `README.md` (and any other key documentation files).
+    *   [ ] Manually verify that all external links to documentation, resources, or tools are current, not broken, and point to the latest appropriate versions.
+    *   [ ] Confirm internal links within the documentation are also correct and functional.
+
