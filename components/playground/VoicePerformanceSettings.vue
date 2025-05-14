@@ -50,6 +50,7 @@
     <div v-if="parsedScriptSegments.length > 0" class="border rounded-md p-4 space-y-3">
       <div class="flex items-center justify-between pb-2 border-b">
         <h4 class="font-medium">Voice Assignment</h4>
+        <!--
         <Button 
           variant="outline" 
           size="sm"
@@ -59,6 +60,7 @@
           <Play class="w-3.5 h-3.5 mr-1" />
           Preview All
         </Button>
+        -->
       </div>
       
       <div class="space-y-3 max-h-[400px] overflow-y-auto pr-1">
@@ -110,16 +112,17 @@
                 </SelectContent>
               </Select>
               
-              <!-- Preview Button -->
+              <!-- Generate Button -->
               <Button
                 size="sm"
-                variant="ghost"
-                :disabled="!speakerAssignments[segment.speakerTag] || isPreviewingSegment === index"
+                variant="outline"
+                :disabled="!speakerAssignments[segment.speakerTag] || isPreviewingSegment === index || (segmentStates[index]?.status === 'loading')"
                 @click="previewSegment(segment, index)"
+                class="w-auto px-2 py-1 h-8" 
               >
-                <Loader2 v-if="isPreviewingSegment === index" class="w-3 h-3 mr-1 animate-spin" />
-                <Play v-else class="w-3 h-3 mr-1" />
-                {{ isPreviewingSegment === index ? 'Generating...' : 'Preview' }}
+                <Loader2 v-if="isPreviewingSegment === index || segmentStates[index]?.status === 'loading'" class="w-3 h-3 mr-1.5 animate-spin" />
+                <Sparkles v-else class="w-3 h-3 mr-1.5" />
+                {{ isPreviewingSegment === index || segmentStates[index]?.status === 'loading' ? 'Generating...' : (segmentPreviews[index]?.audioUrl ? 'Re-preview' : 'Preview') }}
               </Button>
             </div>
           </div>
@@ -144,7 +147,15 @@
             </div>
             
             <div v-if="segmentPreviews[index]?.audioUrl">
-              <audio :src="segmentPreviews[index].audioUrl" controls class="w-full h-7 rounded" />
+              <audio 
+                :src="segmentPreviews[index].audioUrl" 
+                controls
+                class="w-full h-7 rounded"
+                :ref="el => { if (el) audioRefs[index] = el as HTMLAudioElement }"
+                @play="onSegmentPlay(index)"
+                @pause="onSegmentPauseOrEnd(index)"
+                @ended="onSegmentPauseOrEnd(index)"
+              />
             </div>
           </div>
         </div>
@@ -174,7 +185,7 @@
 import { ref, watch, computed, defineProps, defineEmits, defineExpose, onMounted } from 'vue';
 import { Label } from '../../components/ui/label/index.js';
 import { Select, SelectContent, SelectGroup, SelectItem, SelectTrigger, SelectValue, SelectLabel } from '../../components/ui/select/index.js';
-import { Loader2, Play, HelpCircle, Info, AlertTriangle, Check, Star, CheckCircle, AlertCircle } from 'lucide-vue-next';
+import { Loader2, Play, HelpCircle, Info, AlertTriangle, Check, Star, CheckCircle, AlertCircle, Volume2, Pause, Sparkles } from 'lucide-vue-next';
 import { usePlaygroundStore, type Persona } from '../../stores/playground.js';
 import { HoverCard, HoverCardContent, HoverCardTrigger } from '../../components/ui/hover-card/index.js';
 import { Button } from '../../components/ui/button/index.js';
@@ -216,6 +227,10 @@ interface SegmentState {
   audioUrl?: string;
 }
 const segmentStates = ref<Record<number, SegmentState>>({});
+
+// audioRefs will store references to the <audio> elements
+const audioRefs = ref<Record<number, HTMLAudioElement | null>>({}); 
+const audioPlayingState = ref<Record<number, boolean>>({});
 
 const selectedHostPersona = computed<Persona | undefined>(() => {
   if (!playgroundStore.podcastSettings.hostPersonaId) return undefined;
@@ -724,57 +739,83 @@ async function previewSegment(segment: { speakerTag: string, text: string }, ind
   
   isPreviewingSegment.value = index;
   try {
-    // 使用ElevenLabs API直接生成单个段落的预览
     const voiceId = speakerAssignments.value[segment.speakerTag];
-    
-    const response = await fetch('/api/elevenlabs/tts-with-timestamps', {
+    // Use a consistent podcastId for the session, derived from title or a timestamp if title is not set
+    const currentPodcastTitle = playgroundStore.podcastSettings.title?.trim();
+    const podcastIdForPreview = currentPodcastTitle 
+      ? `preview_session_${currentPodcastTitle.replace(/\s+/g, '_')}` 
+      : `preview_session_${Date.now()}`;
+
+    // Call /api/podcast/process/synthesize-segments.post.ts
+    const response = await fetch('/api/podcast/process/synthesize-segments', { 
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        text: segment.text,
-        voiceId,
-        modelId: 'eleven_multilingual_v2',
-        voiceSettings: {
+        podcastId: podcastIdForPreview,
+        segments: [
+          {
+            segmentIndex: index,      
+            text: segment.text,
+            voiceId: voiceId,         
+            speakerName: segment.speakerTag
+          }
+        ],
+        defaultModelId: 'eleven_multilingual_v2', // TODO: Make this configurable if needed
+        voiceSettings: { // Pass global synthesis params from the store
           stability: playgroundStore.synthesisParams.temperature,
-          similarity_boost: 0.75,
-          style: 0,
-          use_speaker_boost: true
-        },
-        optimizeStreamingLatency: 3
+          similarity_boost: 0.75, // Example, adjust as needed or make configurable
+          style: 0,             // Example, adjust as needed
+          use_speaker_boost: true // Example, adjust as needed
+        }
       })
     });
     
     if (!response.ok) {
-      throw new Error('Failed to generate preview audio');
+      let errorText = 'Failed to generate preview audio due to server error.';
+      try {
+        errorText = await response.text();
+      } catch (e) {
+        // Ignore error while reading response text, use default message.
+      }
+      console.error('API Error Response Text:', errorText);
+      throw new Error(`Failed to generate preview audio. Status: ${response.status}. Message: ${errorText || response.statusText}`);
     }
     
-    const data = await response.json();
-    
-    // Create temporary audio URL
-    const binary = atob(data.audio);
-    const bytes = new Uint8Array(binary.length);
-    for (let i = 0; i < binary.length; i++) {
-      bytes[i] = binary.charCodeAt(i);
+    const contentType = response.headers.get('content-type');
+    if (contentType && contentType.includes('application/json')) {
+      const data = await response.json(); 
+      
+      if (data.success && data.generatedSegments && data.generatedSegments.length > 0) {
+        const segmentResult = data.generatedSegments[0]; 
+        // Use audioFileUrl and timestampFileUrl from the API response
+        if (segmentResult.audioFileUrl) { 
+          segmentPreviews.value[index] = {
+            audioUrl: segmentResult.audioFileUrl, 
+            timestamps: segmentResult.timestampFileUrl ? await fetch(segmentResult.timestampFileUrl).then(r => r.json()).catch(()=>[]) : [] 
+          };
+          
+          segmentStates.value[index].status = 'success';
+          segmentStates.value[index].message = 'Preview successful';
+          segmentStates.value[index].audioUrl = segmentResult.audioFileUrl;
+        } else {
+          const errorMsg = segmentResult.error || 'Synthesis failed for segment in API response (no audioFileUrl from backend)';
+          segmentStates.value[index].status = 'error';
+          segmentStates.value[index].message = errorMsg;
+          throw new Error(errorMsg);
+        }
+      } else {
+        throw new Error(data.message || 'API did not return expected successful segment data.');
+      }
+    } else {
+      const responseText = await response.text();
+      console.error('Unexpected content type or non-JSON response. Content-Type:', contentType, 'Response Text:', responseText);
+      throw new Error(`Unexpected response from server. Expected JSON but received: ${contentType}. Response: ${responseText.substring(0, 100)}...`);
     }
-    const audioBlob = new Blob([bytes], { type: 'audio/mpeg' });
-    const audioUrl = URL.createObjectURL(audioBlob);
-    
-    // Save preview result
-    segmentPreviews.value[index] = {
-      audioUrl,
-      timestamps: data.timestamps
-    };
-    
-    // Set status to success
-    segmentStates.value[index].status = 'success';
-    segmentStates.value[index].message = 'Preview successful';
-    segmentStates.value[index].audioUrl = audioUrl;
     
   } catch (error) {
-    console.error('Preview generation failed:', error);
-    toast.error('Preview generation failed, please try again.');
+    console.error('Preview generation failed:', error); 
+    toast.error('Preview generation failed', { description: error instanceof Error ? error.message : 'Please check console for details.' });
     
-    // Set status to error
     if (segmentStates.value[index]) {
       segmentStates.value[index].status = 'error';
       segmentStates.value[index].message = 'Preview failed';
@@ -1101,4 +1142,22 @@ onMounted(() => {
   // Voice loading and auto-assignment are already handled in the fetchVoices function
   // No need to implement here again
 });
+
+// Function to handle when a segment's audio starts playing
+// This will pause other playing audio elements.
+const onSegmentPlay = (playedIndex: number) => {
+  audioPlayingState.value[playedIndex] = true;
+  Object.entries(audioRefs.value).forEach(([indexStr, audioEl]) => {
+    const currentIndex = Number(indexStr);
+    if (audioEl && currentIndex !== playedIndex && !audioEl.paused) {
+      audioEl.pause();
+      audioPlayingState.value[currentIndex] = false;
+    }
+  });
+};
+
+// Function to handle when a segment's audio pauses or ends
+const onSegmentPauseOrEnd = (pausedIndex: number) => {
+  audioPlayingState.value[pausedIndex] = false;
+};
 </script>

@@ -256,7 +256,7 @@ import AudioSynthesis from '../components/playground/AudioSynthesis.vue';
 import { Loader2, ArrowRight, ArrowLeft, RadioTower, Download, RotateCcw, BookOpenText, CheckCircle, Sparkles } from 'lucide-vue-next';
 
 import { toast } from 'vue-sonner';
-import { usePlaygroundStore } from '../stores/playground';
+import { usePlaygroundStore, type Persona } from '../stores/playground'; // Import Persona type
 import { useScriptValidator } from '../composables/useScriptValidator';
 
 const playgroundStore = usePlaygroundStore();
@@ -311,7 +311,7 @@ const highlightedScript = computed(() => {
   return highlightedHtml;
 });
 
-const currentStepIndex = ref(1);
+const currentStepIndex = ref(2);
 const podcastPerformanceConfig = ref<object | null>(null);
 const isScriptGenerating = ref(false);
 
@@ -322,9 +322,11 @@ const podcastSteps = [
 ];
 
 watch(() => playgroundStore.createPodcast, () => {
-  currentStepIndex.value = 1;
-  playgroundStore.resetPlaygroundState();
-  podcastPerformanceConfig.value = null;
+  if (currentStepIndex.value !== 2) {
+    currentStepIndex.value = 1;
+    playgroundStore.resetPlaygroundState();
+    podcastPerformanceConfig.value = null;
+  }
 }, { immediate: true });
 
 const mainEditorContent = computed({
@@ -371,6 +373,7 @@ function getAssignedVoicesString() {
 
 onMounted(async () => {
   await playgroundStore.fetchPersonas();
+  currentStepIndex.value = 2;
 });
 
 // Handle previous step navigation
@@ -480,25 +483,14 @@ function handleToolbarSynthesizePodcastAudio() {
 }
 
 function handleDownloadCurrentAudio() {
-  if (!playgroundStore.audioUrl) {
-    toast.error("No audio available for download.");
-    return;
-  }
-  
-  // Simple way to handle download
-  const filename = playgroundStore.outputFilename ||
-                  (playgroundStore.audioUrl.includes('/') ? playgroundStore.audioUrl.substring(playgroundStore.audioUrl.lastIndexOf('/') + 1) : 'podcast_output.mp3') ||
-                  'podcast_output.mp3';
-  
-  // Trigger download directly
-  const downloadUrl = playgroundStore.audioUrl;
-  toast.success('Audio download started: ' + filename);
-  
-  // Simple download handling, avoid DOM manipulation
-  if (process.client) {
-    // Use location API directly to download the file
-    (location as any).assign(downloadUrl);
-  }
+  if (!playgroundStore.audioUrl) return;
+
+  const link = document.createElement('a');
+  link.href = playgroundStore.audioUrl;
+  link.download = playgroundStore.outputFilename || 'podcast_output.mp3';
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
 }
 
 function resetPodcastView() {
@@ -516,63 +508,109 @@ function handleUsePresetScript() {
 async function handleProceedWithoutValidation() {
   // Podcast settings validation
   const podcastSettings = playgroundStore.podcastSettings;
-  
+
   if (!podcastSettings?.title) {
     toast.error('Please set the podcast title.');
     return;
   }
-  
+
   if (!podcastSettings?.hostPersonaId) {
     toast.error('Please select a host.');
     return;
   }
-  
+
   if (!playgroundStore.textToSynthesize) {
     toast.error('Script content is empty.');
     return;
   }
-  
+
   // Get host information
   const hostPersona = playgroundStore.personas.find(
     (p: any) => p.persona_id === podcastSettings.hostPersonaId
   );
-  
+
   if (!hostPersona) {
     toast.error('Selected host not found.');
     return;
   }
-  
+
   // Parse script
   const scriptSegments = parseScriptToSegments(playgroundStore.textToSynthesize);
-  
+
   if (scriptSegments.length === 0) {
     toast.error('Unable to parse script. Ensure format is "Role: Text Content".');
     return;
   }
-  
-  // Try to validate script before proceeding
+
+  // --- Start Validation and API Call ---
+  isScriptGenerating.value = true; // Use script generating state for overall process
   try {
-    isValidating.value = true;
+    // 1. Validate script
     const validationResult = await playgroundStore.validateScript();
-    
-    if (validationResult.success) {
-      // Validation was successful, but we're not making any automatic assignments
-      // Just store the validation result in the store for potential later use
-      toast.success('Script validated successfully. Proceeding to voice assignment.');
-    } else {
-      // Still proceed even if validation failed
-      toast.warning('Proceeding with unvalidated script. You may need to manually assign voices.');
+
+    if (!validationResult.success) {
+      // Validation failed, show error and stop
+      const errorMessage = validationResult.error || 'Script validation failed.';
+      toast.error(`Validation failed: ${errorMessage}`);
+      return; // Stop here
     }
+
+    // Validation successful, proceed to API call
+    toast.success('Script validated successfully. Saving to database...');
+
+    // 2. Prepare data for API call
+    const personasForApi = {
+      hostPersona: hostPersona,
+      guestPersonas: playgroundStore.podcastSettings.guestPersonaIds
+        ?.map((id: string | number | undefined) => playgroundStore.personas.find((p: any) => p.persona_id === Number(id)))
+        .filter((p: any): p is Persona => p !== undefined) // Filter out undefined and ensure type
+        .map((p: any) => ({ // Map to the expected Persona interface for the API
+          name: p.name,
+          voice_model_identifier: p.voice_model_identifier,
+        })),
+    };
+
+    const apiRequestBody = {
+      podcastTitle: podcastSettings.title,
+      script: scriptSegments,
+      personas: personasForApi,
+      hostPersonaId: Number(podcastSettings.hostPersonaId),
+      language: podcastSettings.language || 'en', // Use language from settings or default to 'en'
+      museumId: podcastSettings.museumId ?? undefined,
+      galleryId: podcastSettings.galleryId ?? undefined,
+      objectId: podcastSettings.objectId ?? undefined,
+    };
+
+    // 3. Call the API to process and save the script
+    const response = await fetch('/api/podcast/process/script', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(apiRequestBody),
+    });
+
+    if (!response.ok) {
+      const errorData = await response.json();
+      throw new Error(errorData.statusMessage || 'Failed to save script to database.');
+    }
+
+    const apiResult = await response.json();
+
+    if (apiResult.success) {
+      // API call successful, proceed to the next step
+      toast.success('Script saved to database successfully. Proceeding to voice assignment.');
+      currentStepIndex.value++;
+    } else {
+      // API call failed (even if response.ok was true, if the API returned success: false)
+      throw new Error(apiResult.message || 'Failed to save script to database.');
+    }
+
   } catch (error) {
-    console.error('Validation error:', error);
-    // Still proceed even if validation failed
-    toast.warning('Could not validate script. You may need to manually assign voices.');
+    console.error('Process script failed:', error);
+    toast.error(`Failed to process and save script: ${error instanceof Error ? error.message : 'Unknown error'}`);
   } finally {
-    isValidating.value = false;
+    isScriptGenerating.value = false; // Reset loading state
   }
-  
-  // Proceed to the next step
-  currentStepIndex.value++;
+  // --- End Validation and API Call ---
 }
 
 async function handleJustValidateScript() {
@@ -610,6 +648,19 @@ function parseScriptToSegments(content: string) {
       return { speaker, text };
     })
     .filter(segment => segment && segment.speaker && segment.text) as Array<{speaker: string, text: string}>;
+}
+
+function handlePlayCurrentAudio() {
+  if (!playgroundStore.audioUrl) {
+    toast.error('没有可播放的音频');
+    return;
+  }
+  
+  // 直接使用浏览器内置音频播放
+  const audio = new Audio(playgroundStore.audioUrl);
+  audio.play().catch(error => {
+    toast.error('播放失败: ' + error.message);
+  });
 }
 </script>
 

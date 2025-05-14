@@ -208,7 +208,7 @@ export default defineEventHandler(async (event) => {
     
     // 获取需要重试的段落索引
     const segmentsToRetry = segmentResults
-      .map((seg, idx) => seg?.status === 'failed' && seg.retryCount < maxRetries ? idx : -1)
+      .map((seg, idx) => seg?.status === 'failed' && (seg.retryCount || 0) < maxRetries ? idx : -1)
       .filter(idx => idx !== -1);
 
     return {
