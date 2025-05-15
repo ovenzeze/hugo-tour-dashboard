@@ -1,8 +1,8 @@
 <template>
   <div class="container mx-auto py-10">
     <!-- 顶部操作栏 -->
-    <div class="flex justify-between items-center mb-6">
-      <h1 class="text-3xl font-bold">Podcast Management</h1>
+    <div class="flex justify-between items-center mb-6 px-6">
+      <h1 class="text-3xl font-bold">Podcast</h1>
       <!-- New Podcast Button -->
       <Button @click="handleCreateNewPodcast">
         <Icon name="ph:plus-circle-duotone" class="mr-2 h-5 w-5" />
@@ -11,7 +11,7 @@
     </div>
 
     <!-- Podcast List -->
-    <div>
+            <div class="p-4">
       <PodcastList
         :podcasts="podcasts"
         :current-previewing-id="currentlyPreviewingId"
@@ -50,9 +50,9 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, nextTick } from 'vue';
 import { Button } from '@/components/ui/button';
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from '@/components/ui/sheet';
+import { nextTick, onMounted, ref } from 'vue';
 import PodcastDetailDrawer from '~/components/podcasts/PodcastDetailDrawer.vue';
 import PodcastList from '~/components/podcasts/PodcastList.vue';
 import { usePodcastDatabase, type Podcast, type Segment, type SegmentAudio } from '~/composables/usePodcastDatabase';
