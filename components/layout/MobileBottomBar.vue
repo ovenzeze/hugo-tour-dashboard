@@ -6,6 +6,7 @@ const mainLinks = [
   { path: '/dashboard', icon: 'heroicons-outline:chart-bar-square' },
   { path: '/museums', icon: 'heroicons-outline:building-library' },
   { path: '/objects', icon: 'heroicons-outline:archive-box' },
+  { path: '/podcasts', icon: 'heroicons-outline:microphone' },
   { path: '/personas', icon: 'heroicons-outline:identification' },
   { path: '/playground', icon: 'heroicons-outline:play' },
   { path: '/users', icon: 'heroicons-outline:users' }

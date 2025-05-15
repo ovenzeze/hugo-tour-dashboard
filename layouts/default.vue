@@ -58,6 +58,7 @@ const navLinks: NavLink[] = [
   { path: '/objects', label: 'Objects', icon: 'heroicons-outline:archive-box' },
   { path: '/transcripts', label: 'Transcripts', icon: 'heroicons-outline:document-text' },
   { path: '/voices', label: 'Voices', icon: 'heroicons-outline:speaker-wave' },
+  { path: '/podcasts', label: 'Podcasts', icon: 'heroicons-outline:microphone' },
   { path: '/personas', label: 'Personas', icon: 'heroicons-outline:identification' },
   { path: '/playground', label: 'Playground', icon: 'ph:play-circle' },
   { path: '/users', label: 'Users', icon: 'heroicons-outline:users' }
