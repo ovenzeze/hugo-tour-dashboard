@@ -51,14 +51,63 @@
     <!-- Main Content: Unified Card Layout -->
     <Card class="flex-1 flex flex-col min-h-0 overflow-hidden mx-4 my-4 border rounded-lg shadow-sm">
       <!-- Card Header with Title - Fixed at the top -->
-      <CardHeader class="border-b flex-shrink-0 py-3">
-        <CardTitle>{{ getCurrentStepTitle }}</CardTitle>
+      <CardHeader v-if="currentStepIndex !== 1" class="border-b flex-shrink-0 py-3">
+        <div class="flex items-center justify-between">
+          <CardTitle v-if="currentStepIndex !== 2">{{ getCurrentStepTitle }}</CardTitle>
+          
+          <div v-if="currentStepIndex !== 2" class="flex-1"></div> 
+
+          <div v-if="currentStepIndex === 2 && voicePerformanceSettingsRef && (voicePerformanceSettingsRef as any).ttsProvider" 
+               class="flex items-center space-x-4 pl-0 flex-1 w-full">
+            <div class="flex-shrink-0 w-1/3">
+              <Select :model-value="(voicePerformanceSettingsRef as any).ttsProvider.value" 
+                      @update:model-value="(newValue) => { if (voicePerformanceSettingsRef && (voicePerformanceSettingsRef as any).onProviderChange && typeof newValue === 'string') { (voicePerformanceSettingsRef as any).onProviderChange(newValue); } else if (voicePerformanceSettingsRef && (voicePerformanceSettingsRef as any).onProviderChange && newValue === null) { /* Optionally handle null, e.g., pass an empty string or a specific signal if the composable expects it, or do nothing if it should only react to strings */ } }" >
+                <SelectTrigger id="headerTtsProvider" class="w-full">
+                  <SelectValue placeholder="Select TTS Provider" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectGroup>
+                    <SelectItem value="elevenlabs">ElevenLabs</SelectItem>
+                    <SelectItem value="azure">Azure TTS</SelectItem>
+                    <SelectItem value="openai_tts">OpenAI TTS</SelectItem>
+                  </SelectGroup>
+                </SelectContent>
+              </Select>
+            </div>
+            
+            <div class="flex-1 flex items-center space-x-4">
+              <div class="flex items-center gap-2 flex-1">
+                <Label class="whitespace-nowrap text-sm">Temp: {{ playgroundStore.synthesisParams.temperature.toFixed(1) }}</Label>
+                <Slider
+                  class="flex-1"
+                  :model-value="playgroundStore.synthesisParams.temperatureArray"
+                  @update:model-value="(value: number[] | undefined) => { if (value && value.length > 0) playgroundStore.updateSynthesisParams({ temperature: value[0] }) }"
+                  :min="0"
+                  :max="1"
+                  :step="0.1"
+                />
+              </div>
+              
+              <div class="flex items-center gap-2 flex-1">
+                <Label class="whitespace-nowrap text-sm">Speed: {{ playgroundStore.synthesisParams.speed.toFixed(1) }}x</Label>
+                <Slider
+                  class="flex-1"
+                  :model-value="playgroundStore.synthesisParams.speedArray"
+                  @update:model-value="(value: number[] | undefined) => { if (value && value.length > 0) playgroundStore.updateSynthesisParams({ speed: value[0] }) }"
+                  :min="0.5"
+                  :max="2"
+                  :step="0.1"
+                />
+              </div>
+            </div>
+          </div>
+        </div>
       </CardHeader>
 
       <!-- Card Content: Main Area with Left-Right Layout - Scrollable Area -->
       <CardContent class="flex-1 p-0 flex flex-col md:flex-row min-h-0 overflow-auto">
         <!-- Left Panel: Settings for Current Step -->
-        <div v-if="currentStepIndex !== 2" class="flex flex-col min-h-0 overflow-y-auto p-4 md:w-1/3 md:border-r">
+        <div v-if="currentStepIndex !== 2" class="flex flex-col min-h-0 overflow-y-auto p-4 md:w-1/3 md:border-r md:border-b-0 min-w-[360px]">
           <!-- Podcast Creation Steps Content -->
           <PodcastSettingsForm
             v-if="currentStepIndex === 1"
@@ -88,7 +137,7 @@
         <div class="flex-1 flex flex-col min-h-0 overflow-hidden" :class="{'w-full': currentStepIndex === 2}">
           <!-- Loading Status Indicator -->
           <div v-if="isScriptGenerating || isValidating" class="flex flex-col items-center justify-center h-full p-4">
-            <Loader2 class="h-12 w-12 animate-spin text-primary mb-4" />
+            <Icon name="ph:loader" class="h-12 w-12 animate-spin text-primary mb-4" />
             <p class="text-center text-lg font-medium">
               {{ isScriptGenerating ? 'Generating Script...' : 'Validating Script...' }}
             </p>
@@ -116,7 +165,6 @@
           <VoicePerformanceSettings
             v-else-if="currentStepIndex === 2"
             v-model:scriptContent="playgroundStore.textToSynthesize"
-            @next="onPerformanceSettingsNextForPodcast"
             ref="voicePerformanceSettingsRef"
             class="w-full overflow-y-auto p-4"
           />
@@ -136,71 +184,63 @@
       </CardContent>
 
       <!-- Card Footer with Action Buttons - Fixed at the bottom -->
-      <CardFooter class="border-t p-3 flex justify-between flex-shrink-0 bg-background">
-        <!-- Left-aligned buttons (Back, Reset) -->
+      <CardFooter class="border-t p-3 flex justify-between items-center flex-shrink-0 bg-background">
+        <!-- Left-aligned buttons (Back, Reset, and Step 1 Utilities) -->
         <div class="flex items-center gap-2">
-          <Button 
-            v-if="currentStepIndex > 1" 
-            variant="outline" 
+          <Button
+            v-if="currentStepIndex > 1"
+            variant="outline"
             @click="handlePreviousStep"
           >
-            <ArrowLeft class="w-4 h-4 mr-2" />
+            <Icon name="ph:arrow-left" class="w-4 h-4 mr-2" />
             Previous
           </Button>
-          
-          <Button 
-            variant="ghost" 
+
+          <Button
+            variant="ghost"
             @click="resetPodcastView"
           >
-            <RotateCcw class="w-4 h-4 mr-2" />
+            <Icon name="ph:arrow-counter-clockwise" class="w-4 h-4 mr-2" />
             Reset
           </Button>
-        </div>
-        
-        <!-- Right-aligned buttons (Action Buttons) -->
-        <div class="flex items-center gap-2">
-          <!-- Step 1 Buttons -->
+
+          <!-- Step 1 Utility Buttons - Now part of the left group -->
           <template v-if="currentStepIndex === 1">
-            <Button 
-              variant="outline"
-              @click="handleUsePresetScript" 
-              :disabled="isGeneratingOverall"
-            >
-              <BookOpenText class="w-4 h-4 mr-2" />
-              Use Preset Script
+            <Button variant="outline" @click="handleUsePresetScript" :disabled="isGeneratingOverall">
+              <Icon name="ph:book-open-text" class="w-4 h-4 mr-2" /> Use Preset Script
             </Button>
-            
-            <Button 
-              variant="outline"
-              :disabled="isGeneratingOverall || !playgroundStore.textToSynthesize"
-              @click="handleJustValidateScript"
-            >
-              <Loader2 v-if="isValidating" class="w-4 h-4 mr-2 animate-spin" />
-              <CheckCircle v-else class="w-4 h-4 mr-2" />
+            <Button variant="outline" :disabled="isGeneratingOverall || !playgroundStore.textToSynthesize" @click="handleJustValidateScript">
+              <Icon name="ph:loader" v-if="isValidating" class="w-4 h-4 mr-2 animate-spin" />
+              <Icon name="ph:check-circle" v-else class="w-4 h-4 mr-2" />
               <span v-if="isValidating">Validating...</span>
               <span v-else>Validate Script</span>
             </Button>
-            
-            <Button 
-              @click="handleToolbarGenerateScript" 
+          </template>
+        </div>
+
+        <!-- Right-aligned buttons (Action Buttons for each step) -->
+        <div class="flex items-center gap-2">
+          <!-- Step 1 Main Action Buttons -->
+          <template v-if="currentStepIndex === 1">
+            <Button
+              @click="handleToolbarGenerateScript"
               :disabled="isGeneratingOverall || !playgroundStore.canGeneratePodcastScript"
+              :variant="playgroundStore.textToSynthesize ? 'outline' : 'default'"
             >
-              <Loader2 v-if="isScriptGenerating" class="w-4 h-4 mr-2 animate-spin" />
-              <Sparkles v-else class="w-4 h-4 mr-2" />
+              <Icon name="ph:loader" v-if="isScriptGenerating" class="w-4 h-4 mr-2 animate-spin" />
+              <Icon name="ph:sparkle" v-else class="w-4 h-4 mr-2" />
               <span v-if="isScriptGenerating">Generating...</span>
               <span v-else>Generate Script</span>
             </Button>
-            
-            <Button 
+            <Button
               variant="default"
               :disabled="!playgroundStore.textToSynthesize || isGeneratingOverall || isValidating"
               @click="handleProceedWithoutValidation"
             >
-              Next
-              <ArrowRight class="w-4 h-4 ml-2" />
+              Next <Icon name="ph:arrow-right" class="w-4 h-4 ml-2" />
             </Button>
           </template>
-          
+
           <!-- Step 2 Buttons -->
           <template v-if="currentStepIndex === 2">
             <Button 
@@ -208,8 +248,8 @@
               @click="generateAudioPreview"
               :disabled="!canProceedFromStep2 || isGeneratingAudioPreview"
             >
-              <Loader2 v-if="isGeneratingAudioPreview" class="w-4 h-4 mr-2 animate-spin" />
-              <RadioTower v-else class="w-4 h-4 mr-2" />
+              <Icon name="ph:loader" v-if="isGeneratingAudioPreview" class="w-4 h-4 mr-2 animate-spin" />
+              <Icon name="ph:radio-tower" v-else class="w-4 h-4 mr-2" />
               {{ isGeneratingAudioPreview ? 'Generating...' : 'Generate Audio Preview' }}
             </Button>
             
@@ -218,7 +258,7 @@
               :disabled="!canProceedFromStep2"
             >
               Proceed to Synthesis
-              <ArrowRight class="w-4 h-4 ml-2" />
+              <Icon name="ph:arrow-right" class="w-4 h-4 ml-2" />
             </Button>
           </template>
           
@@ -229,7 +269,7 @@
               variant="outline" 
               @click="handleDownloadCurrentAudio"
             >
-              <Download class="w-4 h-4 mr-2" />
+              <Icon name="ph:download-simple" class="w-4 h-4 mr-2" />
               Download Audio
             </Button>
             
@@ -237,8 +277,8 @@
               @click="handleToolbarSynthesizePodcastAudio" 
               :disabled="isGeneratingOverall" 
             >
-              <Loader2 v-if="playgroundStore.isSynthesizing" class="w-4 h-4 mr-2 animate-spin" />
-              <RadioTower v-else class="w-4 h-4 mr-2" />
+              <Icon name="ph:loader" v-if="playgroundStore.isSynthesizing" class="w-4 h-4 mr-2 animate-spin" />
+              <Icon name="ph:radio-tower" v-else class="w-4 h-4 mr-2" />
               Synthesize Podcast
             </Button>
           </template>
@@ -253,14 +293,17 @@ import { computed, ref, watch, onMounted, onUnmounted } from 'vue';
 import PodcastSettingsForm from '../components/playground/PodcastSettingsForm.vue';
 import VoicePerformanceSettings from '../components/playground/VoicePerformanceSettings.vue';
 import AudioSynthesis from '../components/playground/AudioSynthesis.vue';
-import { Loader2, ArrowRight, ArrowLeft, RadioTower, Download, RotateCcw, BookOpenText, CheckCircle, Sparkles } from 'lucide-vue-next';
+// import { Loader2, ArrowRight, ArrowLeft, RadioTower, Download, RotateCcw, BookOpenText, CheckCircle, Sparkles } from 'lucide-vue-next'; // Removed Lucide imports
 
 import { toast } from 'vue-sonner';
 import { usePlaygroundStore, type Persona } from '../stores/playground'; // Import Persona type
 import { useScriptValidator } from '../composables/useScriptValidator';
+import { useRouter, useRoute } from 'vue-router';
 
 const playgroundStore = usePlaygroundStore();
 const { isValidating, validateScript } = useScriptValidator();
+const router = useRouter();
+const route = useRoute();
 
 const voicePerformanceSettingsRef = ref(null);
 const currentStepIndex = ref(1);
@@ -282,10 +325,21 @@ onMounted(async () => {
     interceptDownloadLinks();
   });
   
-  // Apply Playground store initialization
-  if (!playgroundStore.isInitialized) {
-    playgroundStore.initializeStore();
+  // Initialize main editor content from store, in case it was updated by preset script or validation
+  mainEditorContent.value = playgroundStore.textToSynthesize;
+
+  // Check for query params to pre-fill or pre-validate
+  if (route.query.script_id) {
+    // TODO: Fetch script by script_id and populate the store
+    console.log('Script ID from query:', route.query.script_id);
+    // Example: await playgroundStore.loadScriptById(route.query.script_id);
+    // Then potentially auto-validate or move to a specific step
   }
+  
+  // Reset state if needed, or load from local storage (if implemented in store)
+  // playgroundStore.resetPlaygroundState(); // Call this if a full reset is desired on mount
+  // playgroundStore.loadStateFromLocalStorage(); // If you implement this in the store
+  console.log("Playground onMounted: Initialization complete.");
 });
 
 // Clean up event listeners when component is unmounted
@@ -294,8 +348,8 @@ onUnmounted(() => {
 });
 
 // Function to prevent audio links from causing page refresh
-function preventAudioRefresh(event) {
-  const target = event.target;
+function preventAudioRefresh(event: MouseEvent) {
+  const target = event.target as HTMLElement;
   const link = target.closest('a');
   
   if (link && link.href) {
@@ -322,10 +376,12 @@ function interceptDownloadLinks() {
   links.forEach(link => {
     if (!link.hasAttribute('data-intercepted')) {
       link.setAttribute('data-intercepted', 'true');
-      link.addEventListener('click', function(e) {
+      link.addEventListener('click', function(e: Event) { // Changed to Event type
         e.preventDefault();
         e.stopPropagation();
-        console.log('Intercepted download link click:', link.href);
+        if (link instanceof HTMLAnchorElement) { // Type guard
+          console.log('Intercepted download link click:', link.href);
+        }
       });
     }
   });
@@ -385,9 +441,9 @@ const highlightedScript = computed(() => {
 });
 
 const podcastSteps = [
-  { step: 1, title: 'Script Generation', description: 'Select roles and script settings' },
-  { step: 2, title: 'Voice Configuration', description: 'Configure voices, roles, and styles' },
-  { step: 3, title: 'Audio Synthesis', description: 'Synthesize and download audio' },
+  { step: 1, title: 'Podcast Setup', description: 'Define your podcast and script.' },
+  { step: 2, title: 'Voice Configuration', description: 'Assign voices and preview.' },
+  { step: 3, title: 'Synthesize & Download', description: 'Generate and get your audio.' },
 ];
 
 watch(() => playgroundStore.createPodcast, () => {
@@ -450,7 +506,7 @@ async function generateAudioPreview() {
   isGeneratingAudioPreview.value = true;
   try {
     // 创建并设置一个阻止默认操作的事件处理器
-    const preventDefaultHandler = (e) => {
+    const preventDefaultHandler = (e: MouseEvent) => {
       e.preventDefault();
       return false;
     };
@@ -514,13 +570,8 @@ async function handleToolbarGenerateScript() {
   }
 }
 
-function onPerformanceSettingsNextForPodcast(config: object) {
-  podcastPerformanceConfig.value = config;
-  currentStepIndex.value = 3;
-}
-
 async function onSynthesizeAudioForPodcast(payload: { useTimestamps: boolean, synthesisParams?: any, performanceConfig?: any }) {
-  if (!podcastPerformanceConfig.value) {
+  if (!podcastPerformanceConfig.value && !payload.performanceConfig) { // Check both direct ref and payload
     toast.error("Missing performance configuration.");
     return;
   }

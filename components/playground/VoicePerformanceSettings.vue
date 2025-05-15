@@ -1,7 +1,7 @@
 <template>
   <div class="space-y-4">
     <!-- Top Control Bar -->
-    <div class="flex items-center justify-between p-3 border rounded-md bg-muted/10">
+    <!-- <div class="flex items-center justify-between p-3 border rounded-md bg-muted/10">
       <div class="flex-shrink-0 w-1/3">
         <Select :model-value="ttsProvider" @update:model-value="(newValue) => { if (typeof newValue === 'string') onProviderChange(newValue); }">
           <SelectTrigger id="ttsProvider" class="w-full">
@@ -18,7 +18,6 @@
       </div>
       
       <div class="flex-1 flex items-center space-x-4 px-4">
-        <!-- Voice Temperature Slider -->
         <div class="flex items-center gap-2 flex-1">
           <Label class="whitespace-nowrap text-sm">Temperature: {{ playgroundStore.synthesisParams.temperature.toFixed(1) }}</Label>
           <Slider
@@ -31,7 +30,6 @@
           />
         </div>
         
-        <!-- Speech Speed Slider -->
         <div class="flex items-center gap-2 flex-1">
           <Label class="whitespace-nowrap text-sm">Speed: {{ playgroundStore.synthesisParams.speed.toFixed(1) }}x</Label>
           <Slider
@@ -44,7 +42,7 @@
           />
         </div>
       </div>
-    </div>
+    </div> -->
 
     <!-- Speaker Voice Assignment -->
     <div v-if="parsedScriptSegments.length > 0" class="border rounded-md p-4 space-y-3">
@@ -350,8 +348,10 @@ defineExpose({
     };
   },
   isFormValid: canProceed,
-  // generateAudio, // Original function - consider if previewAllSegments is sufficient or if full synthesis is different
-  generatePreviewAudio: previewAllSegments // Map to the new composable function
+  generatePreviewAudio: previewAllSegments, // Map to the new composable function
+  // Expose TTS provider and its updater for the parent component
+  ttsProvider: ttsProvider,
+  onProviderChange: onProviderChange
 });
 
 </script>

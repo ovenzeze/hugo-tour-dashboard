@@ -206,7 +206,7 @@ export function useVoiceManagement(
 
   function autoAssignVoices() {
     console.log('Starting auto voice assignment...');
-    let_assigned_something = false;
+    let assigned_something = false;
 
     if (playgroundStore.validationResult?.structuredData?.voiceMap) {
       console.log('Voice map from validation:', playgroundStore.validationResult.structuredData.voiceMap);
@@ -240,7 +240,7 @@ export function useVoiceManagement(
           if(voiceExistsInProviderList) {
             speakerAssignments.value[speakerName] = voiceInfo.voice_model_identifier;
             console.log(`Assigned voice ${voiceInfo.voice_model_identifier} to ${speakerName} from validation.`);
-            _assigned_something = true;
+            assigned_something = true;
           } else {
             console.warn(`Voice ${voiceInfo.voice_model_identifier} for ${speakerName} from validation not in available voices for ${ttsProvider.value}.`);
             assignDefaultVoice(speakerName); // Fallback if validated voice not available for current provider
@@ -267,7 +267,7 @@ export function useVoiceManagement(
            if(voiceExistsInProviderList) {
             speakerAssignments.value[speakerName] = matchingPersona.voice_model_identifier;
             console.log(`Assigned voice ${matchingPersona.voice_model_identifier} to ${speakerName} from persona data.`);
-            _assigned_something = true;
+            assigned_something = true;
            } else {
              console.warn(`Voice ${matchingPersona.voice_model_identifier} for ${speakerName} from persona not in available voices for ${ttsProvider.value}.`);
              assignDefaultVoice(speakerName);
@@ -277,7 +277,7 @@ export function useVoiceManagement(
         }
       });
     }
-    if (_assigned_something) {
+    if (assigned_something) {
         toast.success('Voices have been automatically assigned based on available data.');
     }
     console.log('Voice assignment results:', { ...speakerAssignments.value });

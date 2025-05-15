@@ -21,16 +21,17 @@
     </div>
 
     <div class="grid grid-cols-1 gap-x-4 gap-y-5">
-      <div>
-        <Label for="hostPersona" class="text-sm font-medium">Host Character</Label>
-        <Select v-model="editableSettings.hostPersonaId">
-          <SelectTrigger id="hostPersona" class="mt-1.5 w-full">
-            <SelectValue placeholder="Select a host" />
+      <!-- Host Character -->
+      <div class="flex items-center border rounded-md p-0 space-x-3 bg-background">
+        <Icon name="ph:user-sound" class="w-5 h-5 text-muted-foreground flex-shrink-0 ml-2.5" />
+        <Select v-model="editableSettings.hostPersonaId" class="flex-1">
+          <SelectTrigger id="hostPersona" class="w-full border-0 focus:ring-0 shadow-none bg-transparent text-sm pl-1 pr-2.5 py-2.5 h-auto">
+            <SelectValue placeholder="Select Host Character" />
           </SelectTrigger>
           <SelectContent>
             <SelectGroup>
               <SelectLabel v-if="personasLoading">Loading...</SelectLabel>
-              <SelectLabel v-else-if="!personas || personas.length === 0">No characters</SelectLabel>
+              <SelectLabel v-else-if="!personas || personas.length === 0">No characters available</SelectLabel>
               <SelectItem
                 v-for="persona in personas"
                 :key="persona.persona_id"
@@ -115,7 +116,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, watch } from 'vue';
+import { computed, watch, ref } from 'vue';
 // Ignore linter errors for type imports
 // @ts-ignore
 import type { FullPodcastSettings, Persona } from '~/types/playground';
@@ -237,5 +238,46 @@ watch(() => props.modelValue.hostPersonaId, (newHostId: number | string | undefi
     emit('update:modelValue', { ...editableSettings.value, guestPersonaIds: updatedGuests });
   }
 });
+
+// Watch for personas to load and set defaults if not already set
+watch(() => props.personas, (loadedPersonas) => {
+  if (loadedPersonas && loadedPersonas.length > 0) {
+    const currentModel = props.modelValue;
+    let newHostId = currentModel.hostPersonaId ? String(currentModel.hostPersonaId) : undefined;
+    let newGuestIds = Array.isArray(currentModel.guestPersonaIds) && currentModel.guestPersonaIds.length > 0
+                      ? currentModel.guestPersonaIds.map(id => String(id)) // Assuming guestPersonaIds are numbers or strings
+                      : [];
+
+    let needsUpdate = false;
+
+    // Default Host: if not already set in modelValue and personas are available
+    // Assuming 'persona_id' is the correct property on the Persona object.
+    if (!newHostId && loadedPersonas.length > 0) {
+      const defaultHost = loadedPersonas[0];
+      if (defaultHost && typeof defaultHost.persona_id !== 'undefined') { // Check if persona_id exists
+        newHostId = String(defaultHost.persona_id);
+        needsUpdate = true;
+      }
+    }
+
+    // Default Guest: if not already set in modelValue, a host is selected/defaulted, and a different persona is available
+    // Assuming 'persona_id' is the correct property on the Persona object.
+    if (newGuestIds.length === 0 && newHostId && loadedPersonas.length > 0) {
+      const potentialGuest = loadedPersonas.find(p => p && typeof p.persona_id !== 'undefined' && String(p.persona_id) !== newHostId);
+      if (potentialGuest) {
+        newGuestIds = [String(potentialGuest.persona_id)];
+        needsUpdate = true;
+      }
+    }
+
+    if (needsUpdate) {
+      emit('update:modelValue', {
+        ...currentModel,
+        hostPersonaId: newHostId ? Number(newHostId) : undefined,
+        guestPersonaIds: newGuestIds.map(id => Number(id)),
+      });
+    }
+  }
+}, { immediate: true, deep: true });
 
 </script>
