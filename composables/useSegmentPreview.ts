@@ -70,13 +70,14 @@ export function useSegmentPreview(
     isPreviewingSegment.value = index;
 
     try {
-      const podcastIdForPreview = `preview_session_${playgroundStore.podcastSettings.title?.trim().replace(/\s+/g, '_') || Date.now()}`;
+      // Use the actual podcastId from the store if available, otherwise generate a temporary one for preview
+      const podcastIdToUse = playgroundStore.podcastId || `preview_session_${playgroundStore.podcastSettings.title?.trim().replace(/\s+/g, '_') || Date.now()}`;
 
       const response = await fetch('/api/podcast/process/synthesize-segments', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          podcastId: podcastIdForPreview,
+          podcastId: podcastIdToUse, // Use the ID from the store or temporary
           segments: [
             {
               segmentIndex: index,
@@ -138,7 +139,7 @@ export function useSegmentPreview(
         return false;
     }
     if (segmentsToPreview.length === 0) {
-        toast.warn('No segments with assigned voices to preview.');
+        toast.info('No segments with assigned voices to preview.');
         return false;
     }
 
