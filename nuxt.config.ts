@@ -6,6 +6,12 @@ export default defineNuxtConfig({
   ssr: false,
   devServer: {
     port: 4000,
+    watch: [
+      // By default, Nuxt watches the public directory.
+      // We want to ignore changes to JSON files in public/podcasts/
+      // to prevent page reloads when new podcast segment timestamps are saved.
+      "!public/podcasts/**/*.json"
+    ]
   },
   runtimeConfig: {
     postgresUrl: process.env.POSTGRES_URL,
@@ -25,6 +31,7 @@ export default defineNuxtConfig({
       elevenlabsDefaultModelId:
         process.env.ELEVENLABS_DEFAULT_MODEL_ID || "eleven_multilingual_v2",
       supabase: {},
+      storageProvider: process.env.NUXT_PUBLIC_STORAGE_PROVIDER || "local", // Ensure this is read from env
       supabaseStorageBucketName:
         process.env.SUPABASE_STORAGE_BUCKET_NAME || "guide-voices",
     },

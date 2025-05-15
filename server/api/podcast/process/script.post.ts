@@ -4,7 +4,8 @@ import {
   type PreparedSegmentForSynthesis,
 } from "../../../utils/podcastScriptProcessor";
 import { serverSupabaseClient } from '#supabase/server'; // For database interaction
-import type { Database, TablesInsert } from '~/types/supabase'; // For database types
+import type { Database } from '~/types/supabase'; // For database types
+import { createPodcastServer, addPodcastSegmentsServer } from '~/server/utils/podcastDatabaseServerUtils'; // Import server-side database utils
 
 interface Persona { // This interface is for the `personas` object used by processPodcastScript
   name: string;
@@ -17,16 +18,16 @@ interface ScriptSegment {
 }
 
 interface RequestBody {
-  podcastTitle: string; // Used to generate podcastId (a string identifier, not a DB ID)
+  podcastTitle: string;
   script: ScriptSegment[];
   personas: { // Used by processPodcastScript for voice matching
     hostPersona?: Persona; // Matches processPodcastScript's expectation
     guestPersonas?: Persona[];
   };
-  // Additional fields required for saving to guide_texts table
-  hostPersonaId: number; // The actual ID of the host persona from the 'personas' table (DB FK)
-  language: string;      // e.g., 'en', 'es', required for guide_texts table
-  // Optional context for guide_texts table
+  // Additional fields for podcast metadata
+  language: string;      // e.g., 'en', 'es'
+  topic?: string; // Optional topic for the podcast
+  // Optional context for linking the podcast
   museumId?: number;
   galleryId?: number;
   objectId?: number;
@@ -35,13 +36,12 @@ interface RequestBody {
 export default defineEventHandler(async (event) => {
   try {
     const body = (await readBody(event)) as RequestBody;
-    // Destructure all fields from the body, including new ones for DB saving
     const {
       podcastTitle,
       script,
       personas,
-      hostPersonaId,
       language,
+      topic, // Include topic from body
       museumId,
       galleryId,
       objectId,
@@ -52,102 +52,92 @@ export default defineEventHandler(async (event) => {
       !podcastTitle ||
       !script ||
       !Array.isArray(script) ||
-      // script.length === 0 is allowed, means empty script, won't save to DB but processing is "successful"
       !personas ||
-      hostPersonaId === undefined || hostPersonaId === null || // hostPersonaId is required for DB
-      !language // language is required for DB
+      !language
     ) {
       throw createError({
         statusCode: 400,
         statusMessage:
-          'Invalid request body. "podcastTitle", "script" array, "personas" object, "hostPersonaId", and "language" are required.',
+          'Invalid request body. "podcastTitle", "script" array, "personas" object, and "language" are required.',
       });
     }
 
-    // Generate a string podcastId from the title (for local identification/logging, not a DB ID)
-    const podcastId = podcastTitle
+    console.log(`API: Processing script for podcast: "${podcastTitle}"`);
+
+    // Use server-side database utils
+    let podcastRecord = null;
+    let segmentRecords = null;
+
+    // ---- BEGIN DATABASE INSERT LOGIC ----
+    if (script.length > 0) {
+      try {
+        // 1. Create the podcast record using server-side util
+        podcastRecord = await createPodcastServer(event, {
+          title: podcastTitle,
+          topic: topic,
+          // Add other metadata fields here if needed, based on your table structure
+          // e.g., user_id, description, cover_url, status
+        });
+        console.log(`DB: Podcast record CREATED successfully. ID: ${podcastRecord.podcast_id}, Title: "${podcastTitle}", Topic: "${topic || 'N/A'}"`);
+
+        // 2. Prepare segments for insertion
+        const segmentsToInsert = script.map((segment, index) => ({
+          idx: index, // Use index as the order
+          speaker: segment.speaker,
+          text: segment.text,
+          // podcast_id will be added by addPodcastSegmentsServer
+        }));
+
+        // 3. Add segments to the podcast using server-side util
+        segmentRecords = await addPodcastSegmentsServer(event, podcastRecord.podcast_id, segmentsToInsert);
+        console.log(`DB: ${segmentRecords.length} Segments ADDED successfully to podcast ID: ${podcastRecord.podcast_id}.`);
+        if (segmentsToInsert.length > 0 && segmentRecords.length > 0) {
+          console.log(`DB: First segment info - ID: ${segmentRecords[0].segment_text_id}, IDX: ${segmentsToInsert[0].idx}, Speaker: "${segmentsToInsert[0].speaker}", Text snippet: "${segmentsToInsert[0].text.substring(0, 70)}..."`);
+        }
+
+      } catch (dbError: any) {
+        console.error(
+          `Database operation error for podcast "${podcastTitle}": ${dbError.message}`,
+          dbError
+        );
+        // Decide how to handle DB errors: fail the API or log and continue?
+        // For now, we'll log and still attempt script processing if possible,
+        // but the frontend might need to handle the case where podcastRecord is null.
+      }
+    } else {
+      console.log(`Input script for podcast "${podcastTitle}" was empty. Not creating database records.`);
+    }
+    // ---- END DATABASE INSERT LOGIC ----
+
+    // Continue with script processing regardless of DB insert success for now
+    // You might want to adjust this logic based on whether DB insertion is critical
+    const stringPodcastId = podcastTitle // Keep generating string ID for processPodcastScript if it needs it
       .toLowerCase()
       .replace(/[^a-z0-9_]+/g, "_")
       .replace(/^_|_$/g, "");
-    if (!podcastId) {
-      throw createError({
-        statusCode: 400,
-        statusMessage: "Invalid podcastTitle, resulted in empty podcastId.",
-      });
-    }
 
-    console.log(`API: Preparing script segments for podcastId: ${podcastId}`);
     const preparedSegments: PreparedSegmentForSynthesis[] =
-      await processPodcastScript(podcastId, script, personas);
+      await processPodcastScript(stringPodcastId, script, personas);
 
-    // ---- BEGIN DATABASE INSERT LOGIC ----
+    // Check if script processing had errors
     const isScriptProcessingSuccessful = preparedSegments.every(
       (segment) => !segment.error
     );
 
-    if (isScriptProcessingSuccessful && script.length > 0) {
-      // Use original script segments to form the full text
-      const fullScriptText = script
-        .map((segment) => `${segment.speaker}: ${segment.text}`)
-        .join("\n\n");
-
-      if (fullScriptText.trim() !== "") {
-        try {
-          const supabase = await serverSupabaseClient<Database>(event);
-          const newGuideTextEntry: TablesInsert<'guide_texts'> = {
-            transcript: fullScriptText,
-            language: language,
-            persona_id: Number(hostPersonaId), // Ensure it's a number
-            museum_id: museumId ?? null,
-            gallery_id: galleryId ?? null,
-            object_id: objectId ?? null,
-            // is_latest_version: true, // Default to true or handle via DB
-            // version: 1, // Default to 1 or handle via DB
-          };
-
-          const { data: dbData, error: dbError } = await supabase
-            .from('guide_texts')
-            .insert(newGuideTextEntry)
-            .select()
-            .single();
-
-          if (dbError) {
-            console.error(
-              `Database insert error for script related to podcastId ${podcastId}: ${dbError.message}`,
-              dbError
-            );
-            // Log error but do not fail the API response, as script processing might still be useful
-          } else {
-            console.log(
-              `Successfully saved processed script to guide_texts for podcastId ${podcastId}. DB response:`,
-              dbData
-            );
-          }
-        } catch (dbSetupError: any) {
-          console.error(
-            `Error with Supabase client or during DB operation for ${podcastId}: ${dbSetupError.message}`,
-            dbSetupError
-          );
-        }
-      } else {
-        console.log(`Full script text for podcastId ${podcastId} is empty. Not saving to database.`);
-      }
-    } else if (!isScriptProcessingSuccessful) {
-      console.log(
-        `Script processing for podcastId ${podcastId} had errors in one or more segments. Not saving to database.`
+    if (!isScriptProcessingSuccessful) {
+       console.log(
+        `Script processing for podcast "${podcastTitle}" had errors in one or more segments.`
       );
-    } else if (script.length === 0) {
-      console.log(
-        `Input script for podcastId ${podcastId} was empty. Not saving to database.`
-      );
+      // You might want to return a different status or message here
     }
-    // ---- END DATABASE INSERT LOGIC ----
+
 
     return {
       success: true,
-      podcastId: podcastId, // The string identifier generated from title
+      // Return the actual database generated podcast ID (UUID)
+      podcastId: podcastRecord?.podcast_id || null,
       preparedSegments: preparedSegments,
-      message: `Script processed and segments prepared for podcast ${podcastId}. Next step: synthesize segments.`,
+      message: `Script processed and segments prepared for podcast "${podcastTitle}". Database records created: ${!!podcastRecord}. Next step: synthesize segments.`,
     };
   } catch (error: any) {
     console.error(
@@ -163,25 +153,3 @@ export default defineEventHandler(async (event) => {
     });
   }
 });
-
-// 示例校验逻辑
-const validateScript = (content: string) => {
-  const MIN_LENGTH = 300;
-  const DIALOG_REGEX = /^[\w\s]+:.+/gm;
-  
-  const errors: string[] = [];
-  
-  if (content.length < MIN_LENGTH) {
-    errors.push(`脚本过短（最少 ${MIN_LENGTH} 字符）`);
-  }
-  
-  const dialogLines = content.match(DIALOG_REGEX) || [];
-  if (dialogLines.length < 3) {
-    errors.push("至少需要3段对话");
-  }
-
-  return {
-    valid: errors.length === 0,
-    error: errors.join(", ")
-  };
-};

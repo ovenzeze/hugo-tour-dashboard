@@ -56,7 +56,7 @@
           @click="emit('preview-segment')"
           class="w-auto px-2 py-1 h-8" 
         >
-          <Icon v-if="isPreviewingThisSegment || segmentState?.status === 'loading'" name="ph:loader" class="w-3 h-3 mr-1.5 animate-spin" />
+          <Icon v-if="isPreviewingThisSegment || segmentState?.status === 'loading'" name="ph:spinner" class="w-3 h-3 mr-1.5 animate-spin" />
           <Icon v-else name="ph:sparkle" class="w-3 h-3 mr-1.5" />
           {{ previewButtonText }}
         </Button>
@@ -71,7 +71,7 @@
     <!-- Status and Audio Player -->
     <div class="flex flex-col gap-1">
       <div v-if="segmentState" class="text-xs flex items-center gap-2">
-        <Icon v-if="segmentState.status === 'loading'" name="ph:loader" class="w-3 h-3 animate-spin" />
+        <Icon v-if="segmentState.status === 'loading'" name="ph:spinner" class="w-3 h-3 animate-spin" />
         <Icon v-else-if="segmentState.status === 'success'" name="ph:check-circle" class="w-3 h-3 text-green-500" />
         <Icon v-else-if="segmentState.status === 'error'" name="ph:alert-circle" class="w-3 h-3 text-red-500" />
         <span :class="{

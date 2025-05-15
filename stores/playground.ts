@@ -814,6 +814,7 @@ Host: Couldn't agree more. Thanks for joining us, Elliot, and thank you to our l
             method: 'POST',
             body: {
               script: this.textToSynthesize,
+              podcastId: this.podcastId, // Ensure the actual podcastId (UUID) is sent
               podcastSettings: this.podcastSettings,
               synthesisParams: this.synthesisParams,
               provider: this.selectedProvider,

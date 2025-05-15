@@ -515,6 +515,62 @@ export type Database = {
         }
         Relationships: []
       }
+      podcast_segments: {
+        Row: {
+          created_at: string | null
+          idx: number
+          podcast_id: string | null
+          segment_text_id: string
+          speaker: string | null
+          text: string | null
+        }
+        Insert: {
+          created_at?: string | null
+          idx: number
+          podcast_id?: string | null
+          segment_text_id?: string
+          speaker?: string | null
+          text?: string | null
+        }
+        Update: {
+          created_at?: string | null
+          idx?: number
+          podcast_id?: string | null
+          segment_text_id?: string
+          speaker?: string | null
+          text?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "podcast_segments_podcast_id_fkey"
+            columns: ["podcast_id"]
+            isOneToOne: false
+            referencedRelation: "podcasts"
+            referencedColumns: ["podcast_id"]
+          },
+        ]
+      }
+      podcasts: {
+        Row: {
+          created_at: string | null
+          podcast_id: string
+          title: string
+          topic: string | null
+        }
+        Insert: {
+          created_at?: string | null
+          podcast_id?: string
+          title: string
+          topic?: string | null
+        }
+        Update: {
+          created_at?: string | null
+          podcast_id?: string
+          title?: string
+          topic?: string | null
+        }
+        Relationships: []
+      }
       projects: {
         Row: {
           account_id: string
@@ -607,6 +663,41 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "devices"
             referencedColumns: ["id"]
+          },
+        ]
+      }
+      segment_audios: {
+        Row: {
+          audio_url: string | null
+          created_at: string | null
+          params: Json | null
+          segment_audio_id: string
+          segment_id: string | null
+          version_tag: string | null
+        }
+        Insert: {
+          audio_url?: string | null
+          created_at?: string | null
+          params?: Json | null
+          segment_audio_id?: string
+          segment_id?: string | null
+          version_tag?: string | null
+        }
+        Update: {
+          audio_url?: string | null
+          created_at?: string | null
+          params?: Json | null
+          segment_audio_id?: string
+          segment_id?: string | null
+          version_tag?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "segment_audios_segment_id_fkey"
+            columns: ["segment_id"]
+            isOneToOne: false
+            referencedRelation: "podcast_segments"
+            referencedColumns: ["segment_text_id"]
           },
         ]
       }

@@ -78,14 +78,18 @@ export class LocalStorageService implements IStorageService {
     data: string | Buffer,
     encoding?: BufferEncoding
   ): Promise<void> {
+    console.log(`[LocalStorageService.writeFile] Received filePath: ${filePath}`);
     const absPath = this.getAbsolutePath(filePath);
+    console.log(`[LocalStorageService.writeFile] Resolved absolute path for write: ${absPath}`);
     // Ensure directory exists before writing
-    await this.ensureDir(dirname(absPath));
+    await this.ensureDir(dirname(filePath)); // Pass original relative filePath to ensureDir
     writeFileSync(absPath, data, { encoding });
   }
 
   async ensureDir(dirPath: string): Promise<void> {
+    console.log(`[LocalStorageService.ensureDir] Received dirPath: ${dirPath}`);
     const absPath = this.getAbsolutePath(dirPath);
+    console.log(`[LocalStorageService.ensureDir] Resolved absolute path for dir: ${absPath}`);
     if (!existsSync(absPath)) {
       mkdirSync(absPath, { recursive: true });
     }
@@ -166,6 +170,10 @@ import {
 // This might require '#supabase/server' or similar depending on @nuxtjs/supabase setup
 // import { serverSupabaseClient } from '#supabase/server'; // Example import
 
+import { SupabaseStorageService } from './supabaseStorageService'; // Import SupabaseStorageService
+// Import both client types
+import { serverSupabaseClient, serverSupabaseServiceRole } from '#supabase/server';
+
 export async function getStorageService(
   event?: any /* H3Event */
 ): Promise<IStorageService> {
@@ -174,25 +182,45 @@ export async function getStorageService(
     runtimeConfig.public?.storageProvider ||
     process.env.STORAGE_PROVIDER ||
     "local";
-  // const supabaseBucketName = // Removed: No longer needed
-  //   runtimeConfig.public?.supabaseStorageBucketName ||
-  //   process.env.SUPABASE_STORAGE_BUCKET_NAME;
+  const supabaseBucketName =
+    runtimeConfig.public?.supabaseStorageBucketName ||
+    process.env.SUPABASE_STORAGE_BUCKET_NAME;
 
-  // console.log(`[StorageFactory] Provider: ${storageProvider}`);
+  console.log(`[StorageFactory] Provider: ${storageProvider}`);
 
   if (storageProvider === "supabase") {
-    // If Supabase is configured as the provider, we no longer support it directly in this service.
-    // Throw an error or default to local storage with a warning.
-    // For this example, we'll throw an error to make it explicit that Supabase is not handled.
-    console.error(
-      "[StorageFactory] Supabase storage provider is configured but no longer supported by this service implementation. Please update your configuration or extend the service."
-    );
-    throw new Error(
-      "Supabase storage provider is configured but no longer supported."
-    );
-    // Alternatively, fall back to local storage:
-    // console.warn("[StorageFactory] Supabase provider configured, but falling back to LocalStorageService as SupabaseStorageService has been removed.");
-    // return new LocalStorageService();
+    if (!event) {
+       console.error("[StorageFactory] H3Event is required to get Supabase client for 'supabase' provider.");
+       throw new Error("H3Event is required for Supabase storage service.");
+    }
+    if (!supabaseBucketName) {
+       console.error("[StorageFactory] SUPABASE_STORAGE_BUCKET_NAME is not configured for 'supabase' provider.");
+       throw new Error("Supabase storage bucket name is not configured.");
+    }
+
+    try {
+      // For storage write operations, it's often better to use the service role client
+      // to bypass RLS, assuming the backend has legitimate authority to write.
+      // Ensure `event` is passed if serverSupabaseServiceRole requires it.
+      const supabaseServiceRoleClient = await serverSupabaseServiceRole(event);
+      if (!supabaseServiceRoleClient) {
+        console.error("[StorageFactory] Failed to get Supabase Service Role client from server context. Falling back to user client or erroring.");
+        // Fallback or throw, depending on requirements. For now, let's try the user client.
+        // Alternatively, throw new Error("Failed to get Supabase Service Role client.");
+        const supabaseUserClient = await serverSupabaseClient(event);
+        if (!supabaseUserClient) {
+            throw new Error("Failed to get Supabase client (user or service role) from server context.");
+        }
+        console.warn("[StorageFactory] Using user-scoped Supabase client for storage. RLS policies will apply.");
+        return new SupabaseStorageService(supabaseUserClient as any, supabaseBucketName);
+      }
+      console.log("[StorageFactory] Using Supabase Service Role client for storage.");
+      return new SupabaseStorageService(supabaseServiceRoleClient as any, supabaseBucketName);
+    } catch (error: any) {
+      console.error("[StorageFactory] Error initializing SupabaseStorageService:", error.message || error);
+      throw new Error(`Failed to initialize Supabase storage service: ${error.message || 'Unknown error'}`);
+    }
+
   } else {
     // LocalStorageService constructor takes (projectRoot, publicDirName)
     // process.cwd() and 'public' are its defaults.

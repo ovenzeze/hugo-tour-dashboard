@@ -1,5 +1,5 @@
 import { IStorageService, ParsedPath } from './storageService'; // Assuming IStorageService is in the same dir or adjust path
-import { SupabaseClient, createClient } from '@supabase/supabase-js';
+import { SupabaseClient } from '@supabase/supabase-js';
 // Note: Actual path parsing might need a Deno-compatible library or custom logic
 // For Deno, path module is available: import * as path from "https://deno.land/std/path/mod.ts";
 
@@ -21,8 +21,8 @@ export class SupabaseStorageService implements IStorageService {
   private supabase: SupabaseClient;
   private bucketName: string;
 
-  constructor(supabaseUrl: string, supabaseKey: string, bucketName: string) {
-    this.supabase = createClient(supabaseUrl, supabaseKey);
+  constructor(supabase: SupabaseClient, bucketName: string) {
+    this.supabase = supabase;
     this.bucketName = bucketName;
     console.log(`SupabaseStorageService initialized for bucket: ${this.bucketName}`);
   }
@@ -82,7 +82,7 @@ export class SupabaseStorageService implements IStorageService {
       .from(this.bucketName)
       .upload(storagePath, fileBody, { 
           upsert: true, // Overwrite if exists
-          contentType: filePath.endsWith('.json') ? 'application/json' : (filePath.endsWith('.mp3') ? 'audio/mpeg' : 'application/octet-stream')
+          contentType: filePath.endsWith('.json') ? 'text/plain' : (filePath.endsWith('.mp3') ? 'audio/mpeg' : 'application/octet-stream') // Changed application/json to text/plain for testing
         });
 
     if (error) {

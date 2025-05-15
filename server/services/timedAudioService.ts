@@ -37,6 +37,8 @@ export async function generateAndStoreTimedAudioSegment(
     defaultModelId,
     voiceSettings,
   } = params;
+  console.log('[timedAudioService] Received storageOutputDirectory:', storageOutputDirectory);
+  console.log('[timedAudioService] Received publicOutputDirectory:', publicOutputDirectory);
 
   if (!elevenLabsApiKey) {
     console.error('[timedAudioService] ElevenLabs API key is missing.');
@@ -58,8 +60,8 @@ export async function generateAndStoreTimedAudioSegment(
 
     const response = await elevenlabs.textToSpeech.convertWithTimestamps(voiceId, ttsRequest);
 
-    console.log('[timedAudioService] Attempting to log raw ElevenLabs SDK response object:');
-    console.dir(response, { depth: null });
+    console.log('[timedAudioService] ElevenLabs SDK response received.');
+    // console.dir(response, { depth: null }); // Commented out to reduce log verbosity
 
     const responseAsAny = response as any;
 

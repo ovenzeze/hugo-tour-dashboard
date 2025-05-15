@@ -53,24 +53,16 @@ export default defineEventHandler(async (event) => {
 
     // Define base paths for storage
     // publicOutputDirectory is relative to the public root, used for generating public URLs
-    const publicOutputDirectory = storageService.joinPath('podcasts', podcastId, 'segments');
-    // storageOutputDirectory is the actual path where files are written by the storage service.
-    // For LocalStorageService, this needs to be relative to the project root, typically including 'public'.
-    // Example: If project root is /app, public dir is /app/public, then storageOutputDirectory for
-    // a segment could be 'public/podcasts/podcastId/segments'.
-    // We assume LocalStorageService's constructor sets its projectRoot and publicRoot correctly.
-    // If LocalStorageService.joinPath for writing is relative to projectRoot, then 'public/...' is correct.
-    // If LocalStorageService.ensureDir/writeFile expect paths relative to its internal `this.projectRoot`,
-    // then `storageService.joinPath('public', publicOutputDirectory)` is one way if publicDir is 'public'.
-    // Let's assume `LocalStorageService` handles `public/` prefixing internally if needed,
-    // or that `storageService.joinPath` for write operations resolves correctly from project root.
-    // A common pattern for LocalStorageService is to have a publicDir constructor arg (e.g., "public").
-    // `storageService.ensureDir` and `writeFile` in `LocalStorageService` use `this.getAbsolutePath` which resolves from `this.projectRoot`.
-    // So, `storageOutputDirectory` for `generateAndStoreTimedAudioSegment` should be relative to project root.
-    const storageOutputDirectory = storageService.joinPath(runtimeConfig.public?.publicDirName || 'public', 'podcasts', podcastId, 'segments');
+    // For Supabase Storage, both publicOutputDirectory and storageOutputDirectory
+    // will refer to the path within the bucket.
+    const supabasePathSuffix = storageService.joinPath('podcasts', podcastId, 'segments');
+    const publicOutputDirectory = supabasePathSuffix;
+    const storageOutputDirectory = supabasePathSuffix;
+    console.log('[synthesize-segments.post.ts] Calculated Supabase storageOutputDirectory:', storageOutputDirectory);
+    console.log('[synthesize-segments.post.ts] Calculated Supabase publicOutputDirectory:', publicOutputDirectory);
     
-    // Ensure the main segments directory exists once
-    await storageService.ensureDir(storageOutputDirectory); // This path must be resolvable by storageService.ensureDir
+    // Ensure the main segments directory exists once (for Supabase, this might be a no-op or create a placeholder)
+    await storageService.ensureDir(storageOutputDirectory);
 
     for (const segment of segments) {
       const safeSpeakerName = segment.speakerName.replace(/[^a-zA-Z0-9_]/g, '_').substring(0, 50);

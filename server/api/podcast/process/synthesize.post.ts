@@ -5,6 +5,10 @@ import { useRuntimeConfig } from '#imports';
 import { getStorageService } from '../../../services/storageService';
 import type { IStorageService } from '../../../services/storageService';
 import { generateAndStoreTimedAudioSegment, type TimedAudioSegmentResult } from '../../../services/timedAudioService';
+// Import server-side database utilities
+import { createServerPodcastDatabase } from '~/server/composables/useServerPodcastDatabase';
+import { serverSupabaseServiceRole } from '#supabase/server';
+import type { Database } from '~/types/supabase';
 
 interface InputSegment {
   segmentIndex: number;
@@ -147,10 +151,15 @@ export default defineEventHandler(async (event) => {
 
     const results: (TimedAudioSegmentResult & { segmentIndex: number })[] = [];
 
-    const publicOutputDirectory = storageService.joinPath('podcasts', podcastId, 'segments');
-    const storageOutputDirectory = storageService.joinPath(runtimeConfig.public?.publicDirName || 'public', 'podcasts', podcastId, 'segments');
+    // For Supabase Storage, both publicOutputDirectory and storageOutputDirectory
+    // will refer to the path within the bucket.
+    const supabasePathSuffix = storageService.joinPath('podcasts', podcastId, 'segments');
+    const publicOutputDirectory = supabasePathSuffix;
+    const storageOutputDirectory = supabasePathSuffix;
+    console.log('[synthesize.post.ts] Calculated Supabase storageOutputDirectory:', storageOutputDirectory);
+    console.log('[synthesize.post.ts] Calculated Supabase publicOutputDirectory:', publicOutputDirectory);
     
-    await storageService.ensureDir(storageOutputDirectory);
+    await storageService.ensureDir(storageOutputDirectory); // For Supabase, this might be a no-op
 
     // Filter out segments without voice IDs
     const validSegments = segments.filter(segment => segment.voiceId);
@@ -187,6 +196,46 @@ export default defineEventHandler(async (event) => {
         voiceSettings: mergedVoiceSettings,
       });
       results.push({ ...result, segmentIndex: segment.segmentIndex });
+
+      // ---- BEGIN DATABASE INSERT FOR AUDIO URL ----
+      // Only save to DB if audio generation was successful
+      if (result.audioFileUrl && !result.error) {
+        try {
+          // Get the database segment ID using the segment index
+          // We need the podcast ID to fetch segments from the DB
+          // Use server-side Supabase client and database utilities
+          const supabase = await serverSupabaseServiceRole<Database>(event);
+          if (!supabase) {
+            console.error(`[synthesize.post.ts] Failed to get Supabase service role client for segment ${segment.segmentIndex} of podcast ${podcastId}. Skipping DB save.`);
+            continue; // Skip to next segment if Supabase client fails
+          }
+          const podcastDb = createServerPodcastDatabase(supabase);
+          const dbSegments = await podcastDb.getSegmentsByPodcastId(podcastId);
+          const dbSegment = dbSegments.find(s => s.idx === segment.segmentIndex);
+
+          if (dbSegment) {
+            // Save the audio URL and metadata to segment_audios table
+            await podcastDb.addSegmentAudio(
+              dbSegment.segment_text_id, // Changed from id to segment_text_id
+              result.audioFileUrl,
+              'v1', // Or derive version tag from synthesis parameters/logic
+              mergedVoiceSettings // Save synthesis parameters as params
+            );
+            console.log(`Successfully saved audio URL for segment ${segment.segmentIndex} (DB ID: ${dbSegment.segment_text_id}) to database.`);
+          } else {
+            console.warn(`Could not find database segment for index ${segment.segmentIndex} in podcast ${podcastId}. Audio URL not saved to DB.`);
+          }
+        } catch (dbError: any) {
+          console.error(
+            `Database insert error for segment audio (podcastId: ${podcastId}, segmentIndex: ${segment.segmentIndex}): ${dbError.message}`,
+            dbError
+          );
+          // Log error but do not fail the API response for this segment
+        }
+      } else if (result.error) {
+        console.warn(`Audio generation failed for segment ${segment.segmentIndex}. Skipping database save.`);
+      }
+      // ---- END DATABASE INSERT FOR AUDIO URL ----
     }
 
     const allFailed = results.every(r => r.error);
