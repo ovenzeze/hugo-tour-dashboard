@@ -659,9 +659,9 @@ Host: Couldn't agree more. Thanks for joining us, Elliot, and thank you to our l
         const errorMessage = error.data?.message || error.data?.statusMessage || error.message || '脚本生成过程中发生未知错误。';
         this.scriptGenerationError = errorMessage;
         toast.error('脚本生成失败', { description: errorMessage });
+      } finally {
+        this.isGeneratingScript = false;
       }
-
-      this.isSynthesizing = false;
     },
 
     async startStreamingPreview(): Promise<Response | undefined> {

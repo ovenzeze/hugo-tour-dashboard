@@ -141,7 +141,7 @@
         <div class="flex-1 flex flex-col min-h-0 overflow-hidden" :class="{'w-full': currentStepIndex === 2}">
           <!-- Loading Status Indicator -->
           <div v-if="isScriptGenerating || isValidating" class="flex flex-col items-center justify-center h-full p-4">
-            <Icon name="ph:loader" class="h-12 w-12 animate-spin text-primary mb-4" />
+            <Icon name="ph:spinner" class="h-12 w-12 animate-spin text-primary mb-4" />
             <p class="text-center text-lg font-medium">
               {{ isScriptGenerating ? 'Generating Script...' : 'Validating Script...' }}
             </p>
@@ -214,7 +214,7 @@
               <Icon name="ph:book-open-text" class="w-4 h-4 mr-2" /> Use Preset Script
             </Button>
             <Button variant="outline" :disabled="isGeneratingOverall || !playgroundStore.textToSynthesize" @click="handleJustValidateScript">
-              <Icon name="ph:loader" v-if="isValidating" class="w-4 h-4 mr-2 animate-spin" />
+              <Icon name="ph:spinner" v-if="isValidating" class="w-4 h-4 mr-2 animate-spin" />
               <Icon name="ph:check-circle" v-else class="w-4 h-4 mr-2" />
               <span v-if="isValidating">Validating...</span>
               <span v-else>Validate Script</span>
@@ -231,7 +231,7 @@
               :disabled="isGeneratingOverall || !playgroundStore.canGeneratePodcastScript"
               :variant="playgroundStore.textToSynthesize ? 'outline' : 'default'"
             >
-              <Icon name="ph:loader" v-if="isScriptGenerating" class="w-4 h-4 mr-2 animate-spin" />
+              <Icon name="ph:spinner" v-if="isScriptGenerating" class="w-4 h-4 mr-2 animate-spin" />
               <Icon name="ph:sparkle" v-else class="w-4 h-4 mr-2" />
               <span v-if="isScriptGenerating">Generating...</span>
               <span v-else>Generate Script</span>
@@ -252,8 +252,8 @@
               @click="generateAudioPreview"
               :disabled="!canProceedFromStep2 || isGeneratingAudioPreview"
             >
-              <Icon name="ph:loader" v-if="isGeneratingAudioPreview" class="w-4 h-4 mr-2 animate-spin" />
-              <Icon name="ph:radio-tower" v-else class="w-4 h-4 mr-2" />
+              <Icon name="ph:spinner" v-if="isGeneratingAudioPreview" class="w-4 h-4 mr-2 animate-spin" />
+              <Icon name="ph:broadcast" v-else class="w-4 h-4 mr-2" />
               {{ isGeneratingAudioPreview ? 'Generating...' : 'Generate Audio Preview' }}
             </Button>
             
@@ -281,14 +281,30 @@
               @click="handleToolbarSynthesizePodcastAudio" 
               :disabled="isGeneratingOverall" 
             >
-              <Icon name="ph:loader" v-if="playgroundStore.isSynthesizing" class="w-4 h-4 mr-2 animate-spin" />
-              <Icon name="ph:radio-tower" v-else class="w-4 h-4 mr-2" />
+              <Icon name="ph:spinner" v-if="playgroundStore.isSynthesizing" class="w-4 h-4 mr-2 animate-spin" />
+              <Icon name="ph:broadcast" v-else class="w-4 h-4 mr-2" />
               Synthesize Podcast
             </Button>
           </template>
         </div>
       </CardFooter>
     </Card>
+
+    <!-- Confirmation Dialog for Step 2 Proceed -->
+    <AlertDialog :open="showStep2ProceedConfirmation" @update:open="(isOpen) => showStep2ProceedConfirmation = isOpen">
+      <AlertDialogContent>
+        <AlertDialogHeader>
+          <AlertDialogTitle>Confirm Action</AlertDialogTitle>
+          <AlertDialogDescription>
+            There are still {{ pendingSegmentsCount }} segments that haven't been synthesized. Are you sure you want to proceed to generate the final podcast?
+          </AlertDialogDescription>
+        </AlertDialogHeader>
+        <AlertDialogFooter>
+          <AlertDialogCancel @click="showStep2ProceedConfirmation = false">Cancel</AlertDialogCancel>
+          <AlertDialogAction @click="confirmProceedToStep3">Confirm</AlertDialogAction>
+        </AlertDialogFooter>
+      </AlertDialogContent>
+    </AlertDialog>
   </div>
 </template>
 
@@ -315,6 +331,10 @@ const isScriptGenerating = ref(false);
 const podcastPerformanceConfig = ref(null);
 const lastPodcastUrlForDownload = ref(null);
 const isGeneratingAudioPreview = ref(false);
+
+// New refs for Step 2 confirmation dialog
+const showStep2ProceedConfirmation = ref(false);
+const pendingSegmentsCount = ref(0);
 
 // Setup global event listeners to prevent page refreshes on audio file access
 onMounted(async () => {
@@ -507,7 +527,7 @@ function getAssignedVoicesString() {
 // Generate audio preview in step 2
 async function generateAudioPreview() {
   if (!voicePerformanceSettingsRef.value || !canProceedFromStep2.value) {
-    toast.error("Voice configuration is incomplete. Please assign voices to all characters.");
+    toast.error("语音配置不完整。请为所有角色分配语音。");
     return;
   }
   
@@ -544,6 +564,25 @@ async function generateAudioPreview() {
   }
 }
 
+// New function to handle actual progression to Step 3
+function confirmProceedToStep3() {
+  if (!voicePerformanceSettingsRef.value) {
+    toast.error("Internal error: Voice settings reference is unavailable.");
+    showStep2ProceedConfirmation.value = false;
+    return;
+  }
+  const vpsRef = voicePerformanceSettingsRef.value as any;
+  const config = vpsRef.getPerformanceConfig();
+  if (config) {
+    podcastPerformanceConfig.value = config;
+    currentStepIndex.value = 3;
+    toast.success("Voice configuration saved. Proceeding to audio synthesis.");
+  } else {
+    toast.error("Voice configuration is invalid. Please ensure all characters have assigned voices.");
+  }
+  showStep2ProceedConfirmation.value = false; // Hide dialog
+}
+
 // Handle next from step 2
 function handleNextFromStep2() {
   if (!voicePerformanceSettingsRef.value || !canProceedFromStep2.value) {
@@ -551,13 +590,19 @@ function handleNextFromStep2() {
     return;
   }
   
-  const config = (voicePerformanceSettingsRef.value as any).getPerformanceConfig();
-  if (config) {
-    podcastPerformanceConfig.value = config;
-    currentStepIndex.value = 3;
-    toast.success("Voice configuration saved. Proceeding to audio synthesis.");
+  const vpsRef = voicePerformanceSettingsRef.value as any;
+  // Ensure counts are numbers, default to 0 if undefined/null
+  const synthesizedCount = (vpsRef.synthesizedSegmentsCount as number) || 0;
+  const totalCount = (vpsRef.totalSegmentsCount as number) || 0;
+
+  // Proceed directly if no segments or all are synthesized
+  if (totalCount <= 0 || synthesizedCount >= totalCount) {
+    confirmProceedToStep3();
   } else {
-    toast.error("Voice configuration is invalid. Please ensure all characters have assigned voices.");
+    // Show confirmation if there are pending segments
+    pendingSegmentsCount.value = totalCount - synthesizedCount;
+    showStep2ProceedConfirmation.value = true;
+    // Actual progression will be handled by confirmProceedToStep3 via dialog action
   }
 }
 
@@ -567,14 +612,36 @@ async function handleToolbarGenerateScript() {
     return;
   }
   
+  console.log('[PlaygroundPage] Setting isScriptGenerating to true');
   isScriptGenerating.value = true;
   try {
+    console.log('[PlaygroundPage] Calling playgroundStore.generateScript()');
     await playgroundStore.generateScript();
+    console.log('[PlaygroundPage] playgroundStore.generateScript() finished');
     if (!playgroundStore.scriptGenerationError) {
       toast.success("Script generated successfully!");
     }
+    // Note: scriptGenerationError is handled by a watcher in the store to show a toast
+  } catch (error) {
+    // This catch block might be redundant if errors are always handled within the store action
+    // and reflected in playgroundStore.scriptGenerationError, but kept for safety.
+    console.error("[PlaygroundPage] Error during handleToolbarGenerateScript:", error);
+    toast.error(`Failed to generate script: ${error instanceof Error ? error.message : 'Unknown error'}`);
   } finally {
+    console.log('[PlaygroundPage] Setting isScriptGenerating to false in finally block');
     isScriptGenerating.value = false;
+
+    // Debug logs for Next button state
+    console.log('[PlaygroundPage] Debug Next Button State:', {
+      textToSynthesizeEmpty: !playgroundStore.textToSynthesize,
+      textToSynthesizeLength: playgroundStore.textToSynthesize?.length,
+      isGeneratingOverall: isGeneratingOverall.value,
+      isValidatingFromComposable: isValidating.value, // Direct check of the composable's ref
+      store_isGeneratingScript: playgroundStore.isGeneratingScript,
+      store_isSynthesizing: playgroundStore.isSynthesizing,
+      local_isScriptGenerating: isScriptGenerating.value, // Should be false here
+      local_isGeneratingAudioPreview: isGeneratingAudioPreview.value
+    });
   }
 }
 
