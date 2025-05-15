@@ -4,13 +4,13 @@
       <div class="relative flex flex-col md:flex-row w-full">
         <!-- 桌面端侧边栏 -->
         <ClientOnly>
-          <aside class="hidden md:flex md:flex-col md:w-50 h-screen border-r bg-card fixed left-0 top-0">
+          <aside class="hidden md:flex md:flex-col md:w-48 h-screen border-r bg-card fixed left-0 top-0">
             <SidebarNav :navLinks="navLinks" />
           </aside>
         </ClientOnly>
 
         <!-- 主体内容，包含实际页面内容 -->
-        <div class="flex flex-col flex-1 md:ml-65">
+        <div class="flex flex-col flex-1 md:ml-48">
           <!-- PC端顶部栏 - 已移除 -->
 
           <!-- 移动端顶部栏 -->
@@ -27,7 +27,7 @@
                 </SheetContent>
               </Sheet>
             </ClientOnly>
-            <h1 class="text-lg font-semibold">{{ route.meta.title || 'Dashboard' }}</h1>
+            <h1 class="text-lg font-semibold ml-3">{{ route.meta.title || 'Dashboard' }}</h1>
           </header>
 
           <!-- 主内容区 -->

@@ -1,36 +1,39 @@
 // server/api/generate-script.post.ts
 import { defineEventHandler, readBody, createError } from 'h3';
 import { consola } from 'consola'; // For logging
+import fs from 'node:fs'; // Import Node.js file system module
+import path from 'node:path'; // Import Node.js path module
 
 // Interface for the expected request body from the frontend
 interface GenerateScriptRequestBody {
-  user_instruction: string; // This will be the main prompt for the LLM
-  podcastName?: string; // For context, might be part of user_instruction
-  // Add any other parameters from the frontend that might be useful
-  // e.g., hostPersonaId, guestPersonaIds, etc., if they help in constructing a better prompt
-  // or if the LLM needs them structured.
-  // For now, assuming user_instruction is comprehensive.
   podcastSettings?: { // From stores/playground.ts
-    title: string;
-    topic: string;
-    numberOfSegments: number;
-    style: string;
-    keywords: string;
-    hostPersonaId: number | string | undefined;
-    guestPersonaIds: (number | string | undefined)[];
-    // Potentially other fields like language if LLM needs it
+    title?: string; // Make optional as AI will suggest
+    topic?: string; // Make optional as AI will suggest
+    numberOfSegments?: number; // Make optional as AI will suggest
+    style?: string; // Make optional as AI will suggest
+    keywords?: string; // Make optional as AI will suggest
+    hostPersonaId?: number | string | undefined;
+    guestPersonaIds?: (number | string | undefined)[];
+    backgroundMusic?: string;
+    language?: string; // Make optional as AI will suggest
+    museumId?: number;
+    galleryId?: number;
+    objectId?: number;
   };
+  hostPersona?: { // Detailed host persona from frontend
+    persona_id: number;
+    name: string;
+    voice_model_identifier: string;
+  };
+  guestPersonas?: { // Detailed guest personas array from frontend
+    persona_id: number;
+    name: string;
+    voice_model_identifier: string;
+  }[];
 }
 
 export default defineEventHandler(async (event) => {
   const body = await readBody<GenerateScriptRequestBody>(event);
-
-  if (!body.user_instruction || body.user_instruction.trim() === "") {
-    throw createError({
-      statusCode: 400,
-      statusMessage: 'User instruction (prompt) is required to generate a script.',
-    });
-  }
 
   const openRouterApiKey = process.env.OPENROUTER_API_KEY;
   if (!openRouterApiKey) {
@@ -42,60 +45,150 @@ export default defineEventHandler(async (event) => {
   }
 
   // --- Construct the prompt for Open Router ---
-  // The body.user_instruction is expected to be a well-formed prompt.
-  // We can augment it if necessary using other parts of body.podcastSettings
-  let promptContent = body.user_instruction;
-
-  // Example: If you want to ensure some structure or add more details from podcastSettings
-  // if (body.podcastSettings) {
-  //   promptContent += `\n\nFurther context for the podcast script:`;
-  //   promptContent += `\n- Title: ${body.podcastSettings.title}`;
-  //   promptContent += `\n- Topic: ${body.podcastSettings.topic}`;
-  //   // Add more details as needed by your LLM prompt engineering
-  // }
-
-
-  consola.info('Sending request to OpenRouter with prompt:', promptContent.substring(0, 200) + "..."); // Log a snippet
+  const promptFilePath = path.resolve(process.cwd(), 'prompts', 'podcast_script_generation.md');
+  let promptTemplate = '';
 
   try {
-    // Replace 'your-preferred-model' with the actual model you want to use from OpenRouter
-    // e.g., 'openai/gpt-3.5-turbo', 'anthropic/claude-2', 'mistralai/mistral-7b-instruct'
-    const llmModel = process.env.OPENROUTER_LLM_MODEL || 'mistralai/mistral-7b-instruct'; // Default model
+    // Read the prompt template file content
+    promptTemplate = fs.readFileSync(promptFilePath, 'utf-8');
+  } catch (error) {
+    consola.error('Error reading prompt file:', error);
+    throw createError({
+      statusCode: 500,
+      statusMessage: 'Failed to read prompt template file on the server.',
+    });
+  }
 
+  // Use actual values from the request body to replace placeholders
+  const podcastSettings = body.podcastSettings;
+  const hostPersona = body.hostPersona;
+  const guestPersonas = body.guestPersonas || [];
+
+  // Construct guest names string for the prompt
+  const guestNames = guestPersonas.map(p => p.name).join("、") || "嘉宾";
+
+  // Construct voiceMap JSON string for the prompt
+  const voiceMap: { [key: string]: { personaId: number; voice_model_identifier: string } } = {};
+  if (hostPersona) {
+    voiceMap[hostPersona.name] = {
+      personaId: hostPersona.persona_id,
+      voice_model_identifier: hostPersona.voice_model_identifier,
+    };
+  }
+  guestPersonas.forEach(p => {
+    voiceMap[p.name] = {
+      personaId: p.persona_id,
+      voice_model_identifier: p.voice_model_identifier,
+    };
+  });
+  const voiceMapJsonString = JSON.stringify(voiceMap, null, 2);
+
+
+  let promptContent = promptTemplate
+    .replace('{{title}}', podcastSettings?.title || '')
+    .replace('{{topic}}', podcastSettings?.topic || '')
+    .replace('{{hostName}}', hostPersona?.name || '主持人') // Use hostPersona name
+    .replace('{{guestNames}}', guestNames) // Use constructed guest names string
+    .replace('{{style}}', podcastSettings?.style || '')
+    .replace('{{keywords}}', podcastSettings?.keywords || '')
+    .replace('{{numberOfSegments}}', (podcastSettings?.numberOfSegments || 3).toString())
+    .replace('{{backgroundMusic}}', podcastSettings?.backgroundMusic || '')
+    .replace('{{voiceMapJson}}', voiceMapJsonString); // Replace voiceMap placeholder
+
+  // Remove any remaining double curly braces if a placeholder was missed or value was empty
+  promptContent = promptContent.replace(/\{\{.*?\}\}/g, '').trim();
+
+
+  const llmModel = process.env.OPENROUTER_MODEL || 'mistralai/mistral-7b-instruct'; // Default model, corrected env variable name
+  consola.info(`Sending request to OpenRouter using template: ${path.basename(promptFilePath)} with model: ${llmModel}`);
+  const startTime = Date.now();
+
+  try {
     // @ts-ignore: $fetch is globally available in Nuxt server routes
     const response = await $fetch('https://openrouter.ai/api/v1/chat/completions', {
       method: 'POST',
       headers: {
         'Authorization': `Bearer ${openRouterApiKey}`,
         'Content-Type': 'application/json',
-        // Optional: Add 'HTTP-Referer' and 'X-Title' if OpenRouter requires/recommends them
-        // 'HTTP-Referer': process.env.YOUR_SITE_URL, // e.g., http://localhost:3000
-        // 'X-Title': process.env.YOUR_APP_NAME, // e.g., My Podcast App
       },
       body: {
         model: llmModel,
         messages: [
-          // You can add a system prompt here if desired
-          // { role: "system", content: "You are a helpful assistant that generates podcast scripts." },
           { role: "user", content: promptContent },
         ],
-        // Add other parameters like temperature, max_tokens as needed
-        // temperature: 0.7,
-        // max_tokens: 2000,
+        temperature: 0.7,
+        response_format: { type: "json_object" },
       },
     });
 
     // @ts-ignore
     if (response.choices && response.choices.length > 0 && response.choices[0].message && response.choices[0].message.content) {
       // @ts-ignore
-      const generatedScript = response.choices[0].message.content.trim();
-      consola.success('Script generated successfully by OpenRouter.');
-      return { script: generatedScript };
+      const rawGeneratedContent = response.choices[0].message.content.trim();
+      const endTime = Date.now();
+      const timeTaken = endTime - startTime;
+      consola.success(`Received response from OpenRouter. Content length: ${rawGeneratedContent.length} characters. Time taken: ${timeTaken}ms.`);
+      // Optionally, log a snippet for debugging if needed, perhaps under a specific log level or condition
+      // consola.debug('Raw content snippet:', rawGeneratedContent.substring(0, 200) + "...");
+
+      let parsedResponse;
+      let cleanedContent = rawGeneratedContent;
+
+      try {
+        try {
+            parsedResponse = JSON.parse(rawGeneratedContent);
+            consola.success('Successfully parsed raw AI response as JSON.');
+        } catch (jsonError: any) {
+            consola.warn('Failed to parse raw AI response as JSON, attempting cleaning:', jsonError.message);
+            consola.debug('Raw AI response:', rawGeneratedContent);
+            cleanedContent = rawGeneratedContent.replace(/\\" +/g, '\\"').replace(/\\ +/g, '\\');
+            
+            // Attempt to remove Markdown JSON code block fences
+            const markdownJsonMatch = cleanedContent.match(/```json\s*([\s\S]*?)\s*```/);
+            if (markdownJsonMatch && markdownJsonMatch[1]) {
+              consola.info('Markdown JSON fences detected, extracting content.');
+              cleanedContent = markdownJsonMatch[1];
+            }
+
+            parsedResponse = JSON.parse(cleanedContent);
+            consola.success('Successfully parsed cleaned AI response as JSON.');
+            consola.debug('Cleaned AI response:', cleanedContent);
+        }
+
+        if (
+            !parsedResponse ||
+            !Array.isArray(parsedResponse.script) ||
+            !parsedResponse.voiceMap ||
+            typeof parsedResponse.podcastTitle !== 'string' ||
+            typeof parsedResponse.language !== 'string'
+        ) {
+             consola.error('Parsed JSON does not match the expected structuredData format:', parsedResponse);
+             throw createError({
+               statusCode: 500,
+               statusMessage: 'AI response format is incorrect: does not match expected structuredData structure.',
+               data: { rawResponse: rawGeneratedContent, parsedResponse },
+             });
+        }
+
+        consola.success('Script and settings generated successfully by OpenRouter.');
+        return parsedResponse;
+
+      } catch (finalJsonError: any) {
+         consola.error('Failed to parse AI response as JSON even after cleaning:', finalJsonError.message);
+         consola.debug('Content that failed parsing (after cleaning):', cleanedContent); // Log the content that failed
+         throw createError({
+           statusCode: 500,
+           statusMessage: `Failed to parse AI response as JSON: ${finalJsonError.message}`,
+           data: { rawResponse: rawGeneratedContent, cleanedResponse: cleanedContent, errorDetails: finalJsonError.toString() },
+         });
+      }
+
     } else {
-      consola.error('OpenRouter response did not contain expected script content:', response);
+      consola.error('OpenRouter response did not contain expected content:', response);
       throw createError({
         statusCode: 500,
-        statusMessage: 'Failed to parse script from OpenRouter response.',
+        statusMessage: 'Failed to get content from OpenRouter response.',
+        data: response,
       });
     }
   } catch (error: any) {

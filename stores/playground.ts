@@ -1,21 +1,43 @@
 "use strict";
 
-import { defineStore } from 'pinia';
-import { toast } from 'vue-sonner';
+import { defineStore } from "pinia";
+import { toast } from "vue-sonner";
+// Removed Node.js fs and path imports
 // @ts-ignore - Nuxt 自动导入，IDE 可能会显示错误但实际运行没问题
-import type { Database, Tables } from '~/types/supabase';
-import type { ValidateScriptResponse } from '~/composables/useScriptValidator';
+import type { ValidateScriptResponse, ScriptSegment as ValidatorScriptSegment } from "~/composables/useScriptValidator"; // Import ScriptSegment as ValidatorScriptSegment
+import type { Tables } from "~/types/supabase";
 
 // Define Persona type based on your Supabase types
 // If Persona is already globally defined or imported from a central types file, use that.
 // For now, deriving from Tables<'personas'>.
-export type Persona = Tables<'personas'>;
+export type Persona = Tables<"personas">;
+
+// New interface for the expected API response from /api/generate-script
+export interface AIScriptSegment {
+  name: string;
+  role: string; // AI might return 'host', 'guest', or other speaker names/roles
+  text: string;
+}
+
+export interface GenerateScriptApiResponse {
+  podcastTitle: string;
+  script: AIScriptSegment[]; // Use the new AIScriptSegment type
+  voiceMap: Record<string, {
+    personaId: number;
+    voice_model_identifier: string;
+  }>;
+  language: string;
+  topic?: string; // Optional as AI might not always provide it
+  style?: string; // Optional
+  keywords?: string; // Optional
+  numberOfSegments?: number; // Optional
+}
 
 export interface SynthesisParams {
   temperature: number;
   speed: number;
   temperatureArray: number[]; // For slider binding
-  speedArray: number[];     // For slider binding
+  speedArray: number[]; // For slider binding
 }
 
 export interface FullPodcastSettings {
@@ -70,11 +92,11 @@ const defaultSynthesisParams: SynthesisParams = {
 };
 
 const defaultPodcastSettings: FullPodcastSettings = {
-  title: 'AI: The Next Frontier',
-  topic: 'Discussing the future of AI and its impact on various industries.',
+  title: "",
+  topic: "",
   numberOfSegments: 3,
-  style: 'Informative discussion',
-  keywords: 'AI, artificial intelligence, machine learning, deep learning, future tech',
+  style: "",
+  keywords: "",
   hostPersonaId: undefined,
   guestPersonaIds: [],
   backgroundMusic: undefined,
@@ -85,32 +107,27 @@ const defaultPodcastSettings: FullPodcastSettings = {
   objectId: undefined,
 };
 
-export const usePlaygroundStore = defineStore('playground', {
+export const usePlaygroundStore = defineStore("playground", {
   state: (): PlaygroundState => {
-    const initialHostPersonaId = 1;
-    const initialGuestPersonaIds = [2];
-    const hostScriptLine = '您好，欢迎来到预设的第二步测试环境。';
-    const guestScriptLine = '我已经准备好进行语音配置了。';
-    const testPodcastTitle = '第二步直接测试';
-    const testLanguage = 'zh';
+    // const initialHostPersonaId = 1; // No longer needed for these defaults
+    // const initialGuestPersonaIds = [2]; // No longer needed for these defaults
+    // const hostScriptLine = "您好，欢迎来到预设的第二步测试环境。"; // No longer needed for these defaults
+    // const guestScriptLine = "我已经准备好进行语音配置了。"; // No longer needed for these defaults
+    // const testPodcastTitle = "第二步直接测试"; // No longer needed for these defaults
+    // const testLanguage = "zh"; // No longer needed for these defaults
 
     return {
       personas: [],
       personasLoading: false,
       createPodcast: false,
-      selectedProvider: 'elevenlabs',
-      textToSynthesize: `Host: ${hostScriptLine}
-Guest: ${guestScriptLine}`,
+      selectedProvider: "elevenlabs",
+      textToSynthesize: "",
       podcastSettings: {
         ...defaultPodcastSettings,
-        title: testPodcastTitle,
-        topic: '直接进行语音配置和预览',
-        language: testLanguage,
-        hostPersonaId: initialHostPersonaId,
-        guestPersonaIds: initialGuestPersonaIds,
+        // Defaults from defaultPodcastSettings are now empty or undefined as desired
       },
       synthesisParams: { ...defaultSynthesisParams },
-      outputFilename: 'synthesis_output.mp3',
+      outputFilename: "synthesis_output.mp3",
       isGeneratingScript: false,
       scriptGenerationError: null,
       isSynthesizing: false,
@@ -124,47 +141,27 @@ Guest: ${guestScriptLine}`,
       segmentTimestamps: [],
       isValidatingScript: false,
       validationError: null,
-      validationResult: {
-        success: true,
-        structuredData: {
-          podcastTitle: testPodcastTitle,
-          language: testLanguage,
-          script: [
-            { name: 'Host', role: 'host', text: hostScriptLine },
-            { name: 'Guest', role: 'guest', text: guestScriptLine },
-          ],
-          voiceMap: {
-            'Host': { personaId: initialHostPersonaId, voice_model_identifier: 'placeholder-voice-host' },
-            'Guest': { personaId: initialGuestPersonaIds[0], voice_model_identifier: 'placeholder-voice-guest' },
-          },
-        },
-        error: undefined,
-        message: '脚本已为第二步测试预先通过验证。',
-      },
+      validationResult: null,
       podcastId: null, // 新增: 存储当前播客ID
     };
   },
 
   getters: {
     canGeneratePodcastScript(state): boolean {
-      if (!state.createPodcast) {
-        return !!(state.podcastSettings.title &&
-                  state.podcastSettings.topic &&
-                  state.podcastSettings.hostPersonaId &&
-                  state.podcastSettings.guestPersonaIds.length > 0 &&
-                  state.textToSynthesize);
+      // If createPodcast is true (AI script generation mode), always allow generation.
+      // The prompt itself will handle cases where user input is missing.
+      if (state.createPodcast) {
+        return true;
       }
-      const hostId = state.podcastSettings.hostPersonaId;
-      const hasHostId = hostId !== null && hostId !== undefined && hostId !== '' && Number(hostId) > 0;
-      const guestIds = Array.isArray(state.podcastSettings.guestPersonaIds) ? state.podcastSettings.guestPersonaIds : [];
-      const hasGuests = guestIds.length > 0 && guestIds.some(id => {
-        const numId = Number(id);
-        return id !== null && id !== undefined && id !== '' && !isNaN(numId) && numId > 0;
-      });
-      const hasTopic = !!state.podcastSettings.topic?.trim();
-      const hasTitle = !!state.podcastSettings.title?.trim();
-      return !!(state.createPodcast && hasTopic && hasTitle && hasHostId && hasGuests);
-    }
+      // Original logic for when createPodcast is false (manual script or other modes)
+      return !!(
+        state.podcastSettings.title &&
+        state.podcastSettings.topic &&
+        state.podcastSettings.hostPersonaId &&
+        state.podcastSettings.guestPersonaIds.length > 0 &&
+        state.textToSynthesize
+      );
+    },
   },
 
   actions: {
@@ -172,74 +169,99 @@ Guest: ${guestScriptLine}`,
       if (this.personasLoading) return;
       this.personasLoading = true;
       try {
-        const data = await $fetch<Persona[]>('/api/personas?active=true', {
-          headers: { 'Content-Type': 'application/json' },
+        const data = await $fetch<Persona[]>("/api/personas?active=true", {
+          headers: { "Content-Type": "application/json" },
         } as any);
         this.personas = data;
         // console.log('获取到的 personas:', data);
 
         if (this.personas.length === 0) {
-          toast.info('No available personas found.', {
-            description: 'Please create or activate some personas first.',
+          toast.info("No available personas found.", {
+            description: "Please create or activate some personas first.",
           });
         } else {
-          if (!this.createPodcast && this.validationResult?.structuredData) { // Ensure validationResult and structuredData exist
+          if (!this.createPodcast && this.validationResult?.structuredData) {
+            // Ensure validationResult and structuredData exist
             const settings = this.podcastSettings;
-            const validationVoiceMap = this.validationResult.structuredData.voiceMap;
-            const validationStructuredData = this.validationResult.structuredData;
+            const validationVoiceMap =
+              this.validationResult.structuredData.voiceMap;
+            const validationStructuredData =
+              this.validationResult.structuredData;
 
             // Update podcastTitle and language in validationResult if needed from settings
             if (validationStructuredData.podcastTitle !== settings.title) {
               validationStructuredData.podcastTitle = settings.title;
             }
-            if (settings.language !== undefined && validationStructuredData.language !== settings.language) {
+            if (
+              settings.language !== undefined &&
+              validationStructuredData.language !== settings.language
+            ) {
               validationStructuredData.language = settings.language;
-            } else if (settings.language === undefined && validationStructuredData.language === undefined) {
-              validationStructuredData.language = 'en';
+            } else if (
+              settings.language === undefined &&
+              validationStructuredData.language === undefined
+            ) {
+              validationStructuredData.language = "en";
             }
 
             const hostPersonaIdToFind = Number(settings.hostPersonaId);
-            const actualHostPersona = this.personas.find(p => p.persona_id === hostPersonaIdToFind);
+            const actualHostPersona = this.personas.find(
+              (p) => p.persona_id === hostPersonaIdToFind
+            );
 
             if (actualHostPersona) {
               settings.hostPersonaId = actualHostPersona.persona_id;
-              if (validationVoiceMap?.['Host']) {
-                validationVoiceMap['Host'].personaId = actualHostPersona.persona_id;
+              if (validationVoiceMap?.["Host"]) {
+                validationVoiceMap["Host"].personaId =
+                  actualHostPersona.persona_id;
                 if (actualHostPersona.voice_model_identifier) {
-                  validationVoiceMap['Host'].voice_model_identifier = actualHostPersona.voice_model_identifier;
+                  validationVoiceMap["Host"].voice_model_identifier =
+                    actualHostPersona.voice_model_identifier;
                 }
               }
             } else if (this.personas[0]?.persona_id) {
               settings.hostPersonaId = this.personas[0].persona_id;
-              if (validationVoiceMap?.['Host']) {
-                validationVoiceMap['Host'].personaId = this.personas[0].persona_id;
+              if (validationVoiceMap?.["Host"]) {
+                validationVoiceMap["Host"].personaId =
+                  this.personas[0].persona_id;
                 if (this.personas[0].voice_model_identifier) {
-                  validationVoiceMap['Host'].voice_model_identifier = this.personas[0].voice_model_identifier;
+                  validationVoiceMap["Host"].voice_model_identifier =
+                    this.personas[0].voice_model_identifier;
                 }
               }
             }
 
             if (settings.guestPersonaIds.length > 0) {
               const guestPersonaIdToFind = Number(settings.guestPersonaIds[0]);
-              const actualGuestPersona = this.personas.find(p => p.persona_id === guestPersonaIdToFind);
+              const actualGuestPersona = this.personas.find(
+                (p) => p.persona_id === guestPersonaIdToFind
+              );
 
               if (actualGuestPersona) {
                 settings.guestPersonaIds = [actualGuestPersona.persona_id];
-                if (validationVoiceMap?.['Guest']) {
-                  validationVoiceMap['Guest'].personaId = Number(actualGuestPersona.persona_id);
+                if (validationVoiceMap?.["Guest"]) {
+                  validationVoiceMap["Guest"].personaId = Number(
+                    actualGuestPersona.persona_id
+                  );
                   if (actualGuestPersona.voice_model_identifier) {
-                    validationVoiceMap['Guest'].voice_model_identifier = actualGuestPersona.voice_model_identifier;
+                    validationVoiceMap["Guest"].voice_model_identifier =
+                      actualGuestPersona.voice_model_identifier;
                   }
                 }
               } else if (this.personas.length > 1) {
                 const hostId = Number(settings.hostPersonaId);
-                const fallbackGuest = this.personas.find(p => p.persona_id !== hostId);
+                const fallbackGuest = this.personas.find(
+                  (p) => p.persona_id !== hostId
+                );
                 if (fallbackGuest?.persona_id) {
                   settings.guestPersonaIds = [fallbackGuest.persona_id];
-                  if (validationVoiceMap?.['Guest']) {
-                    validationVoiceMap['Guest'].personaId = Number(fallbackGuest.persona_id);
+                  if (validationVoiceMap?.["Guest"]) {
+                    validationVoiceMap["Guest"].personaId = Number(
+                      fallbackGuest.persona_id
+                    );
                     if (fallbackGuest.voice_model_identifier) {
-                      validationVoiceMap['Guest'].voice_model_identifier = fallbackGuest.voice_model_identifier;
+                      validationVoiceMap["Guest"].voice_model_identifier =
+                        fallbackGuest.voice_model_identifier;
                     }
                   }
                 }
@@ -248,9 +270,9 @@ Guest: ${guestScriptLine}`,
           }
         }
       } catch (error: any) {
-        console.error('Failed to fetch personas:', error);
-        toast.error('Failed to load personas', {
-          description: error.data?.message || error.message || 'Unknown error',
+        console.error("Failed to fetch personas:", error);
+        toast.error("Failed to load personas", {
+          description: error.data?.message || error.message || "Unknown error",
         });
         this.personas = [];
       }
@@ -272,8 +294,8 @@ Guest: I hope they see AI not as a replacement for human ingenuity, but as a col
 Host: Couldn't agree more. Thanks for joining us, Elliot, and thank you to our listeners for tuning in to 'AI: The Next Frontier.' Stay curious, and we'll see you next time!`;
 
       this.textToSynthesize = presetScript;
-      toast.success('已加载预设脚本', {
-        description: '预设脚本已加载到编辑器中。',
+      toast.success("已加载预设脚本", {
+        description: "预设脚本已加载到编辑器中。",
       });
     },
 
@@ -286,13 +308,15 @@ Host: Couldn't agree more. Thanks for joining us, Elliot, and thank you to our l
     },
 
     updateFullPodcastSettings(settings: Partial<FullPodcastSettings>) {
-      console.log('更新设置前:', {
+      console.log("更新设置前:", {
         current: this.podcastSettings,
-        new: settings
+        new: settings,
       });
 
-      const parsePersonaId = (id: string | number | undefined): number | undefined => {
-        if (id === undefined || id === null || id === '') return undefined;
+      const parsePersonaId = (
+        id: string | number | undefined
+      ): number | undefined => {
+        if (id === undefined || id === null || id === "") return undefined;
         const numId = Number(id);
         return isNaN(numId) ? undefined : numId;
       };
@@ -302,10 +326,10 @@ Host: Couldn't agree more. Thanks for joining us, Elliot, and thank you to our l
       // 特殊处理 hostPersonaId
       if (settings.hostPersonaId !== undefined) {
         const parsedId = parsePersonaId(settings.hostPersonaId);
-        console.log('解析 hostPersonaId:', {
+        console.log("解析 hostPersonaId:", {
           原始值: settings.hostPersonaId,
           解析后: parsedId,
-          类型: typeof parsedId
+          类型: typeof parsedId,
         });
         processedSettings.hostPersonaId = parsedId;
       }
@@ -313,43 +337,48 @@ Host: Couldn't agree more. Thanks for joining us, Elliot, and thank you to our l
       // 特殊处理 guestPersonaIds
       if (settings.guestPersonaIds !== undefined) {
         // 确保 guestPersonaIds 是数组
-        const guestIds = Array.isArray(settings.guestPersonaIds) ? settings.guestPersonaIds : [];
+        const guestIds = Array.isArray(settings.guestPersonaIds)
+          ? settings.guestPersonaIds
+          : [];
 
-        console.log('原始 guestPersonaIds:', {
+        console.log("原始 guestPersonaIds:", {
           值: guestIds,
           类型: typeof guestIds,
           是数组: Array.isArray(guestIds),
-          长度: guestIds.length
+          长度: guestIds.length,
         });
 
         // 处理每个 ID
         const parsedIds = guestIds
-          .map(id => {
+          .map((id) => {
             const parsedId = parsePersonaId(id);
-            console.log('解析 guestPersonaId:', {
+            console.log("解析 guestPersonaId:", {
               原始值: id,
               解析后: parsedId,
-              类型: typeof parsedId
+              类型: typeof parsedId,
             });
             return parsedId;
           })
-          .filter(id => id !== undefined) as number[];
+          .filter((id) => id !== undefined) as number[];
 
-        console.log('处理后的 guestPersonaIds:', {
+        console.log("处理后的 guestPersonaIds:", {
           值: parsedIds,
           类型: typeof parsedIds,
           是数组: Array.isArray(parsedIds),
-          长度: parsedIds.length
+          长度: parsedIds.length,
         });
 
         // 确保至少保留一个有效的嘉宾 ID
         if (parsedIds.length === 0 && this.personas.length > 1) {
           // 找一个不是主持人的角色作为嘉宾
-          const hostId = Number(processedSettings.hostPersonaId || this.podcastSettings.hostPersonaId);
+          const hostId = Number(
+            processedSettings.hostPersonaId ||
+              this.podcastSettings.hostPersonaId
+          );
           for (const persona of this.personas) {
             if (persona.persona_id !== hostId) {
               parsedIds.push(persona.persona_id);
-              console.log('自动添加默认嘉宾:', persona.persona_id);
+              console.log("自动添加默认嘉宾:", persona.persona_id);
               break;
             }
           }
@@ -361,29 +390,33 @@ Host: Couldn't agree more. Thanks for joining us, Elliot, and thank you to our l
       // 应用更新后的设置
       this.podcastSettings = { ...this.podcastSettings, ...processedSettings };
 
-      console.log('更新设置后:', {
+      console.log("更新设置后:", {
         hostPersonaId: this.podcastSettings.hostPersonaId,
         guestPersonaIds: this.podcastSettings.guestPersonaIds,
         typeHost: typeof this.podcastSettings.hostPersonaId,
-        typeGuests: Array.isArray(this.podcastSettings.guestPersonaIds) ?
-                    this.podcastSettings.guestPersonaIds.map(id => typeof id) :
-                    'not an array'
+        typeGuests: Array.isArray(this.podcastSettings.guestPersonaIds)
+          ? this.podcastSettings.guestPersonaIds.map((id) => typeof id)
+          : "not an array",
       });
 
       // 确保 guestPersonaIds 是数组
       if (!Array.isArray(this.podcastSettings.guestPersonaIds)) {
         this.podcastSettings.guestPersonaIds = [];
-        console.log('修正 guestPersonaIds 为空数组');
+        console.log("修正 guestPersonaIds 为空数组");
       }
     },
 
-    async validateScript(): Promise<{ success: boolean; data?: any; error?: string }> {
+    async validateScript(): Promise<{
+      success: boolean;
+      data?: any;
+      error?: string;
+    }> {
       // 使用 useScriptValidator 中的方法进行验证
       // 由于 composable 需要在 setup 上下文中使用，我们不能直接在 store 中使用它
       // 所以我们在这里实现一个简化版本，或者在组件中使用 composable
 
       if (this.isValidatingScript) {
-        return { success: false, error: '验证已在进行中' };
+        return { success: false, error: "验证已在进行中" };
       }
 
       this.isValidatingScript = true;
@@ -393,18 +426,18 @@ Host: Couldn't agree more. Thanks for joining us, Elliot, and thank you to our l
       try {
         // 验证基本设置
         if (!this.podcastSettings?.title) {
-          toast.error('请设置播客标题');
-          return { success: false, error: '请设置播客标题' };
+          toast.error("请设置播客标题");
+          return { success: false, error: "请设置播客标题" };
         }
 
         if (!this.podcastSettings?.hostPersonaId) {
-          toast.error('请选择主持人');
-          return { success: false, error: '请选择主持人' };
+          toast.error("请选择主持人");
+          return { success: false, error: "请选择主持人" };
         }
 
         if (!this.textToSynthesize) {
-          toast.error('脚本内容为空');
-          return { success: false, error: '脚本内容为空' };
+          toast.error("脚本内容为空");
+          return { success: false, error: "脚本内容为空" };
         }
 
         // 获取主持人信息
@@ -412,30 +445,32 @@ Host: Couldn't agree more. Thanks for joining us, Elliot, and thank you to our l
         const hostPersona = this.personas.find((p) => p.persona_id === hostId);
 
         if (!hostPersona) {
-          toast.error('所选主持人未找到');
-          return { success: false, error: '所选主持人未找到' };
+          toast.error("所选主持人未找到");
+          return { success: false, error: "所选主持人未找到" };
         }
 
         // 获取嘉宾信息
         const guestIds = this.podcastSettings.guestPersonaIds
-          .map(id => Number(id))
-          .filter(id => !isNaN(id) && id > 0);
+          .map((id) => Number(id))
+          .filter((id) => !isNaN(id) && id > 0);
 
         const guestPersonas = guestIds
-          .map(id => this.personas.find(p => p.persona_id === id))
-          .filter(p => p !== undefined) as any[];
+          .map((id) => this.personas.find((p) => p.persona_id === id))
+          .filter((p) => p !== undefined) as any[];
 
         if (guestPersonas.length === 0) {
-          toast.error('请至少选择一位嘉宾');
-          return { success: false, error: '请至少选择一位嘉宾' };
+          toast.error("请至少选择一位嘉宾");
+          return { success: false, error: "请至少选择一位嘉宾" };
         }
 
         // 解析脚本
-        const scriptSegments = this.parseScriptToSegments(this.textToSynthesize);
+        const scriptSegments = this.parseScriptToSegments(
+          this.textToSynthesize
+        );
 
         if (scriptSegments.length === 0) {
           toast.error('无法解析脚本。请确保格式为"说话者: 文本内容"');
-          return { success: false, error: '无法解析脚本' };
+          return { success: false, error: "无法解析脚本" };
         }
 
         // 构建请求体
@@ -446,47 +481,53 @@ Host: Couldn't agree more. Thanks for joining us, Elliot, and thank you to our l
             hostPersona: {
               id: hostPersona.persona_id,
               name: hostPersona.name,
-              voice_model_identifier: hostPersona.voice_model_identifier || ''
+              voice_model_identifier: hostPersona.voice_model_identifier || "",
             },
-            guestPersonas: guestPersonas.map(persona => ({
+            guestPersonas: guestPersonas.map((persona) => ({
               id: persona.persona_id,
               name: persona.name,
-              voice_model_identifier: persona.voice_model_identifier || ''
-            }))
+              voice_model_identifier: persona.voice_model_identifier || "",
+            })),
           },
           preferences: {
-            style: this.podcastSettings.style || '对话式',
-            language: 'en-US',
-            keywords: this.podcastSettings.keywords || '',
+            style: this.podcastSettings.style || "对话式",
+            language: "en-US",
+            keywords: this.podcastSettings.keywords || "",
             numberOfSegments: this.podcastSettings.numberOfSegments || 3,
-            backgroundMusic: this.podcastSettings.backgroundMusic
-          }
+            backgroundMusic: this.podcastSettings.backgroundMusic,
+          },
         };
 
-        console.log('[DEBUG] Store API request body (validation):', JSON.stringify(requestBody, null, 2));
+        console.log(
+          "[DEBUG] Store API request body (validation):",
+          JSON.stringify(requestBody, null, 2)
+        );
 
         // 调用API
-        const response = await $fetch<ValidateScriptResponse>('/api/podcast/process/validate', {
-          method: 'POST',
-          body: requestBody
-        } as any);
+        const response = await $fetch<ValidateScriptResponse>(
+          "/api/podcast/process/validate",
+          {
+            method: "POST",
+            body: requestBody,
+          } as any
+        );
 
-        console.log('[DEBUG] Store API response (validation):', response);
+        console.log("[DEBUG] Store API response (validation):", response);
 
         this.validationResult = response;
 
         if (response.success) {
-          toast.success('脚本验证通过');
+          toast.success("脚本验证通过");
           return { success: true, data: response.structuredData };
         } else {
-          const errorMsg = response.error || response.message || '验证失败';
+          const errorMsg = response.error || response.message || "验证失败";
           toast.error(`验证失败: ${errorMsg}`);
           this.validationError = errorMsg;
           return { success: false, error: errorMsg };
         }
       } catch (err: any) {
-        console.error('[ERROR] Store API request failed (validation):', err);
-        const errorMessage = err.data?.message || err.message || '服务器错误';
+        console.error("[ERROR] Store API request failed (validation):", err);
+        const errorMessage = err.data?.message || err.message || "服务器错误";
         toast.error(`请求错误: ${errorMessage}`);
         this.validationError = errorMessage;
         return { success: false, error: errorMessage };
@@ -499,9 +540,9 @@ Host: Couldn't agree more. Thanks for joining us, Elliot, and thank you to our l
       if (!content) return [];
 
       return content
-        .split('\n')
-        .map(line => {
-          const colonIndex = line.indexOf(':');
+        .split("\n")
+        .map((line) => {
+          const colonIndex = line.indexOf(":");
           if (colonIndex <= 0) return null; // 无效行
 
           const speaker = line.substring(0, colonIndex).trim();
@@ -509,160 +550,151 @@ Host: Couldn't agree more. Thanks for joining us, Elliot, and thank you to our l
 
           return { speaker, text };
         })
-        .filter(segment => segment && segment.speaker && segment.text);
+        .filter((segment) => segment && segment.speaker && segment.text);
     },
 
     async generateScript() {
       if (this.isGeneratingScript) return;
 
       // 添加调试信息，检查哪个条件未满足
-      console.log('生成脚本校验状态:', {
+      console.log("生成脚本校验状态:", {
         createPodcast: this.createPodcast,
         topic: this.podcastSettings.topic,
         title: this.podcastSettings.title,
         hostPersonaId: this.podcastSettings.hostPersonaId,
         hostPersonaIdType: typeof this.podcastSettings.hostPersonaId,
         guestPersonaIds: this.podcastSettings.guestPersonaIds,
-        guestPersonaIdsTypes: Array.isArray(this.podcastSettings.guestPersonaIds) ?
-                             this.podcastSettings.guestPersonaIds.map(id => typeof id) :
-                             'not an array',
-        canGenerate: this.canGeneratePodcastScript
+        guestPersonaIdsTypes: Array.isArray(
+          this.podcastSettings.guestPersonaIds
+        )
+          ? this.podcastSettings.guestPersonaIds.map((id) => typeof id)
+          : "not an array",
+        canGenerate: this.canGeneratePodcastScript,
       });
 
       // 确保 guestPersonaIds 是数组
       if (!Array.isArray(this.podcastSettings.guestPersonaIds)) {
         this.podcastSettings.guestPersonaIds = [];
-        console.log('修正 guestPersonaIds 为空数组');
+        console.log("修正 guestPersonaIds 为空数组");
       }
 
       // 如果没有嘉宾，尝试添加一个默认嘉宾
-      if (this.podcastSettings.guestPersonaIds.length === 0 && this.personas.length > 1) {
+      if (
+        this.podcastSettings.guestPersonaIds.length === 0 &&
+        this.personas.length > 1
+      ) {
         const hostId = Number(this.podcastSettings.hostPersonaId);
         for (const persona of this.personas) {
           if (persona.persona_id !== hostId) {
             this.podcastSettings.guestPersonaIds.push(persona.persona_id);
-            console.log('自动添加默认嘉宾:', persona.persona_id);
+            console.log("自动添加默认嘉宾:", persona.persona_id);
             break;
           }
         }
       }
 
-      if (!this.canGeneratePodcastScript) { // Added safety check based on getter
-        toast.warning("缺少生成脚本所需的必填字段", {
-          description: "请确保已填写标题、主题、主持人和至少一位嘉宾。",
-        });
-        return;
-      }
+      // Removed the check for this.canGeneratePodcastScript to allow generation even with empty fields
+      // The prompt is designed to handle missing user input.
 
       this.isGeneratingScript = true;
       this.scriptGenerationError = null;
 
       try {
-        // 确保 hostPersonaId 是有效的数字
-        const hostId = Number(this.podcastSettings.hostPersonaId);
-        if (isNaN(hostId) || hostId <= 0) {
-          throw new Error('主持人 ID 无效');
-        }
+        // 获取主持人信息，如果未选择则使用默认名称
+        const hostId = this.podcastSettings.hostPersonaId ? Number(this.podcastSettings.hostPersonaId) : undefined;
+        const hostPersona = hostId ? this.personas.find((p: Persona) => p.persona_id === hostId) : undefined;
+        const hostName = hostPersona?.name || "主持人"; // Default name if no host selected or found
 
-        // 确保 guestPersonaIds 中至少有一个有效的数字
+        // 获取嘉宾信息，如果未选择则使用默认名称
         const guestIds = (this.podcastSettings.guestPersonaIds || [])
-          .map(id => Number(id))
-          .filter(id => !isNaN(id) && id > 0);
+          .map((id) => (id ? Number(id) : undefined))
+          .filter((id) => id !== undefined) as number[];
+        const guestPersonas = guestIds.map((id) => this.personas.find((p: Persona) => p.persona_id === id));
+        const guestNames = guestPersonas.length > 0
+          ? guestPersonas.map((g) => g?.name || "嘉宾").join("、")
+          : "嘉宾"; // Default name if no guests selected or found
 
-        if (guestIds.length === 0) {
-          // 如果没有有效的嘉宾，尝试自动选择一个
-          for (const persona of this.personas) {
-            if (persona.persona_id !== hostId) {
-              guestIds.push(persona.persona_id);
-              console.log('自动添加嘉宾:', persona.persona_id);
-              break;
-            }
-          }
+        // voice_model_identifier is not strictly needed for script generation prompt
+        // const speakerMapping = { ... }; // This mapping is more for synthesis, not script generation prompt
 
-          // 如果仍然没有嘉宾，则报错
-          if (guestIds.length === 0) {
-            throw new Error('没有有效的嘉宾 ID，请至少选择一位嘉宾');
-          }
-
-          // 更新 podcastSettings 中的 guestPersonaIds
-          this.podcastSettings.guestPersonaIds = guestIds;
-        }
-
-        console.log('处理后的 ID:', { hostId, guestIds });
-
-        const hostPersona = this.personas.find((p: Persona) => p.persona_id === hostId);
-        const guestPersonas = guestIds.map(id => this.personas.find((p: Persona) => p.persona_id === id));
-
-        console.log('找到的 personas:', {
-          hostPersona,
-          guestPersonas,
-          allPersonas: this.personas.map((p: Persona) => ({ id: p.persona_id, name: p.name }))
-        });
-
-        if (!hostPersona?.voice_model_identifier || guestPersonas.some((g: Persona | undefined) => !g?.voice_model_identifier)) {
-          throw new Error('主持人或嘉宾缺少语音模型标识符');
-        }
-
-        const speakerMapping = {
-          host: { persona_id: hostId, voice_id: hostPersona.voice_model_identifier },
-          guests: guestPersonas.map((guest, index) => ({
-            persona_id: guestIds[index],
-            voice_id: guest!.voice_model_identifier!
-          }))
+        const requestBody = {
+          podcastSettings: {
+            ...this.podcastSettings,
+            // Ensure IDs are numbers if they exist, otherwise undefined
+            hostPersonaId: this.podcastSettings.hostPersonaId ? Number(this.podcastSettings.hostPersonaId) : undefined,
+            guestPersonaIds: (this.podcastSettings.guestPersonaIds || []).map(id => id ? Number(id) : undefined).filter(id => id !== undefined),
+          },
+          hostPersona: hostPersona ? { persona_id: hostPersona.persona_id, name: hostPersona.name, voice_model_identifier: hostPersona.voice_model_identifier || '' } : undefined,
+          guestPersonas: guestPersonas.map(p => p ? { persona_id: p.persona_id, name: p.name, voice_model_identifier: p.voice_model_identifier || '' } : null).filter(p => p !== null) as any[], // Cast to any[] to satisfy type
         };
 
-        // 构建完整的 Prompt
-        const hostName = hostPersona.name || '主持人';
-        const guestNames = guestPersonas.map(g => g?.name || '嘉宾').join('、');
+        console.log("准备发送请求 (generateScript action):", requestBody);
 
-        // 拼接所有信息为一个完整的 Prompt
-        const fullPrompt = `
-标题：${this.podcastSettings.title}
-主题：${this.podcastSettings.topic}
-格式：播客对话
-主持人：${hostName}
-嘉宾：${guestNames}
-风格：${this.podcastSettings.style || '自然对话'}
-关键词：${this.podcastSettings.keywords || ''}
-分段数：${this.podcastSettings.numberOfSegments || 3}
-背景音乐：${this.podcastSettings.backgroundMusic || '无'}
+        console.log(
+          ">>> [generateScript] ABOUT TO CALL $fetch for /api/generate-script"
+        );
+        // @ts-ignore - Nuxt 自动导入的 $fetch.
+        const response = await $fetch<GenerateScriptApiResponse>( // Use the new GenerateScriptApiResponse interface
+          "/api/generate-script",
+          {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: requestBody,
+          } as any
+        );
 
-请生成一个完整的播客脚本，包含主持人和嘉宾之间的对话。脚本应该清晰标明每个说话者的名字，并且内容要围绕主题展开，符合指定的风格和关键词。
-        `.trim();
+        if (response && response.script && Array.isArray(response.script)) {
+          // Reconstruct textToSynthesize from the script segments
+          this.textToSynthesize = response.script.map(segment => `${segment.name}: ${segment.text}`).join('\n');
 
-        console.log('准备发送请求 (generateScript action):', {
-          fullPrompt,
-          topic: this.podcastSettings.topic,
-          persona_id: hostId
-        });
 
-        console.log('>>> [generateScript] ABOUT TO CALL $fetch for /api/generate-script');
-        // @ts-ignore - Nuxt 自动导入的 $fetch. Keeping @ts-ignore for now as the type issue might be project-specific.
-        const response = await $fetch<{ script: string }>('/api/generate-script', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' }, // Explicitly add Content-Type
-          body: {
-            user_instruction: fullPrompt,
-            podcastSettings: {
-              ...this.podcastSettings,
-              hostPersonaId: hostId,
-              guestPersonaIds: guestIds
+          // Update podcastSettings from the response
+          if (response.podcastTitle !== undefined) this.podcastSettings.title = response.podcastTitle;
+          if (response.topic !== undefined) this.podcastSettings.topic = response.topic;
+          if (response.style !== undefined) this.podcastSettings.style = response.style;
+          if (response.keywords !== undefined) this.podcastSettings.keywords = response.keywords;
+          if (response.numberOfSegments !== undefined) this.podcastSettings.numberOfSegments = response.numberOfSegments;
+          if (response.language !== undefined) this.podcastSettings.language = response.language;
+
+          // Update validationResult with the structured data from AI
+          // We need to ensure the 'script' part matches ValidateScriptResponse['structuredData']['script']
+          const structuredScriptForValidation = response.script.map(s => ({
+            name: s.name, // Now s.name should be available from AIScriptSegment
+            role: (s.role.toLowerCase() === 'host' || s.role.toLowerCase() === 'guest' ? s.role.toLowerCase() : (s.name.toLowerCase().includes('host') ? 'host' : 'guest')) as 'host' | 'guest', // Prioritize s.role if valid, then fallback
+            text: s.text,
+          }));
+
+          this.validationResult = {
+            success: true, // Assume success if AI provides structured data
+            structuredData: {
+                podcastTitle: response.podcastTitle,
+                script: structuredScriptForValidation,
+                voiceMap: response.voiceMap,
+                language: response.language,
             },
-          },
-        } as any);
-        console.log('<<< [generateScript] $fetch for /api/generate-script COMPLETED. Response:', response);
+            message: "Script and settings generated by AI.",
+          };
 
-        this.textToSynthesize = response.script;
-        toast.success('脚本生成成功！', {
-          description: '脚本已经可以在编辑器中查看。',
-        });
+          toast.success("AI 脚本生成成功！", {
+            description: "脚本和播客设置已更新。",
+          });
+        } else {
+          throw new Error("AI did not return the expected structured data format.");
+        }
       } catch (error: any) {
-        console.error('!!! [generateScript] ERROR caught:', error);
-        console.log('Raw error object in catch block:', JSON.stringify(error, Object.getOwnPropertyNames(error)));
+        console.error("!!! [generateScript] ERROR caught:", error);
+        console.log(
+          "Raw error object in catch block:",
+          JSON.stringify(error, Object.getOwnPropertyNames(error))
+        );
 
-        const errorMessage = error.data?.message || error.data?.statusMessage || error.message || '脚本生成过程中发生未知错误。';
+        const errorMessage =
+          error.data?.message ||
+          error.data?.statusMessage ||
+          error.message ||
+          "脚本生成过程中发生未知错误。";
         this.scriptGenerationError = errorMessage;
-        toast.error('脚本生成失败', { description: errorMessage });
+        toast.error("脚本生成失败", { description: errorMessage });
       } finally {
         this.isGeneratingScript = false;
       }
@@ -670,13 +702,17 @@ Host: Couldn't agree more. Thanks for joining us, Elliot, and thank you to our l
 
     async startStreamingPreview(): Promise<Response | undefined> {
       if (!this.textToSynthesize.trim()) {
-        toast.error('No content to preview.', {description: 'Please generate a script first.'});
+        toast.error("No content to preview.", {
+          description: "Please generate a script first.",
+        });
         return;
       }
       const hostId = Number(this.podcastSettings.hostPersonaId);
-      const hostPersona = this.personas.find((p: Persona) => p.persona_id === hostId);
+      const hostPersona = this.personas.find(
+        (p: Persona) => p.persona_id === hostId
+      );
       if (!hostPersona?.voice_model_identifier) {
-        toast.error('Host persona has no voice model set.');
+        toast.error("Host persona has no voice model set.");
         return;
       }
       this.isStreamingPreview = true;
@@ -684,13 +720,14 @@ Host: Couldn't agree more. Thanks for joining us, Elliot, and thank you to our l
 
       if (this.currentPreviewAbortController) {
         this.currentPreviewAbortController.abort();
+        this.currentPreviewAbortController = null;
       }
       this.currentPreviewAbortController = new AbortController();
 
       try {
         // @ts-ignore - Nuxt 自动导入的 $fetch
-        const response = await $fetch.raw('/api/tts/stream-preview', {
-          method: 'POST',
+        const response = await $fetch.raw("/api/tts/stream-preview", {
+          method: "POST",
           body: {
             text: this.textToSynthesize,
             voice_id: hostPersona.voice_model_identifier,
@@ -699,14 +736,15 @@ Host: Couldn't agree more. Thanks for joining us, Elliot, and thank you to our l
         } as any);
         return response;
       } catch (error: any) {
-        if (error.name === 'AbortError') {
-          console.log('预览已被用户中止');
-          toast.info('预览已中止');
+        if (error.name === "AbortError") {
+          console.log("预览已被用户中止");
+          toast.info("预览已中止");
         } else {
-          console.error('预览失败:', error);
-          const errorMessage = error.data?.message || error.message || '预览过程中发生未知错误';
+          console.error("预览失败:", error);
+          const errorMessage =
+            error.data?.message || error.message || "预览过程中发生未知错误";
           this.streamingPreviewError = errorMessage;
-          toast.error('预览失败', { description: errorMessage });
+          toast.error("预览失败", { description: errorMessage });
         }
         this.isStreamingPreview = false;
         this.currentPreviewAbortController = null;
@@ -724,11 +762,11 @@ Host: Couldn't agree more. Thanks for joining us, Elliot, and thank you to our l
 
     resetPlaygroundState() {
       this.createPodcast = true;
-      this.selectedProvider = 'elevenlabs';
-      this.textToSynthesize = '';
+      this.selectedProvider = "elevenlabs";
+      this.textToSynthesize = "";
       this.podcastSettings = { ...defaultPodcastSettings };
       this.synthesisParams = { ...defaultSynthesisParams };
-      this.outputFilename = 'synthesis_output.mp3';
+      this.outputFilename = "synthesis_output.mp3";
       this.scriptGenerationError = null;
       this.synthesisError = null;
       this.audioUrl = null;
@@ -747,9 +785,9 @@ Host: Couldn't agree more. Thanks for joining us, Elliot, and thank you to our l
       this.validationError = null;
       this.validationResult = null;
 
-      toast.info('已重置，准备创建新播客。');
+      toast.info("已重置，准备创建新播客。");
       if (process.client) {
-        localStorage.removeItem('playgroundState');
+        localStorage.removeItem("playgroundState");
       }
     },
 
@@ -767,8 +805,14 @@ Host: Couldn't agree more. Thanks for joining us, Elliot, and thank you to our l
         ...this.synthesisParams,
         ...params,
         // Ensure arrays are updated if single values are passed
-        temperatureArray: params.temperature !== undefined ? [params.temperature] : this.synthesisParams.temperatureArray,
-        speedArray: params.speed !== undefined ? [params.speed] : this.synthesisParams.speedArray,
+        temperatureArray:
+          params.temperature !== undefined
+            ? [params.temperature]
+            : this.synthesisParams.temperatureArray,
+        speedArray:
+          params.speed !== undefined
+            ? [params.speed]
+            : this.synthesisParams.speedArray,
       };
     },
 
@@ -777,62 +821,120 @@ Host: Couldn't agree more. Thanks for joining us, Elliot, and thank you to our l
       this.segmentTimestamps = timestamps;
     },
 
-    async synthesizePodcastAudio(options: { useTimestamps?: boolean } = {}) {
-      const { useTimestamps = false } = options;
-
+    async synthesizeAllSegmentsConcurrently() { // Renamed for concurrent processing
       if (this.isSynthesizing) return;
-      if (!this.textToSynthesize.trim()) {
-        toast.error('Script is empty.', { description: 'Please generate or write a script before synthesizing.' });
+      if (!this.validationResult?.structuredData?.script || this.validationResult.structuredData.script.length === 0) {
+        toast.error("No valid script segments to synthesize.", {
+          description: "Please generate or validate a script first.",
+        });
+        return;
+      }
+      if (!this.podcastId) {
+        toast.error("Podcast ID is missing. Cannot synthesize segments.");
         return;
       }
 
       this.isSynthesizing = true;
       this.synthesisError = null;
-      this.audioUrl = null;
 
-      try {
-        let response;
-        if (useTimestamps && this.segmentTimestamps.length > 0) {
-          // 调用支持时间戳的音频合成API
-          // @ts-ignore - Nuxt 自动导入的 $fetch
-          response = await $fetch<{ audioUrl: string; filename?: string }>('/api/synthesize-podcast-with-timestamps', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              script: this.textToSynthesize, // Or segments if your backend expects that
-              podcastSettings: this.podcastSettings,
-              synthesisParams: this.synthesisParams,
-              provider: this.selectedProvider,
-              timestamps: this.segmentTimestamps
-            })
-          } as any);
-          toast.info('Synthesizing with timestamps...');
-        } else {
-          // 原有的音频合成逻辑...
-          // @ts-ignore - Nuxt 自动导入的 $fetch
-          response = await $fetch<{ audioUrl: string; filename?: string }>('/api/tts/podcast', { // Example endpoint
-            method: 'POST',
-            body: {
-              script: this.textToSynthesize,
-              podcastId: this.podcastId, // Ensure the actual podcastId (UUID) is sent
-              podcastSettings: this.podcastSettings,
-              synthesisParams: this.synthesisParams,
-              provider: this.selectedProvider,
-            },
-          } as any);
+      const segmentsToProcess = this.validationResult.structuredData.script;
+      const voiceMap = this.validationResult.structuredData.voiceMap;
+      let successfulSegments = 0;
+      let failedSegments = 0;
+      const totalSegments = segmentsToProcess.length;
+
+      console.log(`[synthesizeAllSegmentsConcurrently] Starting to process ${totalSegments} segments for podcastId: ${this.podcastId} with concurrency.`);
+      toast.info(`Starting concurrent synthesis for ${totalSegments} segments...`);
+
+      const CONCURRENCY_LIMIT = 4;
+      const processingQueue = [...segmentsToProcess.map((seg, index) => ({ segment: seg, index }))]; // Add index for tracking
+      const activePromises: Promise<any>[] = [];
+      
+      const processSegment = async (segmentWithIndex: { segment: typeof segmentsToProcess[0], index: number }) => {
+        const { segment, index } = segmentWithIndex;
+        const voiceInfo = voiceMap[segment.name];
+        const toastId = `segment-toast-${index}`;
+
+        if (!voiceInfo || !voiceInfo.voice_model_identifier) {
+          const errorMsg = `Voice ID not found for speaker: ${segment.name} in segment ${index}. Skipping.`;
+          console.error(`[synthesizeAllSegmentsConcurrently] ${errorMsg}`);
+          toast.warning(errorMsg, { id: toastId });
+          failedSegments++;
+          return; // Exit this specific segment processing
         }
 
-        this.audioUrl = response.audioUrl;
-        if(response.filename) this.outputFilename = response.filename;
-        toast.success('Podcast audio synthesized successfully!');
+        const inputSegment = {
+          segmentIndex: index,
+          text: segment.text,
+          voiceId: voiceInfo.voice_model_identifier,
+          speakerName: segment.name,
+        };
 
-      } catch (error: any) {
-        console.error('Podcast audio synthesis failed:', error);
-        const errorMessage = error.data?.message || error.message || 'Unknown synthesis error.';
-        this.synthesisError = errorMessage;
-        toast.error('Podcast Synthesis Failed', { description: errorMessage });
-      } finally {
-        this.isSynthesizing = false;
+        try {
+          toast.loading(`Synthesizing segment ${index + 1}/${totalSegments}: ${segment.name}...`, { id: toastId });
+          // @ts-ignore
+          const response = await $fetch('/api/podcast/process/synthesize-segments', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: {
+              podcastId: this.podcastId,
+              segments: [inputSegment],
+              defaultModelId: this.podcastSettings.elevenLabsProjectId,
+              voiceSettings: {
+                stability: this.synthesisParams.temperature,
+                similarity_boost: this.synthesisParams.speed,
+              }
+            },
+          });
+
+          // @ts-ignore
+          if (response.success && response.generatedSegments && response.generatedSegments[0] && !response.generatedSegments[0].error) {
+            toast.success(`Segment ${index + 1} (${segment.name}) synthesized successfully.`, { id: toastId });
+            successfulSegments++;
+          } else {
+            // @ts-ignore
+            const errorMsg = response.generatedSegments && response.generatedSegments[0]?.error ? response.generatedSegments[0].error : (response.message || "Unknown error");
+            toast.error(`Failed segment ${index + 1} (${segment.name}): ${errorMsg}`, { id: toastId });
+            failedSegments++;
+          }
+        } catch (error: any) {
+          const errorMessage = error.data?.message || error.message || "Network or server error";
+          toast.error(`Error synthesizing segment ${index + 1} (${segment.name}): ${errorMessage}`, { id: toastId });
+          failedSegments++;
+          console.error(`[synthesizeAllSegmentsConcurrently] Error processing segment ${index}:`, error);
+        }
+      };
+
+      const manageConcurrency = async () => {
+        while (processingQueue.length > 0 || activePromises.length > 0) {
+          while (activePromises.length < CONCURRENCY_LIMIT && processingQueue.length > 0) {
+            const segmentToProcess = processingQueue.shift();
+            if (segmentToProcess) {
+              const promise = processSegment(segmentToProcess)
+                .finally(() => {
+                  // Remove the promise from activePromises once it's settled
+                  const promiseIndex = activePromises.indexOf(promise);
+                  if (promiseIndex > -1) {
+                    activePromises.splice(promiseIndex, 1);
+                  }
+                });
+              activePromises.push(promise);
+            }
+          }
+          if (activePromises.length > 0) {
+            await Promise.race(activePromises); // Wait for any of the active promises to settle
+          }
+        }
+      };
+
+      await manageConcurrency();
+
+      this.isSynthesizing = false;
+      if (failedSegments > 0) {
+        this.synthesisError = `${failedSegments} segment(s) failed to synthesize.`;
+        toast.error(`Synthesis complete with ${failedSegments} failure(s). ${successfulSegments} succeeded.`);
+      } else {
+        toast.success(`All ${successfulSegments} segments synthesized successfully!`);
       }
     },
 
@@ -842,8 +944,8 @@ Host: Couldn't agree more. Thanks for joining us, Elliot, and thank you to our l
 
     saveStateToLocalStorage() {
       if (process.client) {
-        localStorage.setItem('playgroundState', JSON.stringify(this.$state));
+        localStorage.setItem("playgroundState", JSON.stringify(this.$state));
       }
-    }
+    },
   },
 });

@@ -42,6 +42,10 @@
           />
         </div>
       </div>
+      <div v-if="synthProgress" class="flex items-center space-x-2 text-xs ml-2 min-w-[120px] justify-end">
+        <Icon name="ph:check-circle" class="w-4 h-4 text-primary" />
+        <span>Synthesized: {{ synthProgress.synthesized }} / {{ synthProgress.total }}</span>
+      </div>
     </div>
 
     <!-- Speaker Voice Assignment -->
@@ -91,16 +95,15 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, watch, onMounted } from 'vue';
-import { usePlaygroundStore, type Persona } from '../../stores/playground';
+import { computed, onMounted, ref } from 'vue';
 import { toast } from 'vue-sonner';
-import type { Tables } from '~/types/supabase';
+import { usePlaygroundStore, type Persona } from '../../stores/playground';
 
+import { useSegmentPreview, type PreviewableSegment } from '../../composables/useSegmentPreview';
+import { useVoiceManagement, type ParsedScriptSegment as VoiceManParsedSegment } from '../../composables/useVoiceManagement';
 import SegmentVoiceAssignmentItem from './SegmentVoiceAssignmentItem.vue';
-import { useVoiceManagement, type Voice, type ParsedScriptSegment as VoiceManParsedSegment } from '../../composables/useVoiceManagement';
-import { useSegmentPreview, type SegmentState, type SegmentPreviewData, type PreviewableSegment } from '../../composables/useSegmentPreview';
 
-const props = defineProps<{ scriptContent: string }>();
+const props = defineProps<{ scriptContent: string, synthProgress?: { synthesized: number, total: number } }>();
 const emit = defineEmits(['update:scriptContent', 'next', 'back']);
 
 const playgroundStore = usePlaygroundStore();

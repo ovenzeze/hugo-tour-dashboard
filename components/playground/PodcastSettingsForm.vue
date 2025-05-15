@@ -22,10 +22,10 @@
 
     <div class="grid grid-cols-1 gap-x-4 gap-y-5">
       <!-- Host Character -->
-      <div class="flex items-center border rounded-md p-0 space-x-3 bg-background">
-        <Icon name="ph:user-sound" class="w-5 h-5 text-muted-foreground flex-shrink-0 ml-2.5" />
-        <Select v-model="editableSettings.hostPersonaId" class="flex-1">
-          <SelectTrigger id="hostPersona" class="w-full border-0 focus:ring-0 shadow-none bg-transparent text-sm pl-1 pr-2.5 py-2.5 h-auto">
+      <div>
+        <Label class="text-sm font-medium">Host Character</Label>
+        <Select v-model="editableSettings.hostPersonaId">
+          <SelectTrigger id="hostPersona" class="w-full">
             <SelectValue placeholder="Select Host Character" />
           </SelectTrigger>
           <SelectContent>
@@ -34,8 +34,8 @@
               <SelectLabel v-else-if="!personas || personas.length === 0">No characters available</SelectLabel>
               <SelectItem
                 v-for="persona in personas"
-                :key="persona.persona_id"
-                :value="String(persona.persona_id)"
+                :key="persona.id"
+                :value="String(persona.id)"
               >
                 {{ persona.name }}
               </SelectItem>
@@ -44,26 +44,29 @@
         </Select>
       </div>
 
+      <!-- Guest Characters -->
       <div>
         <Label class="text-sm font-medium">Guest Characters</Label>
-        <ScrollArea class="mt-1.5 h-[100px] w-full rounded-md border">
-          <div class="p-3 space-y-2">
-            <p v-if="personasLoading" class="text-xs text-muted-foreground px-1">Loading...</p>
-            <p v-else-if="!personas || personas.length === 0 || availableGuestPersonas.length === 0" class="text-xs text-muted-foreground px-1">
-              {{ !personas || personas.length === 0 ? 'No characters' : 'No other guests' }}
-            </p>
-            <div v-for="persona in availableGuestPersonas" :key="persona.persona_id" class="flex items-center space-x-2">
-              <Checkbox
-                :id="'guest-' + persona.persona_id"
-                :checked="isGuestSelected(persona.persona_id)"
-                @update:checked="(checked: boolean) => toggleGuestPersona(persona.persona_id, checked)"
-              />
-              <Label :for="'guest-' + persona.persona_id" class="text-sm font-normal cursor-pointer">
+        <Select v-model="editableSettings.guestPersonaIds" multiple>
+          <SelectTrigger id="guestPersonas" class="w-full">
+            <SelectValue placeholder="Select Guest Characters" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectGroup>
+              <SelectLabel v-if="personasLoading">Loading...</SelectLabel>
+              <SelectLabel v-else-if="!personas || personas.length === 0 || availableGuestPersonas.length === 0">
+                {{ !personas || personas.length === 0 ? 'No characters' : 'No other guests' }}
+              </SelectLabel>
+              <SelectItem
+                v-for="persona in availableGuestPersonas"
+                :key="persona.id"
+                :value="String(persona.id)"
+              >
                 {{ persona.name }}
-              </Label>
-            </div>
-          </div>
-        </ScrollArea>
+              </SelectItem>
+            </SelectGroup>
+          </SelectContent>
+        </Select>
       </div>
     </div>
     
@@ -75,9 +78,10 @@
           type="number"
           v-model.number="editableSettings.numberOfSegments"
           placeholder="e.g., 3"
-          class="mt-1.5"
+          class="mt-1.5 appearance-none hide-spin"
           min="1"
           max="10"
+          inputmode="numeric"
         />
       </div>
 
@@ -116,7 +120,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, watch, ref } from 'vue';
+import { computed, watch } from 'vue';
 // Ignore linter errors for type imports
 // @ts-ignore
 import type { FullPodcastSettings, Persona } from '~/types/playground';
@@ -159,7 +163,7 @@ const editableSettings = computed({
 
 const availableGuestPersonas = computed(() => {
   if (!props.personas) return [];
-  return props.personas.filter(p => p.persona_id !== Number(editableSettings.value.hostPersonaId));
+  return props.personas.filter(p => String(p.id) !== String(editableSettings.value.hostPersonaId));
 });
 
 // Check if guest is selected
@@ -251,21 +255,21 @@ watch(() => props.personas, (loadedPersonas) => {
     let needsUpdate = false;
 
     // Default Host: if not already set in modelValue and personas are available
-    // Assuming 'persona_id' is the correct property on the Persona object.
+    // Assuming 'id' is the correct property on the Persona object.
     if (!newHostId && loadedPersonas.length > 0) {
       const defaultHost = loadedPersonas[0];
-      if (defaultHost && typeof defaultHost.persona_id !== 'undefined') { // Check if persona_id exists
-        newHostId = String(defaultHost.persona_id);
+      if (defaultHost && typeof defaultHost.id !== 'undefined') { // Check if id exists
+        newHostId = String(defaultHost.id);
         needsUpdate = true;
       }
     }
 
     // Default Guest: if not already set in modelValue, a host is selected/defaulted, and a different persona is available
-    // Assuming 'persona_id' is the correct property on the Persona object.
+    // Assuming 'id' is the correct property on the Persona object.
     if (newGuestIds.length === 0 && newHostId && loadedPersonas.length > 0) {
-      const potentialGuest = loadedPersonas.find(p => p && typeof p.persona_id !== 'undefined' && String(p.persona_id) !== newHostId);
+      const potentialGuest = loadedPersonas.find(p => p && typeof p.id !== 'undefined' && String(p.id) !== newHostId);
       if (potentialGuest) {
-        newGuestIds = [String(potentialGuest.persona_id)];
+        newGuestIds = [String(potentialGuest.id)];
         needsUpdate = true;
       }
     }
@@ -281,3 +285,14 @@ watch(() => props.personas, (loadedPersonas) => {
 }, { immediate: true, deep: true });
 
 </script>
+
+<style scoped>
+.hide-spin::-webkit-outer-spin-button,
+.hide-spin::-webkit-inner-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+.hide-spin[type="number"] {
+  -moz-appearance: textfield;
+}
+</style>

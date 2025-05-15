@@ -1,9 +1,9 @@
 <template>
   <Sidebar class="flex h-full max-h-screen flex-col">
     <div class="flex h-14 items-center  px-4 lg:h-[60px] lg:px-6">
-      <NuxtLink to="/" class="flex items-center gap-2 font-semibold">
-        <Icon name="ph:compass-tool" class="h-6 w-6 text-primary" />
-        <span>Hugo Tour Dashboard</span>
+      <NuxtLink to="/" class="flex items-center gap-3 font-semibold">
+        <Icon name="ph:compass-tool" class="h-5 w-5 text-primary" />
+        <span>Hugo Dashboard</span>
       </NuxtLink>
       <!-- 如果有其他头部元素，例如通知按钮，可以放在这里 -->
     </div>
@@ -21,7 +21,7 @@
               @click="$emit('close')"
             >
               <NuxtLink :to="link.path" class="flex items-center">
-                <Icon :name="link.icon" class="mr-2 h-6 w-6 shrink-0" />
+                <Icon :name="link.icon" class="mr-2 h-5 w-5 shrink-0" />
                 <span class="truncate text-sm font-medium">{{ link.label }}</span>
               </NuxtLink>
             </SidebarMenuButton>

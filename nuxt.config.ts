@@ -6,12 +6,6 @@ export default defineNuxtConfig({
   ssr: false,
   devServer: {
     port: 4000,
-    watch: [
-      // By default, Nuxt watches the public directory.
-      // We want to ignore changes to JSON files in public/podcasts/
-      // to prevent page reloads when new podcast segment timestamps are saved.
-      "!public/podcasts/**/*.json"
-    ]
   },
   runtimeConfig: {
     postgresUrl: process.env.POSTGRES_URL,

@@ -51,235 +51,160 @@
     <!-- Main Content: Unified Card Layout -->
     <Card class="flex-1 flex flex-col min-h-0 overflow-hidden mx-4 my-4 border rounded-lg shadow-sm">
       <!-- Card Header with Title - Fixed at the top -->
-      <CardHeader v-if="currentStepIndex !== 1" class="border-b flex-shrink-0 py-3">
+      <CardHeader v-if="currentStepIndex !== 1 && currentStepIndex !== 2" class="border-b flex-shrink-0 py-3">
         <div class="flex items-center justify-between">
-          
-          <div v-if="currentStepIndex !== 2" class="flex-1"></div> 
-
-          <div v-if="currentStepIndex === 2 && voicePerformanceSettingsRef && (voicePerformanceSettingsRef as any).ttsProvider" 
-               class="flex items-center space-x-4 pl-0 flex-1 w-full">
-            <div class="flex-shrink-0 w-1/3">
-              <Select :model-value="(voicePerformanceSettingsRef as any).ttsProvider.value" 
-                      @update:model-value="(newValue) => { if (voicePerformanceSettingsRef && (voicePerformanceSettingsRef as any).onProviderChange && typeof newValue === 'string') { (voicePerformanceSettingsRef as any).onProviderChange(newValue); } else if (voicePerformanceSettingsRef && (voicePerformanceSettingsRef as any).onProviderChange && newValue === null) { /* Optionally handle null, e.g., pass an empty string or a specific signal if the composable expects it, or do nothing if it should only react to strings */ } }" >
-                <SelectTrigger id="headerTtsProvider" class="w-full">
-                  <SelectValue placeholder="Select TTS Provider" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectGroup>
-                    <SelectItem value="elevenlabs">ElevenLabs</SelectItem>
-                    <SelectItem value="azure">Azure TTS</SelectItem>
-                    <SelectItem value="openai_tts">OpenAI TTS</SelectItem>
-                  </SelectGroup>
-                </SelectContent>
-              </Select>
-            </div>
-            
-            <div class="flex-1 flex items-center space-x-4">
-              <div class="flex items-center gap-2 flex-1">
-                <Label class="whitespace-nowrap text-sm">Temp: {{ playgroundStore.synthesisParams.temperature.toFixed(1) }}</Label>
-                <Slider
-                  class="flex-1"
-                  :model-value="playgroundStore.synthesisParams.temperatureArray"
-                  @update:model-value="(value: number[] | undefined) => { if (value && value.length > 0) playgroundStore.updateSynthesisParams({ temperature: value[0] }) }"
-                  :min="0"
-                  :max="1"
-                  :step="0.1"
-                />
-              </div>
-              
-              <div class="flex items-center gap-2 flex-1">
-                <Label class="whitespace-nowrap text-sm">Speed: {{ playgroundStore.synthesisParams.speed.toFixed(1) }}x</Label>
-                <Slider
-                  class="flex-1"
-                  :model-value="playgroundStore.synthesisParams.speedArray"
-                  @update:model-value="(value: number[] | undefined) => { if (value && value.length > 0) playgroundStore.updateSynthesisParams({ speed: value[0] }) }"
-                  :min="0.5"
-                  :max="2"
-                  :step="0.1"
-                />
-              </div>
-            </div>
-          </div>
-
-          <div v-if="currentStepIndex === 2 && voicePerformanceSettingsRef" class="ml-auto flex items-center space-x-2 text-sm">
-            <Icon name="ph:check-circle" class="w-4 h-4 text-primary" />
-            <span>Synthesized: {{ (voicePerformanceSettingsRef as any).synthesizedSegmentsCount }} / {{ (voicePerformanceSettingsRef as any).totalSegmentsCount }}</span>
-          </div>
+          <div class="flex-1"></div>
         </div>
       </CardHeader>
 
-      <!-- Card Content: Main Area with Left-Right Layout - Scrollable Area -->
-      <CardContent class="flex-1 p-0 flex flex-col md:flex-row min-h-0 overflow-auto">
-        <!-- Left Panel: Settings for Current Step -->
-        <div v-if="currentStepIndex !== 2" class="flex flex-col min-h-0 overflow-y-auto p-4 md:w-1/3 md:border-r md:border-b-0 min-w-[360px]">
-          <!-- Podcast Creation Steps Content -->
-          <PodcastSettingsForm
-            v-if="currentStepIndex === 1"
-            v-model="playgroundStore.podcastSettings"
-            :personas="personasForForm"
-            :personas-loading="playgroundStore.personasLoading"
-          />
-          
-          <!-- Step 2 has been moved to take the full width -->
-          
-          <PodcastAudioSynthesisControls
-            v-if="currentStepIndex === 3"
-            :podcastId="playgroundStore.podcastId || undefined"
-            :modelValue="playgroundStore.audioUrl || undefined"
-            :disabled="playgroundStore.isSynthesizing"
-            @update:modelValue="updateFinalAudioUrl"
-            @update:outputFilename="playgroundStore.updateOutputFilename"
-            @download="handleDownloadCurrentAudio"
-            @synthesize="handleToolbarSynthesizePodcastAudio"
-          />
+      <!-- Main Content: Unified Card Layout -->
+      <CardContent class="flex-1 p-0 flex flex-col md:flex-row min-h-0 overflow-auto gap-4 bg-background">
+        <!-- Main Content: Responsive Card Layout for Step 1 -->
+        <div v-if="currentStepIndex === 1" class="flex flex-col md:flex-row gap-4 flex-1 p-4 bg-background h-full">
+          <!-- 左侧表单区，单独滑动 -->
+          <Card class="md:w-1/3 w-full p-4 flex-shrink-0 bg-muted/60 border-none shadow-md max-h-screen overflow-y-auto h-full">
+            <PodcastSettingsForm
+              v-model="playgroundStore.podcastSettings"
+              :personas="personasForForm"
+              :personas-loading="playgroundStore.personasLoading"
+            />
+          </Card>
+          <!-- 右侧脚本编辑区，独立滑动 -->
+          <Card class="flex-1 p-4 min-h-[240px] flex flex-col bg-background border-none shadow-md overflow-y-auto h-full">
+            <template v-if="isScriptGenerating || isValidating">
+              <div class="flex flex-col items-center justify-center h-full">
+                <Icon name="ph:spinner" class="h-12 w-12 animate-spin text-primary mb-4" />
+                <p class="text-center text-lg font-medium">
+                  {{ isScriptGenerating ? 'Standardizing Script...' : 'Validating Script...' }}
+                </p>
+                <p class="text-center text-sm text-muted-foreground mt-2">
+                  {{ isScriptGenerating ? 'Processing and saving script...' : 'Checking script format and content.' }}
+                </p>
+              </div>
+            </template>
+            <Textarea
+              v-else-if="!playgroundStore.selectedPersonaIdForHighlighting"
+              v-model="mainEditorContent"
+              placeholder="Script will appear here after generation..."
+              class="flex-1 w-full h-full resize-none min-h-[200px] rounded-lg border border-input bg-background p-4 text-base focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 transition placeholder:text-muted-foreground"
+            />
+            <div
+              v-else
+              class="flex-1 w-full h-full overflow-y-auto p-4 text-sm"
+              v-html="highlightedScript"
+            ></div>
+          </Card>
         </div>
-
-        <!-- Right Panel: Editor & Output -->
-        <div class="flex-1 flex flex-col min-h-0 overflow-hidden" :class="{'w-full': currentStepIndex === 2}">
-          <!-- Loading Status Indicator -->
-          <div v-if="isScriptGenerating || isValidating" class="flex flex-col items-center justify-center h-full p-4">
-            <Icon name="ph:spinner" class="h-12 w-12 animate-spin text-primary mb-4" />
-            <p class="text-center text-lg font-medium">
-              {{ isScriptGenerating ? 'Generating Script...' : 'Validating Script...' }}
-            </p>
-            <p class="text-center text-sm text-muted-foreground mt-2">
-              {{ isScriptGenerating ? 'This may take a moment, please wait.' : 'Checking script format and content.' }}
-            </p>
-          </div>
-          
-          <!-- Textarea for editing when no persona is selected for highlighting in Step 1 -->
-          <Textarea
-            v-else-if="currentStepIndex === 1 && !playgroundStore.selectedPersonaIdForHighlighting"
-            v-model="mainEditorContent"
-            placeholder="Script will appear here after generation..."
-            class="flex-1 w-full h-full resize-none min-h-[200px] border-0 focus-visible:ring-0 focus-visible:ring-offset-0 p-4"
-          />
-
-          <!-- Display area for highlighted script when a persona is selected in Step 1 -->
-          <div
-            v-else-if="currentStepIndex === 1 && playgroundStore.selectedPersonaIdForHighlighting"
-            class="flex-1 w-full h-full overflow-y-auto p-4 text-sm"
-            v-html="highlightedScript"
-          ></div>
-          
-          <!-- Voice Performance Settings takes the full space in Step 2 -->
-          <VoicePerformanceSettings
-            v-else-if="currentStepIndex === 2"
-            v-model:scriptContent="playgroundStore.textToSynthesize"
-            ref="voicePerformanceSettingsRef"
-            class="w-full overflow-y-auto p-4"
-          />
-          
-          <!-- Audio Preview Section (conditionally shown) -->
-          <div v-if="playgroundStore.audioUrl" class="p-4 border-t">
-            <p class="font-medium text-sm mb-2">Audio Preview:</p>
-            <audio :src="playgroundStore.audioUrl" controls class="w-full"></audio>
-            
-            <div v-if="podcastPerformanceConfig && playgroundStore.audioUrl" class="mt-4 pt-3 border-t text-xs text-muted-foreground space-y-1">
-              <p class="font-medium text-sm text-foreground mb-1">Podcast Audio Details:</p>
-              <p><strong>Type:</strong> {{ (podcastPerformanceConfig as any)?.provider || 'N/A' }}</p>
-              <p><strong>Voices:</strong> {{ getAssignedVoicesString() }}</p>
-            </div>
+        <!-- 其他步骤内容保持原有逻辑 -->
+        <VoicePerformanceSettings
+          v-if="currentStepIndex === 2"
+          v-model:scriptContent="playgroundStore.textToSynthesize"
+          ref="voicePerformanceSettingsRef"
+          :synth-progress="{
+            synthesized: (voicePerformanceSettingsRef as any)?.synthesizedSegmentsCount,
+            total: (voicePerformanceSettingsRef as any)?.totalSegmentsCount
+          }"
+          class="w-full overflow-y-auto p-2 md:p-4"
+        />
+        <div v-if="playgroundStore.audioUrl" class="p-4 border-t">
+          <p class="font-medium text-sm mb-2">Audio Preview:</p>
+          <audio :src="playgroundStore.audioUrl" controls class="w-full"></audio>
+          <div v-if="podcastPerformanceConfig && playgroundStore.audioUrl" class="mt-4 pt-3 border-t text-xs text-muted-foreground space-y-1">
+            <p class="font-medium text-sm text-foreground mb-1">Podcast Audio Details:</p>
+            <p><strong>Type:</strong> {{ (podcastPerformanceConfig as any)?.provider || 'N/A' }}</p>
+            <p><strong>Voices:</strong> {{ getAssignedVoicesString() }}</p>
           </div>
         </div>
       </CardContent>
 
-      <!-- Card Footer with Action Buttons - Fixed at the bottom -->
-      <CardFooter class="border-t p-3 flex justify-between items-center flex-shrink-0 bg-background">
-        <!-- Left-aligned buttons (Back, Reset, and Step 1 Utilities) -->
-        <div class="flex items-center gap-2">
+      <!-- 按钮组：移动端100%宽，主按钮高亮 -->
+      <CardFooter class="border-t p-3 flex flex-col md:flex-row justify-between items-center flex-shrink-0 bg-background gap-2 md:gap-4">
+        <!-- 左侧按钮组 -->
+        <div class="flex flex-col md:flex-row items-stretch md:items-center gap-2 md:gap-2 w-full md:w-auto">
           <Button
             v-if="currentStepIndex > 1"
             variant="outline"
             @click="handlePreviousStep"
+            class="w-full md:w-auto"
           >
             <Icon name="ph:arrow-left" class="w-4 h-4 mr-2" />
             Previous
           </Button>
-
           <Button
             variant="ghost"
             @click="resetPodcastView"
+            class="w-full md:w-auto"
           >
             <Icon name="ph:arrow-counter-clockwise" class="w-4 h-4 mr-2" />
             Reset
           </Button>
-
-          <!-- Step 1 Utility Buttons - Now part of the left group -->
           <template v-if="currentStepIndex === 1">
-            <Button variant="outline" @click="handleUsePresetScript" :disabled="isGeneratingOverall">
+            <Button variant="outline" @click="handleUsePresetScript" :disabled="isGeneratingOverall" class="w-full md:w-auto">
               <Icon name="ph:book-open-text" class="w-4 h-4 mr-2" /> Use Preset Script
             </Button>
-            <Button variant="outline" :disabled="isGeneratingOverall || !playgroundStore.textToSynthesize" @click="handleJustValidateScript">
-              <Icon name="ph:spinner" v-if="isValidating" class="w-4 h-4 mr-2 animate-spin" />
-              <Icon name="ph:check-circle" v-else class="w-4 h-4 mr-2" />
-              <span v-if="isValidating">Validating...</span>
-              <span v-else>Validate Script</span>
+            <Button
+              @click="handleToolbarGenerateScript"
+              :disabled="isGeneratingOverall"
+              :variant="playgroundStore.textToSynthesize ? 'outline' : 'default'"
+              class="w-full md:w-auto"
+            >
+              <Icon v-if="isScriptGenerating" name="ph:spinner" class="w-4 h-4 mr-2 animate-spin" />
+              <Icon v-else name="ph:robot" class="w-4 h-4 mr-2" />
+              <span v-if="isScriptGenerating">Generating...</span>
+              <span v-else>AI Script</span>
             </Button>
           </template>
         </div>
-
-        <!-- Right-aligned buttons (Action Buttons for each step) -->
-        <div class="flex items-center gap-2">
-          <!-- Step 1 Main Action Buttons -->
+        <!-- 右侧主操作按钮组 -->
+        <div class="flex flex-col md:flex-row items-stretch md:items-center gap-2 md:gap-2 w-full md:w-auto justify-end">
           <template v-if="currentStepIndex === 1">
-            <Button
-              @click="handleToolbarGenerateScript"
-              :disabled="isGeneratingOverall || !playgroundStore.canGeneratePodcastScript"
-              :variant="playgroundStore.textToSynthesize ? 'outline' : 'default'"
-            >
-              <Icon name="ph:spinner" v-if="isScriptGenerating" class="w-4 h-4 mr-2 animate-spin" />
-              <Icon name="ph:sparkle" v-else class="w-4 h-4 mr-2" />
-              <span v-if="isScriptGenerating">Generating...</span>
-              <span v-else>Generate Script</span>
-            </Button>
             <Button
               variant="default"
               :disabled="!playgroundStore.textToSynthesize || isGeneratingOverall || isValidating"
               @click="handleProceedWithoutValidation"
+              class="w-full md:w-auto"
             >
               Next <Icon name="ph:arrow-right" class="w-4 h-4 ml-2" />
             </Button>
           </template>
-
-          <!-- Step 2 Buttons -->
+          <!-- 其他步骤按钮组保持原有逻辑 -->
           <template v-if="currentStepIndex === 2">
-            <Button 
+            <Button
               variant="outline"
               @click="generateAudioPreview"
               :disabled="!canProceedFromStep2 || isGeneratingAudioPreview"
             >
-              <Icon name="ph:spinner" v-if="isGeneratingAudioPreview" class="w-4 h-4 mr-2 animate-spin" />
-              <Icon name="ph:broadcast" v-else class="w-4 h-4 mr-2" />
+              <Icon v-if="isGeneratingAudioPreview" name="ph:spinner" class="w-4 h-4 mr-2 animate-spin" />
+              <Icon v-else name="ph:broadcast" class="w-4 h-4 mr-2" />
               {{ isGeneratingAudioPreview ? 'Generating...' : 'Generate Audio Preview' }}
             </Button>
-            
-            <Button 
-              @click="handleNextFromStep2" 
+
+            <Button
+              @click="handleNextFromStep2"
               :disabled="!canProceedFromStep2"
             >
               Proceed to Synthesis
               <Icon name="ph:arrow-right" class="w-4 h-4 ml-2" />
             </Button>
           </template>
-          
+
           <!-- Step 3 Buttons -->
           <template v-if="currentStepIndex === 3">
             <Button
               v-if="playgroundStore.audioUrl"
-              variant="outline" 
+              variant="outline"
               @click="handleDownloadCurrentAudio"
             >
               <Icon name="ph:download-simple" class="w-4 h-4 mr-2" />
               Download Audio
             </Button>
-            
-            <Button 
-              @click="handleToolbarSynthesizePodcastAudio" 
-              :disabled="isGeneratingOverall" 
+
+            <Button
+              @click="handleToolbarSynthesizePodcastAudio"
+              :disabled="isGeneratingOverall"
             >
-              <Icon name="ph:spinner" v-if="playgroundStore.isSynthesizing" class="w-4 h-4 mr-2 animate-spin" />
-              <Icon name="ph:broadcast" v-else class="w-4 h-4 mr-2" />
+              <Icon v-if="playgroundStore.isSynthesizing" name="ph:spinner" class="w-4 h-4 mr-2 animate-spin" />
+              <Icon v-else name="ph:broadcast" class="w-4 h-4 mr-2" />
               Synthesize Podcast
             </Button>
           </template>
@@ -306,17 +231,15 @@
 </template>
 
 <script setup lang="ts">
-import { computed, ref, watch, onMounted, onUnmounted } from 'vue';
+import { computed, onMounted, onUnmounted, ref, watch } from 'vue';
 import PodcastSettingsForm from '../components/playground/PodcastSettingsForm.vue';
 import VoicePerformanceSettings from '../components/playground/VoicePerformanceSettings.vue';
-import AudioSynthesis from '../components/playground/AudioSynthesis.vue';
-import PodcastAudioSynthesisControls from '../components/playground/PodcastAudioSynthesisControls.vue';
 // import { Loader2, ArrowRight, ArrowLeft, RadioTower, Download, RotateCcw, BookOpenText, CheckCircle, Sparkles } from 'lucide-vue-next'; // Removed Lucide imports
 
+import { useRoute, useRouter } from 'vue-router';
 import { toast } from 'vue-sonner';
-import { usePlaygroundStore, type Persona } from '../stores/playground'; // Import Persona type
 import { useScriptValidator } from '../composables/useScriptValidator';
-import { useRouter, useRoute } from 'vue-router';
+import { usePlaygroundStore, type Persona } from '../stores/playground'; // Import Persona type
 
 const playgroundStore = usePlaygroundStore();
 const { isValidating, validateScript } = useScriptValidator();
@@ -324,7 +247,7 @@ const router = useRouter();
 const route = useRoute();
 
 const voicePerformanceSettingsRef = ref(null);
-const currentStepIndex = ref(1);
+const currentStepIndex = ref(1); // Ensure default is step 1
 const isScriptGenerating = ref(false);
 const podcastPerformanceConfig = ref(null);
 const lastPodcastUrlForDownload = ref(null);
@@ -340,10 +263,10 @@ onMounted(() => {
   const preventDefaultForAudioLinks = (event: MouseEvent) => {
     const target = event.target as HTMLElement;
     const link = target.closest('a');
-    
+
     if (link && link.href) {
       const href = link.href;
-      
+
       // Check if link points to audio files or podcast segments
       if (
         (href.includes('/podcasts/') || href.includes('/segments/')) &&
@@ -352,7 +275,7 @@ onMounted(() => {
         console.log('Global interceptor: Audio/JSON link click:', href);
         event.preventDefault();
         event.stopPropagation();
-        
+
         // If it's an audio file, play it instead of navigating
         if (href.endsWith('.mp3') || href.endsWith('.wav') || href.endsWith('.ogg')) {
           playAudioFile(href);
@@ -368,25 +291,16 @@ onMounted(() => {
 
   // Add global capture phase listener to catch all link clicks
   document.addEventListener('click', preventDefaultForAudioLinks, true);
-  
+
   // Store reference to listener function for cleanup
   (window as any).__globalAudioLinkInterceptor = preventDefaultForAudioLinks;
-});
-
-// Clean up when component is unmounted
-onUnmounted(() => {
-  // Remove event listener
-  if ((window as any).__globalAudioLinkInterceptor) {
-    document.removeEventListener('click', (window as any).__globalAudioLinkInterceptor, true);
-    delete (window as any).__globalAudioLinkInterceptor;
-  }
 });
 
 // Helper function to play audio without page refresh
 function playAudioFile(url: string) {
   // Create a new audio element
   const audio = new Audio(url);
-  
+
   // Play the audio
   audio.play().catch(error => {
     console.error('Error playing audio:', error);
@@ -395,17 +309,17 @@ function playAudioFile(url: string) {
 }
 onMounted(async () => {
   await playgroundStore.fetchPersonas();
-  currentStepIndex.value = 2;
-  
+  currentStepIndex.value = 1; // Always start at step 1
+
   // Add global event listener to intercept audio and JSON links
   const preventDefaultForAudioLinks = (event: MouseEvent) => {
     const target = event.target as HTMLElement;
     const link = target.closest('a');
-    
+
     if (link && link.href) {
       const href = link.href;
       console.log('Link clicked:', href);
-      
+
       // Check if link points to audio files or podcast segments
       if (
         (href.includes('/podcasts/') || href.includes('/segments/')) &&
@@ -414,12 +328,12 @@ onMounted(async () => {
         console.log('[Playground] Intercepting audio/json link click:', href);
         event.preventDefault();
         event.stopPropagation();
-        
+
         // If it's an audio file, play it
         if (href.endsWith('.mp3') || href.endsWith('.wav') || href.endsWith('.ogg')) {
           handlePlayFileWithoutRedirect(href);
         } else if (href.endsWith('.json')) {
-          // For JSON files, open in a new tab 
+          // For JSON files, open in a new tab
           window.open(href, '_blank');
         }
         return false;
@@ -430,10 +344,10 @@ onMounted(async () => {
 
   // Add global capture phase listener to catch all link clicks
   document.addEventListener('click', preventDefaultForAudioLinks, true);
-  
+
   // Store reference to listener function for cleanup
   (window as any).__playgroundAudioLinkInterceptor = preventDefaultForAudioLinks;
-  
+
   // Initialize main editor content from store, in case it was updated by preset script or validation
   mainEditorContent.value = playgroundStore.textToSynthesize;
 
@@ -444,7 +358,7 @@ onMounted(async () => {
     // Example: await playgroundStore.loadScriptById(route.query.script_id);
     // Then potentially auto-validate or move to a specific step
   }
-  
+
   // Reset state if needed, or load from local storage (if implemented in store)
   // playgroundStore.resetPlaygroundState(); // Call this if a full reset is desired on mount
   // playgroundStore.loadStateFromLocalStorage(); // If you implement this in the store
@@ -454,19 +368,19 @@ onMounted(async () => {
 // Helper function to play audio files without navigating
 function handlePlayFileWithoutRedirect(audioUrl: string) {
   if (!audioUrl) return;
-  
+
   console.log('Playing audio without redirect:', audioUrl);
   const audio = new Audio(audioUrl);
-  
+
   // Stop any currently playing audio first
   const allAudios = document.querySelectorAll('audio');
   allAudios.forEach(a => a.pause());
-  
+
   // Play the new audio
-  audio.play().catch(error => {
-    console.error('Error playing audio:', error);
-    toast.error('Error playing audio', { description: error instanceof Error ? error.message : 'Unknown error' });
-  });
+  // audio.play().catch(error => {
+  // console.error('Error playing audio:', error);
+  // toast.error('Error playing audio', { description: error instanceof Error ? error.message : 'Unknown error' });;
+  // });
 }
 
 // Clean up event listeners when component is unmounted
@@ -489,7 +403,7 @@ function handlePreviousStep() {
 const personasForForm = computed(() => {
   return playgroundStore.personas.map((p: any) => ({ // Explicitly type 'p' as any for now
     ...p,
-    id: String(p.persona_id) 
+    id: String(p.persona_id)
   }));
 });
 
@@ -565,22 +479,22 @@ const canProceedFromStep2 = computed(() => {
 // Get the string of assigned voices
 function getAssignedVoicesString() {
   if (!podcastPerformanceConfig.value) return 'N/A';
-  
+
   const config = podcastPerformanceConfig.value as any;
   if (!config.segments || !Array.isArray(config.segments)) return 'N/A';
-  
+
   // Aggregate voice information: Role -> Voice Name
   const voiceMap = new Map<string, string>();
-  
+
   config.segments.forEach((segment: any) => {
     if (segment.speakerTag && segment.voiceId) {
       const voiceName = config.availableVoices?.find((v: any) => v.id === segment.voiceId)?.name || segment.voiceId;
       voiceMap.set(segment.speakerTag, voiceName);
     }
   });
-  
+
   if (voiceMap.size === 0) return 'N/A';
-  
+
   // Format as "Role: Voice Name" list string
   return Array.from(voiceMap.entries())
     .map(([speaker, voice]) => `${speaker}: ${voice}`)
@@ -588,55 +502,67 @@ function getAssignedVoicesString() {
 }
 
 // Generate audio preview in step 2
-async function generateAudioPreview() {
+// Generate and PERSIST all segments in step 2
+async function generateAudioPreview() { // This function will now trigger persistent synthesis for all segments
   if (!voicePerformanceSettingsRef.value || !canProceedFromStep2.value) {
-    toast.error("Voice configuration incomplete. Please assign voices to all roles.");
+    toast.error("Voice configuration incomplete. Please assign voices to all roles/speakers.");
     return;
   }
-  
-  isGeneratingAudioPreview.value = true;
-  try {
-    // Create and set a handler to prevent default actions 
-    const preventDefaultHandler = (e: MouseEvent) => {
-      const target = e.target as HTMLElement;
-      const link = target.closest('a');
-      
-      if (link && link.href) {
-        const href = link.href;
-        // Check if link points to audio files or podcast segments
-        if (
-          (href.includes('/podcasts/') || href.includes('/segments/')) &&
-          (href.endsWith('.mp3') || href.endsWith('.wav') || href.endsWith('.ogg') || href.endsWith('.json'))
-        ) {
-          console.log('Intercepted link click during audio generation:', href);
-          e.preventDefault();
-          e.stopPropagation();
-          return false;
-        }
-      }
-      return true;
-    };
-    
-    // Temporarily prevent all default behaviors for audio/JSON links
-    document.addEventListener('click', preventDefaultHandler, true);
+  if (!playgroundStore.podcastId) {
+    toast.error("Podcast ID is missing. Cannot synthesize segments. Please ensure script is validated and saved (Step 1).");
+    return;
+  }
 
-    // Short delay to ensure event handler is active
-    await new Promise(resolve => setTimeout(resolve, 100));
-    
-    // Call the VoicePerformanceSettings component's generateAudio method
-    const result = await (voicePerformanceSettingsRef.value as any).generateAudio();
-    
-    // Remove the event handler
-    document.removeEventListener('click', preventDefaultHandler, true);
-    
-    if (result && result.success) {
-      toast.success("Audio generated successfully! Click play to preview.");
-    } else {
-      toast.warning("Audio generation unsuccessful. Please check voice configuration.");
-    }
+  const performanceConfig = (voicePerformanceSettingsRef.value as any).getPerformanceConfig();
+  if (!performanceConfig || !performanceConfig.segments || performanceConfig.segments.length === 0) {
+    toast.error("No segments configured for synthesis in Voice Performance Settings.");
+    return;
+  }
+
+  // Prepare segments for the synthesizeAllSegmentsConcurrently action
+  // The action expects segments from validationResult.structuredData.script,
+  // so we need to ensure that validationResult is up-to-date with the current voice assignments
+  // or adapt synthesizeAllSegmentsConcurrently to take segments directly.
+  // For now, let's assume validationResult is the source of truth after voice assignment.
+
+  // It's crucial that playgroundStore.validationResult.structuredData.script and .voiceMap
+  // are correctly populated based on the UI selections in VoicePerformanceSettings.
+  // If they are not, we need to update them first or pass the performanceConfig.segments directly.
+
+  // Let's try to update validationResult based on current performanceConfig
+  // This is a temporary workaround; ideally, VoicePerformanceSettings should update a shared reactive state.
+  if (playgroundStore.validationResult && playgroundStore.validationResult.structuredData) {
+    const newStructuredScript = performanceConfig.segments.map((s: any) => ({
+      name: s.speakerTag,
+      role: s.roleType,
+      text: s.text,
+    }));
+    const newVoiceMap: Record<string, { personaId: number; voice_model_identifier: string }> = {};
+    performanceConfig.segments.forEach((s: any) => {
+      if (s.voiceId && s.personaId) {
+        newVoiceMap[s.speakerTag] = {
+          personaId: Number(s.personaId),
+          voice_model_identifier: s.voiceId,
+        };
+      }
+    });
+    playgroundStore.validationResult.structuredData.script = newStructuredScript;
+    playgroundStore.validationResult.structuredData.voiceMap = newVoiceMap;
+    // podcastTitle and language should already be in validationResult from step 1
+  } else {
+    toast.error("Validation data is not available. Please complete Step 1 first.");
+    return;
+  }
+
+
+  isGeneratingAudioPreview.value = true; // Reuse this flag for loading state
+  try {
+    console.log("[PlaygroundPage] Calling synthesizeAllSegmentsConcurrently for Step 2 'Generate Audio Preview'");
+    await playgroundStore.synthesizeAllSegmentsConcurrently();
+    // Toast messages are handled within the action
   } catch (error) {
-    console.error("Error generating audio preview:", error);
-    toast.error("Audio preview generation failed: " + (error instanceof Error ? error.message : "Unknown error"));
+    console.error("Error in generateAudioPreview calling synthesizeAllSegmentsConcurrently:", error);
+    toast.error("Batch segment synthesis failed: " + (error instanceof Error ? error.message : "Unknown error"));
   } finally {
     isGeneratingAudioPreview.value = false;
   }
@@ -667,7 +593,7 @@ function handleNextFromStep2() {
     toast.error("Voice configuration is incomplete. Please assign voices to all characters.");
     return;
   }
-  
+
   const vpsRef = voicePerformanceSettingsRef.value as any;
   // Ensure counts are numbers, default to 0 if undefined/null
   const synthesizedCount = (vpsRef.synthesizedSegmentsCount as number) || 0;
@@ -685,11 +611,7 @@ function handleNextFromStep2() {
 }
 
 async function handleToolbarGenerateScript() {
-  if (!playgroundStore.canGeneratePodcastScript) {
-    toast.warning("Please complete all podcast settings before generating the script.");
-    return;
-  }
-  
+  // Removed check for playgroundStore.canGeneratePodcastScript to allow generation even with empty fields
   console.log('[PlaygroundPage] Setting isScriptGenerating to true');
   isScriptGenerating.value = true;
   try {
@@ -712,7 +634,7 @@ async function handleToolbarGenerateScript() {
     // Debug logs for Next button state
     console.log('[PlaygroundPage] Debug Next Button State:', {
       textToSynthesizeEmpty: !playgroundStore.textToSynthesize,
-      textToSynthesizeLength: playgroundStore.textToSynthesize?.length,
+      textToSynthesizeLength: playgroundStore.textToSynthesize?.length, // Potential issue if playgroundStore.textToSynthesize is null/undefined
       isGeneratingOverall: isGeneratingOverall.value,
       isValidatingFromComposable: isValidating.value, // Direct check of the composable's ref
       store_isGeneratingScript: playgroundStore.isGeneratingScript,
@@ -728,23 +650,21 @@ async function onSynthesizeAudioForPodcast(payload: { useTimestamps: boolean, sy
     toast.error("Missing performance configuration.");
     return;
   }
-  
+
   // If there is timestamp data, save it to the store
   if (payload.performanceConfig?.segments) {
     const timestamps = payload.performanceConfig.segments
       .filter((segment: any) => segment.timestamps && segment.timestamps.length > 0)
       .map((segment: any) => segment.timestamps)
       .flat();
-    
+
     if (timestamps.length > 0) {
       playgroundStore.saveSegmentTimestamps(timestamps);
     }
   }
-  
-  // Call the synthesis method in the store, passing the useTimestamps parameter
-  await playgroundStore.synthesizePodcastAudio({
-    useTimestamps: payload.useTimestamps
-  });
+
+  // Call the synthesis method in the store
+  await playgroundStore.synthesizeAllSegmentsConcurrently();
 
   if (!playgroundStore.synthesisError) {
     toast.success("Podcast audio synthesized successfully!");
@@ -752,11 +672,8 @@ async function onSynthesizeAudioForPodcast(payload: { useTimestamps: boolean, sy
 }
 
 function handleToolbarSynthesizePodcastAudio() {
-  onSynthesizeAudioForPodcast({
-    useTimestamps: true,
-    synthesisParams: playgroundStore.synthesisParams,
-    performanceConfig: podcastPerformanceConfig.value
-  });
+  // Directly call the new concurrent synthesis action.
+  playgroundStore.synthesizeAllSegmentsConcurrently();
 }
 
 function handleDownloadCurrentAudio() {
@@ -773,23 +690,23 @@ function handleDownloadCurrentAudio() {
     const iframe = document.createElement('iframe');
     iframe.style.display = 'none';
     document.body.appendChild(iframe);
-    
+
     // Create a form within the iframe to handle the download as POST
     const form = document.createElement('form');
     form.setAttribute('method', 'get');
     form.setAttribute('action', playgroundStore.audioUrl);
-    
+
     // Add download attribute via input
     const downloadNameInput = document.createElement('input');
     downloadNameInput.setAttribute('type', 'hidden');
     downloadNameInput.setAttribute('name', 'download');
     downloadNameInput.setAttribute('value', playgroundStore.outputFilename || 'podcast_output.mp3');
     form.appendChild(downloadNameInput);
-    
+
     // Add form to iframe and submit
     if (iframe.contentDocument?.body) {
       iframe.contentDocument.body.appendChild(form);
-      
+
       // Submit the form to start download
       form.submit();
     } else {
@@ -797,16 +714,16 @@ function handleDownloadCurrentAudio() {
       console.warn('Iframe document not accessible, using alternative download method');
       downloadWithFetch(playgroundStore.audioUrl, playgroundStore.outputFilename || 'podcast_output.mp3');
     }
-    
+
     // Remove iframe after a delay
     setTimeout(() => {
       document.body.removeChild(iframe);
     }, 5000);
-    
+
     toast.success('Download started', { description: 'Your audio file is being downloaded' });
   } catch (error) {
     console.error('Download error:', error);
-    
+
     // Fallback method if iframe approach fails
     toast.info('Using alternative download method');
     downloadWithFetch(playgroundStore.audioUrl, playgroundStore.outputFilename || 'podcast_output.mp3');
@@ -824,31 +741,31 @@ async function downloadWithFetch(url: string, filename: string) {
       },
       redirect: 'follow', // Follow redirects
     });
-    
+
     if (!response.ok) {
       throw new Error(`Failed to fetch file: ${response.status} ${response.statusText}`);
     }
-    
+
     // Get the file as blob
     const blob = await response.blob();
-    
+
     // Create object URL from blob
     const objectUrl = URL.createObjectURL(blob);
-    
+
     // Create download link
     const link = document.createElement('a');
     link.href = objectUrl;
     link.download = filename;
     link.style.display = 'none';
-    
+
     // Add to document, click, then remove
     document.body.appendChild(link);
-    
+
     try {
       link.click();
     } catch (clickError) {
       console.error('Click method failed:', clickError);
-      
+
       // If .click() fails, try dispatchEvent
       const clickEvent = new MouseEvent('click', {
         view: window,
@@ -857,7 +774,7 @@ async function downloadWithFetch(url: string, filename: string) {
       });
       link.dispatchEvent(clickEvent);
     }
-    
+
     // Clean up
     setTimeout(() => {
       if (document.body.contains(link)) {
@@ -865,12 +782,12 @@ async function downloadWithFetch(url: string, filename: string) {
       }
       URL.revokeObjectURL(objectUrl); // Free memory
     }, 1000);
-    
+
     toast.success('Download started', { description: `Downloading ${filename}` });
   } catch (error) {
     console.error('Fetch download error:', error);
-    toast.error('Download failed', { 
-      description: 'Please try again or right-click the audio player and select "Save audio as..."' 
+    toast.error('Download failed', {
+      description: 'Please try again or right-click the audio player and select "Save audio as..."'
     });
   }
 }
@@ -1002,11 +919,11 @@ async function handleProceedWithoutValidation() {
 async function handleJustValidateScript() {
   // Use the store's validateScript method directly to ensure data is saved to the store
   const result = await playgroundStore.validateScript();
-  
+
   if (result.success) {
     // Validation successful
     toast.success('Script validated successfully.');
-    
+
     // Log validation result but don't take any automatic actions on it
     if (playgroundStore.validationResult?.structuredData) {
       console.log('Validation successful with structured data');
@@ -1021,16 +938,16 @@ async function handleJustValidateScript() {
 // Improved script parsing function for multi-language scripts
 function parseScriptToSegments(content: string) {
   if (!content) return [];
-  
+
   return content
     .split('\n')
     .map(line => {
       const colonIndex = line.indexOf(':');
       if (colonIndex <= 0) return null; // Invalid line
-      
+
       const speaker = line.substring(0, colonIndex).trim();
       const text = line.substring(colonIndex + 1).trim();
-      
+
       return { speaker, text };
     })
     .filter(segment => segment && segment.speaker && segment.text) as Array<{speaker: string, text: string}>;
@@ -1041,7 +958,7 @@ function handlePlayCurrentAudio() {
     toast.error('No audio available to play');
     return;
   }
-  
+
   // Use browser's built-in audio player
   const audio = new Audio(playgroundStore.audioUrl);
   audio.play().catch(error => {
@@ -1078,4 +995,4 @@ function updateFinalAudioUrl(url: string) {
 .min-h-0 {
   min-height: 0;
 }
-</style> 
+</style>
