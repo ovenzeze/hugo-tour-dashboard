@@ -813,8 +813,10 @@ async function handleProceedWithoutValidation() {
     return;
   }
 
-  if (!podcastSettings?.hostPersonaId) {
-    toast.error('Please select a host.');
+  // Ensure hostPersonaId is a number and greater than 0, or truly undefined/null
+  const hostId = podcastSettings?.hostPersonaId;
+  if (typeof hostId !== 'number' || hostId <= 0) {
+    toast.error('Please select a valid host.');
     return;
   }
 
