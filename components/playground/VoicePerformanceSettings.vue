@@ -1,7 +1,7 @@
 <template>
   <div class="space-y-4">
     <!-- Top Control Bar -->
-    <!-- <div class="flex items-center justify-between p-3 border rounded-md bg-muted/10">
+    <div class="flex items-center justify-between p-3 border rounded-md bg-muted/10">
       <div class="flex-shrink-0 w-1/3">
         <Select :model-value="ttsProvider" @update:model-value="(newValue) => { if (typeof newValue === 'string') onProviderChange(newValue); }">
           <SelectTrigger id="ttsProvider" class="w-full">
@@ -42,21 +42,12 @@
           />
         </div>
       </div>
-    </div> -->
+    </div>
 
     <!-- Speaker Voice Assignment -->
-    <div v-if="parsedScriptSegments.length > 0" class="border rounded-md p-4 space-y-3">
+    <div v-if="parsedScriptSegments.length > 0" class="space-y-3">
       <div class="flex items-center justify-between pb-2 border-b">
         <h4 class="font-medium">Voice Assignment</h4>
-        <Button 
-          variant="outline" 
-          size="sm"
-          :disabled="!canProceedToPreviewAll"
-          @click="handlePreviewAllSegments"
-        >
-          <Icon name="ph:play" class="w-3.5 h-3.5 mr-1" />
-          Preview All
-        </Button>
       </div>
       
       <div class="space-y-3 max-h-[400px] overflow-y-auto pr-1">
@@ -105,9 +96,6 @@ import { usePlaygroundStore, type Persona } from '../../stores/playground';
 import { toast } from 'vue-sonner';
 import type { Tables } from '~/types/supabase';
 
-// UI Components are auto-imported by Nuxt (e.g. Label, Select, Slider, Button, Badge)
-// Icon component is also auto-imported
-
 import SegmentVoiceAssignmentItem from './SegmentVoiceAssignmentItem.vue';
 import { useVoiceManagement, type Voice, type ParsedScriptSegment as VoiceManParsedSegment } from '../../composables/useVoiceManagement';
 import { useSegmentPreview, type SegmentState, type SegmentPreviewData, type PreviewableSegment } from '../../composables/useSegmentPreview';
@@ -117,7 +105,8 @@ const emit = defineEmits(['update:scriptContent', 'next', 'back']);
 
 const playgroundStore = usePlaygroundStore();
 
-// --- Core Script Parsing and Persona Logic (Remains in component or could be a local composable if very complex) ---
+// Declare ttsProvider as a ref before use
+const ttsProvider = ref<string>('elevenlabs'); // Default to 'elevenlabs' or an appropriate initial value
 
 const parsedScriptSegments = computed<VoiceManParsedSegment[]>(() => {
   if (props.scriptContent) {
@@ -238,48 +227,57 @@ const enhancedScriptSegments = computed<EnhancedSegmentForDisplay[]>(() => {
   });
 });
 
+// Define speakersInScript based on parsedScriptSegments
+const speakersInScript = computed(() => {
+  const speakerTags = new Set<string>();
+  parsedScriptSegments.value.forEach(segment => speakerTags.add(segment.speakerTag));
+  return Array.from(speakerTags);
+});
 
 // --- Voice Management ---
 const {
-  ttsProvider,
+  // ttsProvider, // ttsProvider is now managed locally
   availableVoices,
   isLoadingVoices,
   speakerAssignments,
-  speakersInScript, // Use this from composable
-  onProviderChange,
-  // autoAssignVoices, // auto-assignment is handled internally by useVoiceManagement based on its watched dependencies
+  onProviderChange // This should update the local ttsProvider.value
 } = useVoiceManagement(
-  computed(() => props.scriptContent), // Pass as Ref<string>
-  parsedScriptSegments,      // Pass as Ref<VoiceManParsedSegment[]>
-  selectedHostPersona,       // Pass as Ref<Persona | undefined>
-  selectedGuestPersonas      // Pass as Ref<Persona[]>
+  ttsProvider, // Pass the local ttsProvider ref
+  parsedScriptSegments,
+  selectedHostPersona,
+  selectedGuestPersonas
+  // Removed the 5th callback argument, assuming 4 arguments are expected.
+  // onProviderChange from useVoiceManagement should handle updates to the ttsProvider ref.
 );
 
-
-// --- Segment Preview ---
-// Create a computed property that maps enhancedScriptSegments to PreviewableSegment[] for useSegmentPreview
+// Create previewableEnhancedSegments for useSegmentPreview
 const previewableEnhancedSegments = computed<PreviewableSegment[]>(() => {
   return enhancedScriptSegments.value.map(segment => ({
-    ...segment, // Includes speakerTag, text, and other rich details from enhancedScriptSegments
-    voiceId: speakerAssignments.value[segment.speakerTag] // Add the currently assigned voiceId
+    speakerTag: segment.speakerTag,
+    text: segment.text,
+    voiceId: speakerAssignments.value[segment.speakerTag], // Add the currently assigned voiceId
+    // Include any other fields PreviewableSegment expects from EnhancedSegmentForDisplay
+    personaId: segment.personaId,
+    roleType: segment.roleType
   }));
 });
 
+// --- Segment Preview ---
 const {
-  isPreviewingSegment,
-  segmentPreviews,
   segmentStates,
+  segmentPreviews,
   combinedPreviewUrl,
-  // audioPlayingState, // Not directly used in this component's template, but by onSegmentPlay/Pause
-  previewSegment,      // Function to call for single segment preview
-  previewAllSegments,  // Function to call for "Preview All" button
+  isPreviewingSegment,
+  previewSegment,
+  previewAllSegments,
+  setAudioRef,
   onSegmentPlay,
-  onSegmentPauseOrEnd,
-  setAudioRef
+  onSegmentPauseOrEnd
 } = useSegmentPreview(
-  previewableEnhancedSegments, // Pass as Ref<PreviewableSegment[]>
-  speakerAssignments,          // Pass as Ref<Record<string, string>>
-  ttsProvider                  // Pass as Ref<string>
+  previewableEnhancedSegments, // Argument 1: Ref<PreviewableSegment[]>
+  speakerAssignments,          // Argument 2: Ref<Record<string, string>>
+  ttsProvider                  // Argument 3: Ref<string>
+  // Removed: playgroundStore.synthesisParams, getVoiceForSpeaker, playgroundStore.updateSynthesisParams
 );
 
 async function handlePreviewAllSegments() {
@@ -295,7 +293,15 @@ async function handlePreviewAllSegments() {
 
 const canProceed = computed(() => {
   if (!ttsProvider.value || isLoadingVoices.value) return false;
-  if (speakersInScript.value.length === 0 && parsedScriptSegments.value.length > 0) return false; 
+  if (speakersInScript.value.length === 0 && parsedScriptSegments.value.length > 0) {
+    // If there are script segments but no speakers identified (e.g. parsing issue), not valid.
+    // Or, if no speakers identified (empty script, etc.) then it's trivially "valid" if no voices needed.
+    // This depends on desired behavior for empty/unparseable scripts.
+    // For now, if script has content but no speakers, treat as invalid for voice assignment.
+    return false;
+  }
+  if (speakersInScript.value.length === 0) return true; // No speakers, no assignments needed.
+
   // Ensure all speakers found in the script have an assignment
   return speakersInScript.value.every(speakerTag =>
     speakerAssignments.value[speakerTag] &&
@@ -313,6 +319,25 @@ const canProceedToPreviewAll = computed(() => {
   });
 });
 
+// Reconstruct getPerformanceConfig
+const getPerformanceConfigData = () => {
+  if (!canProceed.value) return null;
+
+  return {
+    provider: ttsProvider.value,
+    script: props.scriptContent,
+    availableVoices: availableVoices.value,
+    assignments: { ...speakerAssignments.value },
+    segments: enhancedScriptSegments.value.map((origSeg, index) => ({ // Iterate over enhancedScriptSegments
+      speakerTag: origSeg.speakerTag,
+      voiceId: speakerAssignments.value[origSeg.speakerTag], // Get assigned voiceId
+      text: origSeg.text,
+      personaId: origSeg.personaId, // Use personaId from origSeg (from enhancedScriptSegments)
+      roleType: origSeg.roleType,   // Use roleType from origSeg (from enhancedScriptSegments)
+      timestamps: segmentPreviews.value[index]?.timestamps || []
+    })).filter(seg => seg.voiceId)
+  };
+};
 
 onMounted(() => {
   if (playgroundStore.personas.length === 0) {
@@ -330,28 +355,19 @@ onMounted(() => {
 });
 
 defineExpose({
-  getPerformanceConfig: () => {
-    if (!canProceed.value) return null;
-
-    return {
-      provider: ttsProvider.value,
-      script: props.scriptContent,
-      availableVoices: availableVoices.value, // For reference
-      assignments: { ...speakerAssignments.value },
-      segments: previewableEnhancedSegments.value.map((seg, index) => ({ // Use previewableEnhancedSegments which has voiceId
-        speakerTag: seg.speakerTag,
-        voiceId: seg.voiceId, // Already includes assigned voiceId
-        text: seg.text,
-        personaId: enhancedScriptSegments.value[index].personaId, // Get original personaId if needed
-        timestamps: segmentPreviews.value[index]?.timestamps || []
-      })).filter(seg => seg.voiceId)
-    };
-  },
   isFormValid: canProceed,
-  generatePreviewAudio: previewAllSegments, // Map to the new composable function
-  // Expose TTS provider and its updater for the parent component
-  ttsProvider: ttsProvider,
-  onProviderChange: onProviderChange
+  getPerformanceConfig: getPerformanceConfigData,
+  generateAudio: previewAllSegments,
+  totalSegmentsCount: computed(() => enhancedScriptSegments.value.length),
+  synthesizedSegmentsCount: computed(() => {
+    const states = segmentStates.value;
+    if (Array.isArray(states)) { // If it can sometimes be an array
+        return states.filter(s => s?.status === 'success').length;
+    } else if (typeof states === 'object' && states !== null) { // If it's an object
+        return Object.values(states).filter(s => s?.status === 'success').length;
+    }
+    return 0;
+  })
 });
 
 </script>

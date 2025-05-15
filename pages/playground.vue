@@ -53,7 +53,6 @@
       <!-- Card Header with Title - Fixed at the top -->
       <CardHeader v-if="currentStepIndex !== 1" class="border-b flex-shrink-0 py-3">
         <div class="flex items-center justify-between">
-          <CardTitle v-if="currentStepIndex !== 2">{{ getCurrentStepTitle }}</CardTitle>
           
           <div v-if="currentStepIndex !== 2" class="flex-1"></div> 
 
@@ -100,6 +99,11 @@
                 />
               </div>
             </div>
+          </div>
+
+          <div v-if="currentStepIndex === 2 && voicePerformanceSettingsRef" class="ml-auto flex items-center space-x-2 text-sm">
+            <Icon name="ph:check-circle" class="w-4 h-4 text-primary" />
+            <span>Synthesized: {{ (voicePerformanceSettingsRef as any).synthesizedSegmentsCount }} / {{ (voicePerformanceSettingsRef as any).totalSegmentsCount }}</span>
           </div>
         </div>
       </CardHeader>
@@ -353,15 +357,16 @@ function preventAudioRefresh(event: MouseEvent) {
   const link = target.closest('a');
   
   if (link && link.href) {
-    // Check if link points to audio files or podcast segments
+    const href = link.href;
+    // Check if link points to audio files or podcast segments, or JSON files within those paths
     if (
-      link.href.includes('/podcasts/') ||
-      link.href.includes('/segments/') ||
-      link.href.includes('.mp3') ||
-      link.href.includes('.wav') ||
-      link.href.includes('.ogg')
+      (href.includes('/podcasts/') || href.includes('/segments/')) &&
+      (href.endsWith('.mp3') ||
+       href.endsWith('.wav') ||
+       href.endsWith('.ogg') ||
+       href.endsWith('.json'))
     ) {
-      console.log('拦截到音频链接:', link.href);
+      console.log('拦截到链接（可能导致刷新）:', href);
       event.preventDefault();
       event.stopPropagation();
     }
@@ -370,8 +375,11 @@ function preventAudioRefresh(event: MouseEvent) {
 
 // Function to intercept dynamically created download links
 function interceptDownloadLinks() {
-  // Find all link elements that might be for audio downloads
-  const links = document.querySelectorAll('a[href*="/podcasts/"], a[href*="/segments/"], a[href*=".mp3"]');
+  // Find all link elements that might be for audio or JSON downloads in specific paths
+  const links = document.querySelectorAll(
+    'a[href*="/podcasts/"][href$=".mp3"], a[href*="/podcasts/"][href$=".wav"], a[href*="/podcasts/"][href$=".ogg"], a[href*="/podcasts/"][href$=".json"], ' +
+    'a[href*="/segments/"][href$=".mp3"], a[href*="/segments/"][href$=".wav"], a[href*="/segments/"][href$=".ogg"], a[href*="/segments/"][href$=".json"]'
+  );
   
   links.forEach(link => {
     if (!link.hasAttribute('data-intercepted')) {
