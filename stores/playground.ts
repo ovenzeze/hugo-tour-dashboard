@@ -1,3 +1,5 @@
+"use strict";
+
 import { defineStore } from 'pinia';
 import { toast } from 'vue-sonner';
 // @ts-ignore - Nuxt 自动导入，IDE 可能会显示错误但实际运行没问题
@@ -38,6 +40,7 @@ export interface PlaygroundState {
   createPodcast: boolean;
   selectedProvider: string | undefined;
   textToSynthesize: string;
+  podcastId: string | null; // 新增: 存储当前播客ID
 
   podcastSettings: FullPodcastSettings;
 
@@ -138,6 +141,7 @@ Guest: ${guestScriptLine}`,
         error: undefined,
         message: '脚本已为第二步测试预先通过验证。',
       },
+      podcastId: null, // 新增: 存储当前播客ID
     };
   },
 
@@ -730,6 +734,7 @@ Host: Couldn't agree more. Thanks for joining us, Elliot, and thank you to our l
       this.audioUrl = null;
       this.isGeneratingScript = false;
       this.isSynthesizing = false;
+      this.podcastId = null; // 重置podcastId
       if (this.currentPreviewAbortController) {
         this.currentPreviewAbortController.abort();
         this.currentPreviewAbortController = null;

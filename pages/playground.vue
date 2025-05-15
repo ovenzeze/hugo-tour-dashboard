@@ -122,18 +122,15 @@
           
           <!-- Step 2 has been moved to take the full width -->
           
-          <AudioSynthesis
+          <PodcastAudioSynthesisControls
             v-if="currentStepIndex === 3"
-            :performanceConfig="podcastPerformanceConfig === null ? undefined : podcastPerformanceConfig"
-            :audio-url="playgroundStore.audioUrl === null ? undefined : playgroundStore.audioUrl"
-            :is-synthesizing="playgroundStore.isSynthesizing"
-            @synthesize="onSynthesizeAudioForPodcast"
-            @download="handleDownloadCurrentAudio"
+            :podcastId="playgroundStore.podcastId || undefined"
             :modelValue="playgroundStore.audioUrl || undefined"
-            :scriptContent="playgroundStore.textToSynthesize"
-            :synthesisParams="playgroundStore.synthesisParams"
-            :isLoading="playgroundStore.isSynthesizing"
+            :disabled="playgroundStore.isSynthesizing"
+            @update:modelValue="updateFinalAudioUrl"
             @update:outputFilename="playgroundStore.updateOutputFilename"
+            @download="handleDownloadCurrentAudio"
+            @synthesize="handleToolbarSynthesizePodcastAudio"
           />
         </div>
 
@@ -313,6 +310,7 @@ import { computed, ref, watch, onMounted, onUnmounted } from 'vue';
 import PodcastSettingsForm from '../components/playground/PodcastSettingsForm.vue';
 import VoicePerformanceSettings from '../components/playground/VoicePerformanceSettings.vue';
 import AudioSynthesis from '../components/playground/AudioSynthesis.vue';
+import PodcastAudioSynthesisControls from '../components/playground/PodcastAudioSynthesisControls.vue';
 // import { Loader2, ArrowRight, ArrowLeft, RadioTower, Download, RotateCcw, BookOpenText, CheckCircle, Sparkles } from 'lucide-vue-next'; // Removed Lucide imports
 
 import { toast } from 'vue-sonner';
@@ -337,17 +335,104 @@ const showStep2ProceedConfirmation = ref(false);
 const pendingSegmentsCount = ref(0);
 
 // Setup global event listeners to prevent page refreshes on audio file access
+onMounted(() => {
+  // Add global event listener to intercept audio and JSON links
+  const preventDefaultForAudioLinks = (event: MouseEvent) => {
+    const target = event.target as HTMLElement;
+    const link = target.closest('a');
+    
+    if (link && link.href) {
+      const href = link.href;
+      
+      // Check if link points to audio files or podcast segments
+      if (
+        (href.includes('/podcasts/') || href.includes('/segments/')) &&
+        (href.endsWith('.mp3') || href.endsWith('.wav') || href.endsWith('.ogg') || href.endsWith('.json'))
+      ) {
+        console.log('Global interceptor: Audio/JSON link click:', href);
+        event.preventDefault();
+        event.stopPropagation();
+        
+        // If it's an audio file, play it instead of navigating
+        if (href.endsWith('.mp3') || href.endsWith('.wav') || href.endsWith('.ogg')) {
+          playAudioFile(href);
+        } else if (href.endsWith('.json')) {
+          // For JSON files, open in a new tab instead of navigating the main page
+          window.open(href, '_blank');
+        }
+        return false;
+      }
+    }
+    return true;
+  };
+
+  // Add global capture phase listener to catch all link clicks
+  document.addEventListener('click', preventDefaultForAudioLinks, true);
+  
+  // Store reference to listener function for cleanup
+  (window as any).__globalAudioLinkInterceptor = preventDefaultForAudioLinks;
+});
+
+// Clean up when component is unmounted
+onUnmounted(() => {
+  // Remove event listener
+  if ((window as any).__globalAudioLinkInterceptor) {
+    document.removeEventListener('click', (window as any).__globalAudioLinkInterceptor, true);
+    delete (window as any).__globalAudioLinkInterceptor;
+  }
+});
+
+// Helper function to play audio without page refresh
+function playAudioFile(url: string) {
+  // Create a new audio element
+  const audio = new Audio(url);
+  
+  // Play the audio
+  audio.play().catch(error => {
+    console.error('Error playing audio:', error);
+    toast.error('Error playing audio', { description: error instanceof Error ? error.message : 'Unknown error' });
+  });
+}
 onMounted(async () => {
   await playgroundStore.fetchPersonas();
   currentStepIndex.value = 2;
   
-  // Add event listener to prevent audio links from refreshing page
-  document.addEventListener('click', preventAudioRefresh, true);
+  // Add global event listener to intercept audio and JSON links
+  const preventDefaultForAudioLinks = (event: MouseEvent) => {
+    const target = event.target as HTMLElement;
+    const link = target.closest('a');
+    
+    if (link && link.href) {
+      const href = link.href;
+      console.log('Link clicked:', href);
+      
+      // Check if link points to audio files or podcast segments
+      if (
+        (href.includes('/podcasts/') || href.includes('/segments/')) &&
+        (href.endsWith('.mp3') || href.endsWith('.wav') || href.endsWith('.ogg') || href.endsWith('.json'))
+      ) {
+        console.log('[Playground] Intercepting audio/json link click:', href);
+        event.preventDefault();
+        event.stopPropagation();
+        
+        // If it's an audio file, play it
+        if (href.endsWith('.mp3') || href.endsWith('.wav') || href.endsWith('.ogg')) {
+          handlePlayFileWithoutRedirect(href);
+        } else if (href.endsWith('.json')) {
+          // For JSON files, open in a new tab 
+          window.open(href, '_blank');
+        }
+        return false;
+      }
+    }
+    return true;
+  };
+
+  // Add global capture phase listener to catch all link clicks
+  document.addEventListener('click', preventDefaultForAudioLinks, true);
   
-  // Also add event listener for a elements that might be created dynamically
-  window.addEventListener('DOMContentLoaded', () => {
-    interceptDownloadLinks();
-  });
+  // Store reference to listener function for cleanup
+  (window as any).__playgroundAudioLinkInterceptor = preventDefaultForAudioLinks;
   
   // Initialize main editor content from store, in case it was updated by preset script or validation
   mainEditorContent.value = playgroundStore.textToSynthesize;
@@ -366,54 +451,32 @@ onMounted(async () => {
   console.log("Playground onMounted: Initialization complete.");
 });
 
-// Clean up event listeners when component is unmounted
-onUnmounted(() => {
-  document.removeEventListener('click', preventAudioRefresh, true);
-});
-
-// Function to prevent audio links from causing page refresh
-function preventAudioRefresh(event: MouseEvent) {
-  const target = event.target as HTMLElement;
-  const link = target.closest('a');
+// Helper function to play audio files without navigating
+function handlePlayFileWithoutRedirect(audioUrl: string) {
+  if (!audioUrl) return;
   
-  if (link && link.href) {
-    const href = link.href;
-    // Check if link points to audio files or podcast segments, or JSON files within those paths
-    if (
-      (href.includes('/podcasts/') || href.includes('/segments/')) &&
-      (href.endsWith('.mp3') ||
-       href.endsWith('.wav') ||
-       href.endsWith('.ogg') ||
-       href.endsWith('.json'))
-    ) {
-      console.log('拦截到链接（可能导致刷新）:', href);
-      event.preventDefault();
-      event.stopPropagation();
-    }
-  }
-}
-
-// Function to intercept dynamically created download links
-function interceptDownloadLinks() {
-  // Find all link elements that might be for audio or JSON downloads in specific paths
-  const links = document.querySelectorAll(
-    'a[href*="/podcasts/"][href$=".mp3"], a[href*="/podcasts/"][href$=".wav"], a[href*="/podcasts/"][href$=".ogg"], a[href*="/podcasts/"][href$=".json"], ' +
-    'a[href*="/segments/"][href$=".mp3"], a[href*="/segments/"][href$=".wav"], a[href*="/segments/"][href$=".ogg"], a[href*="/segments/"][href$=".json"]'
-  );
+  console.log('Playing audio without redirect:', audioUrl);
+  const audio = new Audio(audioUrl);
   
-  links.forEach(link => {
-    if (!link.hasAttribute('data-intercepted')) {
-      link.setAttribute('data-intercepted', 'true');
-      link.addEventListener('click', function(e: Event) { // Changed to Event type
-        e.preventDefault();
-        e.stopPropagation();
-        if (link instanceof HTMLAnchorElement) { // Type guard
-          console.log('Intercepted download link click:', link.href);
-        }
-      });
-    }
+  // Stop any currently playing audio first
+  const allAudios = document.querySelectorAll('audio');
+  allAudios.forEach(a => a.pause());
+  
+  // Play the new audio
+  audio.play().catch(error => {
+    console.error('Error playing audio:', error);
+    toast.error('Error playing audio', { description: error instanceof Error ? error.message : 'Unknown error' });
   });
 }
+
+// Clean up event listeners when component is unmounted
+onUnmounted(() => {
+  // Remove our custom events
+  if ((window as any).__playgroundAudioLinkInterceptor) {
+    document.removeEventListener('click', (window as any).__playgroundAudioLinkInterceptor, true);
+    delete (window as any).__playgroundAudioLinkInterceptor;
+  }
+});
 
 // Handle previous step navigation
 function handlePreviousStep() {
@@ -527,38 +590,53 @@ function getAssignedVoicesString() {
 // Generate audio preview in step 2
 async function generateAudioPreview() {
   if (!voicePerformanceSettingsRef.value || !canProceedFromStep2.value) {
-    toast.error("语音配置不完整。请为所有角色分配语音。");
+    toast.error("Voice configuration incomplete. Please assign voices to all roles.");
     return;
   }
   
   isGeneratingAudioPreview.value = true;
   try {
-    // 创建并设置一个阻止默认操作的事件处理器
+    // Create and set a handler to prevent default actions 
     const preventDefaultHandler = (e: MouseEvent) => {
-      e.preventDefault();
-      return false;
+      const target = e.target as HTMLElement;
+      const link = target.closest('a');
+      
+      if (link && link.href) {
+        const href = link.href;
+        // Check if link points to audio files or podcast segments
+        if (
+          (href.includes('/podcasts/') || href.includes('/segments/')) &&
+          (href.endsWith('.mp3') || href.endsWith('.wav') || href.endsWith('.ogg') || href.endsWith('.json'))
+        ) {
+          console.log('Intercepted link click during audio generation:', href);
+          e.preventDefault();
+          e.stopPropagation();
+          return false;
+        }
+      }
+      return true;
     };
     
-    // 在生成音频前，临时阻止所有a标签的默认行为
+    // Temporarily prevent all default behaviors for audio/JSON links
     document.addEventListener('click', preventDefaultHandler, true);
 
-    // 延迟一小段时间以确保事件处理器已经添加
+    // Short delay to ensure event handler is active
     await new Promise(resolve => setTimeout(resolve, 100));
     
-    // 调用VoicePerformanceSettings组件的generateAudio方法
+    // Call the VoicePerformanceSettings component's generateAudio method
     const result = await (voicePerformanceSettingsRef.value as any).generateAudio();
     
-    // 移除事件处理器
+    // Remove the event handler
     document.removeEventListener('click', preventDefaultHandler, true);
     
     if (result && result.success) {
-      toast.success("音频生成成功！点击播放按钮可以预览。");
+      toast.success("Audio generated successfully! Click play to preview.");
     } else {
-      toast.warning("音频生成不成功，请检查语音配置。");
+      toast.warning("Audio generation unsuccessful. Please check voice configuration.");
     }
   } catch (error) {
-    console.error("生成音频预览失败:", error);
-    toast.error("生成音频预览失败：" + (error instanceof Error ? error.message : "未知错误"));
+    console.error("Error generating audio preview:", error);
+    toast.error("Audio preview generation failed: " + (error instanceof Error ? error.message : "Unknown error"));
   } finally {
     isGeneratingAudioPreview.value = false;
   }
@@ -682,22 +760,119 @@ function handleToolbarSynthesizePodcastAudio() {
 }
 
 function handleDownloadCurrentAudio() {
-  if (!playgroundStore.audioUrl) return;
+  if (!playgroundStore.audioUrl) {
+    toast.error('No audio available to download');
+    return;
+  }
 
-  const link = document.createElement('a');
-  link.href = playgroundStore.audioUrl;
-  link.download = playgroundStore.outputFilename || 'podcast_output.mp3';
-  link.className = 'temp-download-link';
-  link.style.display = 'none';
-  document.body.appendChild(link);
-  link.click();
-  
-  // 设置延时移除下载链接，避免页面刷新
-  setTimeout(() => {
-    if (document.body.contains(link)) {
-      document.body.removeChild(link);
+  console.log('Starting download for:', playgroundStore.audioUrl);
+
+  try {
+    // Create an invisible iframe for downloading instead of using anchor
+    // This approach avoids many browser redirect issues
+    const iframe = document.createElement('iframe');
+    iframe.style.display = 'none';
+    document.body.appendChild(iframe);
+    
+    // Create a form within the iframe to handle the download as POST
+    const form = document.createElement('form');
+    form.setAttribute('method', 'get');
+    form.setAttribute('action', playgroundStore.audioUrl);
+    
+    // Add download attribute via input
+    const downloadNameInput = document.createElement('input');
+    downloadNameInput.setAttribute('type', 'hidden');
+    downloadNameInput.setAttribute('name', 'download');
+    downloadNameInput.setAttribute('value', playgroundStore.outputFilename || 'podcast_output.mp3');
+    form.appendChild(downloadNameInput);
+    
+    // Add form to iframe and submit
+    if (iframe.contentDocument?.body) {
+      iframe.contentDocument.body.appendChild(form);
+      
+      // Submit the form to start download
+      form.submit();
+    } else {
+      // Fallback if iframe document is not accessible
+      console.warn('Iframe document not accessible, using alternative download method');
+      downloadWithFetch(playgroundStore.audioUrl, playgroundStore.outputFilename || 'podcast_output.mp3');
     }
-  }, 100);
+    
+    // Remove iframe after a delay
+    setTimeout(() => {
+      document.body.removeChild(iframe);
+    }, 5000);
+    
+    toast.success('Download started', { description: 'Your audio file is being downloaded' });
+  } catch (error) {
+    console.error('Download error:', error);
+    
+    // Fallback method if iframe approach fails
+    toast.info('Using alternative download method');
+    downloadWithFetch(playgroundStore.audioUrl, playgroundStore.outputFilename || 'podcast_output.mp3');
+  }
+}
+
+// Helper function to download file using fetch API
+async function downloadWithFetch(url: string, filename: string) {
+  try {
+    // Use fetch to get the file as blob
+    const response = await fetch(url, {
+      method: 'GET',
+      headers: {
+        'Content-Type': 'application/octet-stream',
+      },
+      redirect: 'follow', // Follow redirects
+    });
+    
+    if (!response.ok) {
+      throw new Error(`Failed to fetch file: ${response.status} ${response.statusText}`);
+    }
+    
+    // Get the file as blob
+    const blob = await response.blob();
+    
+    // Create object URL from blob
+    const objectUrl = URL.createObjectURL(blob);
+    
+    // Create download link
+    const link = document.createElement('a');
+    link.href = objectUrl;
+    link.download = filename;
+    link.style.display = 'none';
+    
+    // Add to document, click, then remove
+    document.body.appendChild(link);
+    
+    try {
+      link.click();
+    } catch (clickError) {
+      console.error('Click method failed:', clickError);
+      
+      // If .click() fails, try dispatchEvent
+      const clickEvent = new MouseEvent('click', {
+        view: window,
+        bubbles: false,
+        cancelable: true
+      });
+      link.dispatchEvent(clickEvent);
+    }
+    
+    // Clean up
+    setTimeout(() => {
+      if (document.body.contains(link)) {
+        document.body.removeChild(link);
+      }
+      URL.revokeObjectURL(objectUrl); // Free memory
+    }, 1000);
+    
+    toast.success('Download started', { description: `Downloading ${filename}` });
+  } catch (error) {
+    console.error('Fetch download error:', error);
+    toast.error('Download failed', { 
+      description: 'Please try again or right-click the audio player and select "Save audio as..."' 
+    });
+  }
 }
 
 function resetPodcastView() {
@@ -803,6 +978,10 @@ async function handleProceedWithoutValidation() {
     const apiResult = await response.json();
 
     if (apiResult.success) {
+      // Save podcastId to store
+      if (apiResult.podcastId) {
+        playgroundStore.podcastId = apiResult.podcastId;
+      }
       // API call successful, proceed to the next step
       toast.success('Script saved to database successfully. Proceeding to voice assignment.');
       currentStepIndex.value++;
@@ -859,14 +1038,14 @@ function parseScriptToSegments(content: string) {
 
 function handlePlayCurrentAudio() {
   if (!playgroundStore.audioUrl) {
-    toast.error('没有可播放的音频');
+    toast.error('No audio available to play');
     return;
   }
   
-  // 直接使用浏览器内置音频播放
+  // Use browser's built-in audio player
   const audio = new Audio(playgroundStore.audioUrl);
   audio.play().catch(error => {
-    toast.error('播放失败: ' + error.message);
+    toast.error('Playback failed: ' + error.message);
   });
 }
 
@@ -877,7 +1056,7 @@ const initializeScript = async () => {
     // You could load script from API or state here
     // For now, just use a simple default script if empty
     if (!playgroundStore.textToSynthesize) {
-      playgroundStore.textToSynthesize = `Host: 您好，欢迎来到预设的第二步测试环境。`;
+      playgroundStore.textToSynthesize = `Host: Hello, welcome to the preset test environment for step 2.`;
       toast.success("Default script loaded. Please review the content.");
     }
     validateScript();
@@ -888,6 +1067,11 @@ const initializeScript = async () => {
     isScriptGenerating.value = false;
   }
 };
+
+// Update final audio URL
+function updateFinalAudioUrl(url: string) {
+  playgroundStore.audioUrl = url;
+}
 </script>
 
 <style scoped>

@@ -14,14 +14,16 @@ interface InputSegment {
 }
 
 /**
- * 支持两种输入格式：
- * 1. 传统格式：{ podcastId, segments, ... }
- * 2. validate结构化格式：{ podcastTitle, script, voiceMap, hostPersonaId, language, ... }
+ * Supports three input formats:
+ * 1. Traditional format: { podcastId, segments, ... }
+ * 2. Validate structured format: { podcastTitle, script, voiceMap, hostPersonaId, language, ... }
+ * 3. Update: Support specifying segments to synthesize via segmentIndices
  */
 interface RequestBody {
-  // 传统格式
-  podcastId?: string;
+  // Traditional format
+  podcastId: string;
   segments?: InputSegment[];
+  segmentIndices?: number[] | 'all'; // New: used to specify which segments to synthesize
   defaultModelId?: string;
   voiceSettings?: {
     stability?: number;
@@ -29,7 +31,12 @@ interface RequestBody {
     style?: number;
     use_speaker_boost?: boolean;
   };
-  // validate结构化格式
+  synthesisParams?: {
+    temperature?: number;
+    speed?: number;
+    [key: string]: any;
+  };
+  // Validate structured format
   podcastTitle?: string;
   script?: Array<{ role: string; name?: string; text: string }>;
   voiceMap?: Record<string, { personaId: number; voice_model_identifier: string }>;
@@ -40,18 +47,77 @@ interface RequestBody {
 export default defineEventHandler(async (event) => {
   try {
     const body = await readBody(event) as RequestBody;
-
-    // 支持validate结构化数据自动组装segments
-    let podcastId = body.podcastId;
+    
+    // Required parameter validation
+    if (!body.podcastId) {
+      throw createError({
+        statusCode: 400,
+        statusMessage: 'Invalid request: "podcastId" is required.',
+      });
+    }
+    
+    const podcastId = body.podcastId;
     let segments = body.segments;
+    const segmentIndices = body.segmentIndices;
     const defaultModelId = body.defaultModelId;
     const voiceSettings = body.voiceSettings;
+    
+    // Check for preset voice parameters
+    const synthesisParams = body.synthesisParams || {};
+    
+    const storageService: IStorageService = await getStorageService(event);
+    
+    // If segmentIndices is provided, read corresponding segments from existing timeline
+    if (segmentIndices && (!segments || segments.length === 0)) {
+      // Check if timeline exists
+      const timelineStoragePath = storageService.joinPath('public', 'podcasts', podcastId, 'merged_timeline.json');
+      const timelineExists = await storageService.exists(timelineStoragePath);
+      
+      if (!timelineExists) {
+        throw createError({
+          statusCode: 400,
+          statusMessage: 'Timeline not found. Generate timeline first before synthesizing specific segments.',
+        });
+      }
+      
+      // Read timeline
+      const timelineContent = await storageService.readFile(timelineStoragePath, 'utf-8') as string;
+      const timelineData = JSON.parse(timelineContent);
+      
+      if (!Array.isArray(timelineData) || timelineData.length === 0) {
+        throw createError({
+          statusCode: 400,
+          statusMessage: 'Timeline exists but contains no segments.',
+        });
+      }
+      
+      // Build list of segments to synthesize
+      if (segmentIndices === 'all') {
+        // Synthesize all segments
+        segments = timelineData.map((segment, index) => ({
+          segmentIndex: index,
+          text: segment.text || '',
+          voiceId: segment.voiceId || '', // Timeline may need to include this info
+          speakerName: segment.speaker
+        }));
+      } else if (Array.isArray(segmentIndices) && segmentIndices.length > 0) {
+        // Synthesize specific segments by index
+        segments = segmentIndices
+          .filter(index => index >= 0 && index < timelineData.length)
+          .map(index => ({
+            segmentIndex: index,
+            text: timelineData[index].text || '',
+            voiceId: timelineData[index].voiceId || '',
+            speakerName: timelineData[index].speaker
+          }));
+      }
+    }
 
-    if ((!podcastId || !segments || segments.length === 0) && body.script && body.voiceMap) {
-      // 自动组装segments
-      podcastId = body.podcastId || body.podcastTitle || 'untitled';
+    // Assemble segments from structured validation data
+    if ((!segments || segments.length === 0) && body.script && body.voiceMap) {
+      // Auto-assemble segments
       segments = body.script.map((seg, idx) => {
-        // 优先用name查voiceMap，否则用role
+        // Prefer name for voiceMap lookup, fallback to role
         const voiceMap = body.voiceMap ?? {};
         let voiceKey = seg.name && voiceMap[seg.name] ? seg.name : seg.role;
         let voice = voiceMap[voiceKey] || voiceMap[seg.role] || {};
@@ -64,10 +130,10 @@ export default defineEventHandler(async (event) => {
       });
     }
 
-    if (!podcastId || !Array.isArray(segments) || segments.length === 0) {
+    if (!segments || !Array.isArray(segments) || segments.length === 0) {
       throw createError({
         statusCode: 400,
-        statusMessage: 'Invalid request: "podcastId" and a non-empty "segments" array are required.',
+        statusMessage: 'No valid segments to synthesize.',
       });
     }
 
@@ -79,7 +145,6 @@ export default defineEventHandler(async (event) => {
       throw createError({ statusCode: 500, statusMessage: 'ElevenLabs API key is not configured.' });
     }
 
-    const storageService: IStorageService = await getStorageService(event);
     const results: (TimedAudioSegmentResult & { segmentIndex: number })[] = [];
 
     const publicOutputDirectory = storageService.joinPath('podcasts', podcastId, 'segments');
@@ -87,9 +152,28 @@ export default defineEventHandler(async (event) => {
     
     await storageService.ensureDir(storageOutputDirectory);
 
-    for (const segment of segments) {
+    // Filter out segments without voice IDs
+    const validSegments = segments.filter(segment => segment.voiceId);
+    
+    if (validSegments.length === 0) {
+      throw createError({
+        statusCode: 400,
+        statusMessage: 'No segments with valid voice IDs found.',
+      });
+    }
+
+    for (const segment of validSegments) {
       const safeSpeakerName = segment.speakerName.replace(/[^a-zA-Z0-9_]/g, '_').substring(0, 50);
       const baseFilename = `${String(segment.segmentIndex).padStart(3, '0')}_${safeSpeakerName}`;
+      
+      // Apply synthesis parameters
+      const mergedVoiceSettings = {
+        ...voiceSettings,
+        stability: synthesisParams.stability || voiceSettings?.stability,
+        similarity_boost: synthesisParams.similarity_boost || voiceSettings?.similarity_boost,
+        speed: synthesisParams.speed || 1.0, // Default speed 1.0
+        temperature: synthesisParams.temperature || 0.7, // Default temperature 0.7
+      };
       
       const result = await generateAndStoreTimedAudioSegment({
         text: segment.text,
@@ -100,13 +184,13 @@ export default defineEventHandler(async (event) => {
         storageOutputDirectory: storageOutputDirectory,
         baseFilename,
         defaultModelId: defaultModelId, 
-        voiceSettings: voiceSettings, 
+        voiceSettings: mergedVoiceSettings,
       });
       results.push({ ...result, segmentIndex: segment.segmentIndex });
     }
 
     const allFailed = results.every(r => r.error);
-    if (allFailed && segments.length > 0) {
+    if (allFailed && validSegments.length > 0) {
         const errorSummary = results.map(r => `Segment ${r.segmentIndex}: ${r.error}`).join('; ');
         console.error(`[synthesize.post.ts] All segments failed for podcastId ${podcastId}: ${errorSummary}`);
         throw createError({
