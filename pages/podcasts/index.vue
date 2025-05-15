@@ -14,11 +14,14 @@
     <div>
       <PodcastList
         :podcasts="podcasts"
+        :current-previewing-id="currentlyPreviewingId"
+        :is-audio-playing="isPlayingPreview"
         @select-podcast="handleSelectPodcast"
         @edit-podcast="handleEditPodcast"
         @delete-podcast="handleDeletePodcast"
         @download-podcast="handleDownloadAll"
         @preview-podcast="handlePreviewPodcast"
+        @stop-preview="stopPreview"
       />
     </div>
 
@@ -60,6 +63,7 @@ const audioPlayer = ref<HTMLAudioElement | null>(null);
 const audioQueue = ref<string[]>([]);
 const currentSegmentIndex = ref(0);
 const isPlayingPreview = ref(false);
+const currentlyPreviewingId = ref<string | null>(null);
 
 // Fetch podcasts on component mount
 onMounted(() => {
@@ -109,10 +113,19 @@ const stopPreview = () => {
   audioQueue.value = [];
   currentSegmentIndex.value = 0;
   isPlayingPreview.value = false;
+  currentlyPreviewingId.value = null;
 };
 
 const handlePreviewPodcast = async (podcastId: string) => {
-  stopPreview(); // Stop any current playback
+  if (currentlyPreviewingId.value === podcastId && isPlayingPreview.value) {
+    // If clicking the same podcast that's already playing, treat as a stop/pause
+    // For simplicity, we'll just stop it. Pause/resume can be added later.
+    stopPreview();
+    return;
+  }
+  
+  stopPreview(); // Stop any other current playback
+  currentlyPreviewingId.value = podcastId; // Set the ID of the podcast being previewed
 
   let podcastToPreview: Podcast | undefined;
   for (const p of podcasts.value) {
@@ -143,12 +156,18 @@ const handlePreviewPodcast = async (podcastId: string) => {
       await nextTick(); // Ensure audioPlayer ref is available
       if (audioPlayer.value) {
         audioPlayer.value.src = audioQueue.value[0];
-        audioPlayer.value.play().catch(e => console.error("Error playing audio:", e));
+        audioPlayer.value.play().catch(e => {
+          console.error("Error playing audio:", e);
+          stopPreview(); // Stop if playback fails
+        });
       }
     } else {
       console.warn('No playable segments found for this podcast.');
+      stopPreview(); // Clear preview state if no segments
       // Optionally show a toast or message to the user
     }
+  } else {
+    stopPreview(); // Clear preview state if podcast not found
   }
 };
 
