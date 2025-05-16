@@ -27,6 +27,11 @@ interface RequestBody {
   // Additional fields for podcast metadata
   language: string;      // e.g., 'en', 'es'
   topic?: string; // Optional topic for the podcast
+  host_persona_id?: number; // New field
+  guest_persona_id?: number; // New field
+  creator_persona_id?: number; // New field
+  total_duration_ms?: number; // New field
+  total_word_count?: number; // New field
   // Optional context for linking the podcast
   museumId?: number;
   galleryId?: number;
@@ -42,6 +47,11 @@ export default defineEventHandler(async (event) => {
       personas,
       language,
       topic, // Include topic from body
+      host_persona_id, // Extract new field
+      guest_persona_id, // Extract new field
+      creator_persona_id, // Extract new field
+      total_duration_ms, // Extract new field
+      total_word_count, // Extract new field
       museumId,
       galleryId,
       objectId,
@@ -75,6 +85,11 @@ export default defineEventHandler(async (event) => {
         podcastRecord = await createPodcastServer(event, {
           title: podcastTitle,
           topic: topic,
+          host_persona_id: host_persona_id, // Include new field
+          guest_persona_id: guest_persona_id, // Include new field
+          creator_persona_id: creator_persona_id, // Include new field (will be null initially if not provided)
+          total_duration_ms: total_duration_ms, // Include new field (will be null initially if not provided)
+          total_word_count: total_word_count, // Include new field (will be null initially if not provided)
           // Add other metadata fields here if needed, based on your table structure
           // e.g., user_id, description, cover_url, status
         });

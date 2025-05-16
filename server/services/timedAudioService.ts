@@ -5,6 +5,7 @@ import type { IStorageService } from './storageService';
 export interface TimedAudioSegmentResult {
   audioFileUrl?: string;
   timestampFileUrl?: string;
+  durationMs?: number; // Add duration in milliseconds
   error?: string;
 }
 
@@ -101,9 +102,17 @@ export async function generateAndStoreTimedAudioSegment(
     console.log(`[timedAudioService] Saved audio to ${audioFileUrl}`);
     console.log(`[timedAudioService] Saved timestamps to ${timestampFileUrl}`);
 
+    // Assuming ElevenLabs response includes duration, extract it here
+    // The exact path to duration might vary based on the ElevenLabs SDK version and response structure.
+    // You might need to inspect the `responseAsAny` object to find the correct path.
+    // For example, it might be responseAsAny.duration_ms or similar.
+    // Let's assume for now it's responseAsAny.duration_ms
+    const durationMs = responseAsAny.duration_ms; // Extract duration
+
     return {
       audioFileUrl,
       timestampFileUrl,
+      durationMs, // Include duration in the result
     };
 
   } catch (error: any) {

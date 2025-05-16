@@ -545,6 +545,13 @@ export type Database = {
             foreignKeyName: "podcast_segments_podcast_id_fkey"
             columns: ["podcast_id"]
             isOneToOne: false
+            referencedRelation: "full_podcast_details"
+            referencedColumns: ["podcast_id"]
+          },
+          {
+            foreignKeyName: "podcast_segments_podcast_id_fkey"
+            columns: ["podcast_id"]
+            isOneToOne: false
             referencedRelation: "podcasts"
             referencedColumns: ["podcast_id"]
           },
@@ -553,23 +560,60 @@ export type Database = {
       podcasts: {
         Row: {
           created_at: string | null
+          creator_persona_id: number | null
+          guest_persona_id: number | null
+          host_persona_id: number | null
           podcast_id: string
           title: string
           topic: string | null
+          total_duration_ms: number | null
+          total_word_count: number | null
         }
         Insert: {
           created_at?: string | null
+          creator_persona_id?: number | null
+          guest_persona_id?: number | null
+          host_persona_id?: number | null
           podcast_id?: string
           title: string
           topic?: string | null
+          total_duration_ms?: number | null
+          total_word_count?: number | null
         }
         Update: {
           created_at?: string | null
+          creator_persona_id?: number | null
+          guest_persona_id?: number | null
+          host_persona_id?: number | null
           podcast_id?: string
           title?: string
           topic?: string | null
+          total_duration_ms?: number | null
+          total_word_count?: number | null
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "podcasts_creator_persona_id_fkey"
+            columns: ["creator_persona_id"]
+            isOneToOne: false
+            referencedRelation: "personas"
+            referencedColumns: ["persona_id"]
+          },
+          {
+            foreignKeyName: "podcasts_guest_persona_id_fkey"
+            columns: ["guest_persona_id"]
+            isOneToOne: false
+            referencedRelation: "personas"
+            referencedColumns: ["persona_id"]
+          },
+          {
+            foreignKeyName: "podcasts_host_persona_id_fkey"
+            columns: ["host_persona_id"]
+            isOneToOne: false
+            referencedRelation: "personas"
+            referencedColumns: ["persona_id"]
+          },
+        ]
       }
       projects: {
         Row: {
@@ -670,6 +714,7 @@ export type Database = {
         Row: {
           audio_url: string | null
           created_at: string | null
+          duration_ms: number | null
           params: Json | null
           segment_audio_id: string
           segment_id: string | null
@@ -678,6 +723,7 @@ export type Database = {
         Insert: {
           audio_url?: string | null
           created_at?: string | null
+          duration_ms?: number | null
           params?: Json | null
           segment_audio_id?: string
           segment_id?: string | null
@@ -686,6 +732,7 @@ export type Database = {
         Update: {
           audio_url?: string | null
           created_at?: string | null
+          duration_ms?: number | null
           params?: Json | null
           segment_audio_id?: string
           segment_id?: string | null
@@ -738,7 +785,30 @@ export type Database = {
       }
     }
     Views: {
-      [_ in never]: never
+      full_podcast_details: {
+        Row: {
+          podcast_created_at: string | null
+          podcast_id: string | null
+          podcast_segments_and_audios: Json | null
+          podcast_title: string | null
+          podcast_topic: string | null
+        }
+        Insert: {
+          podcast_created_at?: string | null
+          podcast_id?: string | null
+          podcast_segments_and_audios?: never
+          podcast_title?: string | null
+          podcast_topic?: string | null
+        }
+        Update: {
+          podcast_created_at?: string | null
+          podcast_id?: string | null
+          podcast_segments_and_audios?: never
+          podcast_title?: string | null
+          podcast_topic?: string | null
+        }
+        Relationships: []
+      }
     }
     Functions: {
       accept_invitation: {

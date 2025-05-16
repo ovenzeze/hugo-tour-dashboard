@@ -1,84 +1,203 @@
 <template>
   <Sidebar class="flex h-full max-h-screen flex-col">
-    <div class="flex h-14 items-center  px-4 lg:h-[60px] lg:px-6">
-      <NuxtLink to="/" class="flex items-center gap-3 font-semibold">
+    <!-- 头部区域 -->
+    <SidebarHeader>
+      <NuxtLink to="/" class="flex items-center gap-2 overflow-hidden">
         <Icon name="ph:compass-tool" class="h-5 w-5 text-primary" />
-        <span>Hugo Dashboard</span>
+        <span class="font-semibold">Hugo Dashboard</span>
       </NuxtLink>
-      <!-- 如果有其他头部元素，例如通知按钮，可以放在这里 -->
-    </div>
-    <SidebarContent class="flex-1 overflow-y-auto  px-4">
+      
+      <!-- 可选的搜索框 -->
+      <div class="mt-2">
+        <SidebarInput placeholder="Search..." />
+      </div>
+    </SidebarHeader>
+    
+    <!-- 主内容区域 -->
+    <SidebarContent>
+      <!-- 第一组：概览 -->
       <SidebarGroup>
-        <SidebarMenu>
-          <SidebarMenuItem
-            v-for="link in navLinks"
-            :key="link.path"
-            class="gap-y-4"
-          >
-            <SidebarMenuButton
-              as-child
-              :class="{ 'bg-muted': $route.path.startsWith(link.path) }"
-              @click="$emit('close')"
-            >
-              <NuxtLink :to="link.path" class="flex items-center">
-                <Icon :name="link.icon" class="mr-2 h-5 w-5 shrink-0" />
-                <span class="truncate text-sm font-medium">{{ link.label }}</span>
-              </NuxtLink>
-            </SidebarMenuButton>
-          </SidebarMenuItem>
-        </SidebarMenu>
+        <SidebarGroupLabel>Overview</SidebarGroupLabel>
+        <SidebarGroupContent>
+          <SidebarMenu>
+            <SidebarMenuItem v-for="link in menuGroups.overview" :key="link.path">
+              <SidebarMenuButton
+                as-child
+                :isActive="$route.path.startsWith(link.path)"
+                @click="$emit('close')"
+                :tooltip="link.label"
+              >
+                <NuxtLink :to="link.path" class="flex items-center">
+                  <Icon :name="link.icon" class="mr-2 h-5 w-5 shrink-0" />
+                  <span class="truncate text-sm font-medium">{{ link.label }}</span>
+                </NuxtLink>
+              </SidebarMenuButton>
+            </SidebarMenuItem>
+          </SidebarMenu>
+        </SidebarGroupContent>
+      </SidebarGroup>
+      
+      <SidebarSeparator />
+      
+      <!-- 第二组：内容管理 -->
+      <SidebarGroup>
+        <SidebarGroupLabel>Content</SidebarGroupLabel>
+        <SidebarGroupContent>
+          <SidebarMenu>
+            <SidebarMenuItem v-for="link in menuGroups.content" :key="link.path">
+              <SidebarMenuButton
+                as-child
+                :isActive="$route.path.startsWith(link.path)"
+                @click="$emit('close')"
+                :tooltip="link.label"
+              >
+                <NuxtLink :to="link.path" class="flex items-center">
+                  <Icon :name="link.icon" class="mr-2 h-5 w-5 shrink-0" />
+                  <span class="truncate text-sm font-medium">{{ link.label }}</span>
+                  
+                  <!-- 如果需要，可以添加徽章 -->
+                  <template v-if="link.badge">
+                    <SidebarMenuBadge class="ml-auto">{{ link.badge }}</SidebarMenuBadge>
+                  </template>
+                </NuxtLink>
+              </SidebarMenuButton>
+            </SidebarMenuItem>
+          </SidebarMenu>
+        </SidebarGroupContent>
+      </SidebarGroup>
+      
+      <SidebarSeparator />
+      
+      <!-- 资源管理 -->
+      <SidebarGroup v-if="menuGroups.resources && menuGroups.resources.length > 0">
+        <SidebarGroupLabel>Resources</SidebarGroupLabel>
+        <SidebarGroupContent>
+          <SidebarMenu>
+            <SidebarMenuItem v-for="link in menuGroups.resources" :key="link.path">
+              <SidebarMenuButton
+                as-child
+                :isActive="$route.path.startsWith(link.path)"
+                @click="$emit('close')"
+                :tooltip="link.label"
+              >
+                <NuxtLink :to="link.path" class="flex items-center">
+                  <Icon :name="link.icon" class="mr-2 h-5 w-5 shrink-0" />
+                  <span class="truncate text-sm font-medium">{{ link.label }}</span>
+                </NuxtLink>
+              </SidebarMenuButton>
+            </SidebarMenuItem>
+          </SidebarMenu>
+        </SidebarGroupContent>
+      </SidebarGroup>
+      
+      <SidebarSeparator v-if="menuGroups.resources && menuGroups.resources.length > 0" />
+      
+      <!-- 客户端页面 -->
+      <SidebarGroup v-if="menuGroups.client && menuGroups.client.length > 0">
+        <SidebarGroupLabel>Client</SidebarGroupLabel>
+        <SidebarGroupContent>
+          <SidebarMenu>
+            <SidebarMenuItem v-for="link in menuGroups.client" :key="link.path">
+              <SidebarMenuButton
+                as-child
+                :isActive="$route.path.startsWith(link.path)"
+                @click="$emit('close')"
+                :tooltip="link.label"
+              >
+                <NuxtLink :to="link.path" class="flex items-center">
+                  <Icon :name="link.icon" class="mr-2 h-5 w-5 shrink-0" />
+                  <span class="truncate text-sm font-medium">{{ link.label }}</span>
+                </NuxtLink>
+              </SidebarMenuButton>
+            </SidebarMenuItem>
+          </SidebarMenu>
+        </SidebarGroupContent>
+      </SidebarGroup>
+      
+      <SidebarSeparator v-if="menuGroups.client && menuGroups.client.length > 0" />
+      
+      <!-- 第三组：系统管理 -->
+      <SidebarGroup>
+        <SidebarGroupLabel>Administration</SidebarGroupLabel>
+        <SidebarGroupContent>
+          <SidebarMenu>
+            <SidebarMenuItem v-for="link in menuGroups.admin" :key="link.path">
+              <SidebarMenuButton
+                as-child
+                :isActive="$route.path.startsWith(link.path)"
+                @click="$emit('close')"
+                :tooltip="link.label"
+              >
+                <NuxtLink :to="link.path" class="flex items-center">
+                  <Icon :name="link.icon" class="mr-2 h-5 w-5 shrink-0" />
+                  <span class="truncate text-sm font-medium">{{ link.label }}</span>
+                </NuxtLink>
+              </SidebarMenuButton>
+            </SidebarMenuItem>
+          </SidebarMenu>
+        </SidebarGroupContent>
       </SidebarGroup>
     </SidebarContent>
-    <!-- 可选的页脚部分，例如账户切换器 -->
-    <!--
-    <div class="mt-auto p-4 border-t">
-      <Button size="sm" class="w-full">
-        Sign Out
-      </Button>
-    </div>
-    -->
+    
+    <!-- 底部区域：用户信息和退出 -->
+    <SidebarFooter>
+      <SidebarSeparator />
+      
+      <!-- 用户信息组件 -->
+      <div class="flex items-center justify-between p-2">
+        <div class="flex items-center gap-2">
+          <Avatar class="h-8 w-8">
+            <AvatarImage src="" />
+            <AvatarFallback>
+              <Icon name="ph:user-circle" class="h-8 w-8" />
+            </AvatarFallback>
+          </Avatar>
+          
+          <div class="flex flex-col overflow-hidden">
+            <p class="text-sm font-medium line-clamp-1">User Name</p>
+            <p class="text-xs text-muted-foreground truncate">user@example.com</p>
+          </div>
+        </div>
+        
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button size="icon" variant="ghost">
+              <Icon name="ph:dots-three-vertical" class="h-4 w-4" />
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end">
+            <DropdownMenuItem>Profile</DropdownMenuItem>
+            <DropdownMenuItem>Settings</DropdownMenuItem>
+            <DropdownMenuSeparator />
+            <DropdownMenuItem class="text-destructive">Sign out</DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
+      </div>
+    </SidebarFooter>
   </Sidebar>
 </template>
 
 <script setup lang="ts">
-import { Sidebar, SidebarContent, SidebarGroup, SidebarMenu, SidebarMenuButton, SidebarMenuItem } from '@/components/ui/sidebar';
-import { defineEmits, defineProps } from 'vue';
-// Use Nuxt's Icon component instead of Iconify
-// import { Icon } from '@iconify/vue';
-// NuxtLink 通常是自动导入的，如果遇到问题，可以从 '#components' 或 'nuxt/link' 导入
-// import { NuxtLink } from '#components';
 
-export interface NavLink {
+
+interface NavLink {
   path: string;
   label: string;
   icon: string;
+  badge?: string | number;
 }
 
-defineProps<{
-  navLinks: NavLink[];
+interface MenuGroups {
+  overview: NavLink[];
+  content: NavLink[];
+  resources?: NavLink[];
+  client?: NavLink[];
+  admin: NavLink[];
+}
+
+const props = defineProps<{
+  menuGroups: MenuGroups;
 }>();
 
 defineEmits(['close']);
 </script>
-
-<style scoped>
-/* 根据需要添加自定义样式，通常shadcn/ui的组件和工具类已经足够 */
-.overflow-y-auto {
-  scrollbar-width: thin; /* For Firefox */
-  scrollbar-color: hsl(var(--border)) hsl(var(--background)); /* For Firefox */
-}
-
-.overflow-y-auto::-webkit-scrollbar {
-  width: 6px;
-}
-
-.overflow-y-auto::-webkit-scrollbar-track {
-  background: hsl(var(--background));
-}
-
-.overflow-y-auto::-webkit-scrollbar-thumb {
-  background-color: hsl(var(--border));
-  border-radius: 3px;
-  border: 1px solid hsl(var(--background));
-}
-</style>

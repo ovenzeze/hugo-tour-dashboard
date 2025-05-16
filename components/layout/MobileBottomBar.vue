@@ -7,9 +7,9 @@ const mainLinks = [
   { path: '/museums', icon: 'heroicons-outline:building-library' },
   { path: '/objects', icon: 'heroicons-outline:archive-box' },
   { path: '/podcasts', icon: 'heroicons-outline:microphone' },
+  { path: '/transcripts', icon: 'heroicons-outline:document-text' },
   { path: '/personas', icon: 'heroicons-outline:identification' },
-  { path: '/playground', icon: 'heroicons-outline:play' },
-  { path: '/users', icon: 'heroicons-outline:users' }
+  { path: '/playground', icon: 'heroicons-outline:play' }
 ]
 </script>
 

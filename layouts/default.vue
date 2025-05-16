@@ -4,13 +4,13 @@
       <div class="relative flex flex-col md:flex-row w-full">
         <!-- 桌面端侧边栏 -->
         <ClientOnly>
-          <aside class="hidden md:flex md:flex-col md:w-48 h-screen border-r bg-card fixed left-0 top-0">
-            <SidebarNav :navLinks="navLinks" />
+          <aside class="sidebar-width fixed inset-y-0 z-10 transition-[left,right,width] duration-200 ease-linear md:flex left-0 group-data-[collapsible=offcanvas]:left-[calc(var(--sidebar-width)*-1)] group-data-[collapsible=icon]:w-[var(--sidebar-width-icon)] group-data-[side=left]:border-r group-data-[side=right]:border-l flex h-full max-h-screen flex-col bg-card">
+            <SidebarNav :menuGroups="menuGroups" />
           </aside>
         </ClientOnly>
 
         <!-- 主体内容，包含实际页面内容 -->
-        <div class="flex flex-col flex-1 md:ml-48">
+        <div class="main-ml-sidebar flex flex-col flex-1">
           <!-- PC端顶部栏 - 已移除 -->
 
           <!-- 移动端顶部栏 -->
@@ -22,9 +22,9 @@
                     <Icon name="ph:list" class="h-5 w-5" />
                   </Button>
                 </SidebarTrigger>
-                <SheetContent side="left" class="w-[300px] p-0">
-                  <SidebarNav :navLinks="navLinks" @close="sidebarOpen = false" />
-                </SheetContent>
+<SheetContent side="left" class="w-[320px] p-0">
+  <SidebarNav :menuGroups="menuGroups" @close="sidebarOpen = false" />
+</SheetContent>
               </Sheet>
             </ClientOnly>
             <h1 class="text-lg font-semibold ml-3">{{ route.meta.title || 'Dashboard' }}</h1>
@@ -44,32 +44,56 @@
 </template>
 
 <script setup lang="ts">
-import { useRoute } from '#imports'
-import MobileBottomBar from '@/components/layout/MobileBottomBar.vue'
-import SidebarNav from '@/components/layout/SidebarNav.vue'
-import type { NavLink } from '@/components/layout/types'
+import { useRoute } from '#imports';
+import MobileBottomBar from '@/components/layout/MobileBottomBar.vue';
+import SidebarNav from '@/components/layout/SidebarNav.vue';
 
 const route = useRoute()
 
-const navLinks: NavLink[] = [
-  { path: '/dashboard', label: 'Dashboard', icon: 'heroicons-outline:chart-bar-square' },
-  { path: '/museums', label: 'Museums', icon: 'heroicons-outline:building-library' },
-  { path: '/galleries', label: 'Galleries', icon: 'heroicons-outline:photo' },
-  { path: '/objects', label: 'Objects', icon: 'heroicons-outline:archive-box' },
-  { path: '/transcripts', label: 'Transcripts', icon: 'heroicons-outline:document-text' },
-  { path: '/voices', label: 'Voices', icon: 'heroicons-outline:speaker-wave' },
-  { path: '/podcasts', label: 'Podcasts', icon: 'heroicons-outline:microphone' },
-  { path: '/personas', label: 'Personas', icon: 'heroicons-outline:identification' },
-  { path: '/playground', label: 'Playground', icon: 'ph:play-circle' },
-  { path: '/users', label: 'Users', icon: 'heroicons-outline:users' }
-]
+// layouts/default.vue 脚本部分
+const menuGroups = {
+  overview: [
+    { path: '/dashboard', label: 'Dashboard', icon: 'ph:chart-line' }
+  ],
+  content: [
+        { path: '/playground', label: 'Playground', icon: 'ph:flask' },
 
-const sidebarOpen = ref(false)
+    { path: '/podcasts', label: 'Podcasts', icon: 'ph:microphone' },
+    { path: '/transcripts', label: 'Guide Texts', icon: 'ph:file-text' },
+    { path: '/personas', label: 'Personas', icon: 'ph:user-circle' }
+  ],
+  resources: [
+    { path: '/museums', label: 'Museums', icon: 'ph:buildings' },
+    { path: '/galleries', label: 'Galleries', icon: 'ph:images' },
+    { path: '/objects', label: 'Objects', icon: 'ph:cube' }
+  ],
+  client: [
+    { path: '/tour', label: 'Tour', icon: 'ph:map-trifold' },
+    { path: '/chat', label: 'Chat', icon: 'ph:chat-circle' },
+    { path: '/guide', label: 'Guide', icon: 'ph:book-open' }
+  ],
+  admin: [
+    { path: '/users', label: 'Users', icon: 'ph:users' },
+    { path: '/preference', label: 'Preference', icon: 'ph:sliders' },
+    { path: '/docs', label: 'Docs', icon: 'ph:book' },
+    { path: '/debug', label: 'Debug', icon: 'ph:bug' }
+  ]
+};
 
+// 保持原来的 sidebarOpen 逻辑，同时添加菜单结构
+const sidebarOpen = ref(false);
+
+// 然后在需要的地方传入 menuGroups
 defineExpose({
-  navLinks,
+  menuGroups,
   route
-})
+});
+
+
+
+
+
+
 </script>
 
 <style scoped>
@@ -113,4 +137,5 @@ defineExpose({
   background-color: rgba(155, 155, 155, 0.5);
   border-radius: 20px;
 }
-</style> 
+
+</style>
