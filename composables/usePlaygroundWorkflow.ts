@@ -1,4 +1,4 @@
-import { ref, computed, type Ref } from 'vue';
+import { ref, computed, type Ref, nextTick } from 'vue';
 import { usePlaygroundStore } from '@/stores/playground'; // Main store for resetAll
 import { usePlaygroundSettingsStore } from '@/stores/playgroundSettings';
 import { usePlaygroundScriptStore } from '@/stores/playgroundScript';
@@ -76,6 +76,7 @@ export function usePlaygroundWorkflow(
   }
 
   async function handleProceedWithoutValidation() {
+    await nextTick(); // Ensure store updates are processed before validation
     const localPodcastSettings = settingsStore.podcastSettings;
     if (!localPodcastSettings?.title) {
       toast.error('Please set the podcast title.');
@@ -157,15 +158,58 @@ export function usePlaygroundWorkflow(
       // For now, sending a more detailed request based on current data.
       // This part might need adjustment based on the actual API endpoint requirements for saving.
       // Let's assume the API takes the structured data from validation.
+
+      // Add logs to inspect the data
+      // console.log('[usePlaygroundWorkflow] structuredData:', JSON.stringify(scriptStore.validationResult?.structuredData, null, 2));
+      // console.log('[usePlaygroundWorkflow] localPodcastSettings:', JSON.stringify(localPodcastSettings, null, 2));
+      // console.log('[usePlaygroundWorkflow] scriptStore.textToSynthesize:', scriptStore.textToSynthesize);
+      // console.log('[usePlaygroundWorkflow] personasForApi:', JSON.stringify(personasForApi, null, 2));
+
+
+      // Ensure structuredData exists and has the expected script format
+      const structuredScript = scriptStore.validationResult?.structuredData?.script;
+      const processedScriptForApi = Array.isArray(structuredScript)
+        ? structuredScript.map(segment => ({
+            speaker: segment.name || segment.role || 'Unknown', // Prioritize name, then role
+            text: segment.text,
+          }))
+        : [];
+
+      if (processedScriptForApi.length === 0 && scriptStore.textToSynthesize) {
+        // Fallback or error if structured script is not available/valid but raw text exists
+        // This might indicate an issue in the validation/structuring step
+        console.warn('[usePlaygroundWorkflow] Structured script missing or invalid, attempting to use parsed raw script.');
+        // Attempt to parse from raw text again as a last resort, though ideally structuredData.script should be correct
+        const rawParsedSegments = parseScriptToSegmentsFromScriptComposable(scriptStore.textToSynthesize);
+        if (rawParsedSegments.length > 0) {
+            processedScriptForApi.push(...rawParsedSegments.map(s => ({ speaker: s.speaker, text: s.text })));
+        } else {
+            toast.error("Critical error: Script data is unavailable for API submission.");
+            isProcessingWorkflowStep.value = false;
+            return;
+        }
+      }
+
+
       const saveRequestBody = {
-        ...scriptStore.validationResult?.structuredData, // Send the validated structured data
-        // Optionally add/override fields like museumId, galleryId, objectId if they are not part of structuredData
+        podcastTitle: localPodcastSettings.title || scriptStore.validationResult?.structuredData?.podcastTitle || "Untitled Podcast",
+        script: processedScriptForApi,
+        personas: personasForApi, // Use the correctly structured personas object
+        language: localPodcastSettings.language || scriptStore.validationResult?.structuredData?.language || 'en',
+        topic: localPodcastSettings.topic,
+        host_persona_id: localPodcastSettings.hostPersonaId ? Number(localPodcastSettings.hostPersonaId) : undefined,
+        // guest_persona_ids: localPodcastSettings.guestPersonaIds?.map(id => Number(id)), // If API expects array of IDs
         museumId: localPodcastSettings.museumId ?? undefined,
         galleryId: localPodcastSettings.galleryId ?? undefined,
         objectId: localPodcastSettings.objectId ?? undefined,
+        // Include other fields from structuredData if they are expected at the top level by the API
+        // and are not already covered. For example, if 'voiceMap' itself was needed:
+        // voiceMap: scriptStore.validationResult?.structuredData?.voiceMap,
       };
 
-      const response = await fetch('/api/podcast/process/save-structured-script', { // Example endpoint
+      // console.log('[usePlaygroundWorkflow] saveRequestBody before sending:', JSON.stringify(saveRequestBody, null, 2));
+
+      const response = await fetch('/api/podcast/process/script', { // Corrected endpoint
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(saveRequestBody),
@@ -183,19 +227,33 @@ export function usePlaygroundWorkflow(
       }
 
       let apiResult;
+      // Read the response body as text first.
+      // This is safe because if !response.ok, an error would have been thrown earlier,
+      // and execution wouldn't reach here.
+      // If response.ok, this is the first time we are reading the body.
+      const responseBodyText = await response.text();
       try {
-        apiResult = await response.json();
+        // Attempt to parse the text as JSON.
+        apiResult = JSON.parse(responseBodyText);
       } catch (e) {
-        const responseText = await response.text();
-        throw new Error(`Failed to parse server response as JSON. Response text: ${responseText}`);
+        // If JSON.parse fails, we use the already read text in the error message.
+        // This avoids calling response.text() again after a failed .json() attempt.
+        throw new Error(`Failed to parse server response as JSON. Response text: ${responseBodyText}`);
       }
 
-      if (apiResult.success && apiResult.data?.podcastId) {
-        audioStore.setPodcastId(apiResult.data.podcastId);
+      if (apiResult.success && apiResult.podcastId) { // Changed apiResult.data?.podcastId to apiResult.podcastId
+        audioStore.setPodcastId(apiResult.podcastId); // Changed apiResult.data.podcastId to apiResult.podcastId
         toast.success('Script saved to database successfully. Proceeding to voice assignment.');
         goToStep(currentStepIndex.value + 1);
       } else {
-        throw new Error(apiResult.message || 'Failed to save script to database or podcastId missing.');
+        // Construct a more informative error message if podcastId is missing but success is true
+        let errorMessage = 'Failed to save script to database or podcastId missing.';
+        if (apiResult.success && !apiResult.podcastId) {
+            errorMessage = 'Script processed successfully, but podcastId was not returned from the server.';
+        } else if (apiResult.message) {
+            errorMessage = apiResult.message;
+        }
+        throw new Error(errorMessage);
       }
     } catch (error) {
       console.error('[usePlaygroundWorkflow] Process script failed:', error);

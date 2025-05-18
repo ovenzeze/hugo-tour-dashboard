@@ -10,7 +10,7 @@
         </ClientOnly>
 
         <!-- 主体内容，包含实际页面内容 -->
-        <div class="main-ml-sidebar flex flex-col flex-1">
+        <div class="flex flex-col flex-1 md:ml-[var(--sidebar-width)]">
           <!-- PC端顶部栏 - 已移除 -->
 
           <!-- 移动端顶部栏 -->

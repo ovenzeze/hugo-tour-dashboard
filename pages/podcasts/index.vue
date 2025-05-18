@@ -10,10 +10,62 @@
       </Button>
     </div>
 
-    <!-- Podcast List -->
-            <div class="p-4">
+    <!-- Filter Controls -->
+    <div class="mb-6 px-6">
+      <Input
+        v-model="searchTerm"
+        placeholder="Search by title or topic..."
+        class="max-w-sm"
+      />
+    </div>
+
+    <!-- Conditional Rendering for Content Area -->
+    <div class="p-4">
+      <!-- Loading State -->
+      <div v-if="loading" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mt-4">
+        <div v-for="n in 3" :key="`skeleton-${n}`" class="border rounded-xl overflow-hidden shadow-md bg-card"> {/* Changed v-for to 3 items for better mobile view */}
+          <div class="p-4 space-y-3">
+            <div class="flex justify-between items-start">
+              <div class="flex-1 space-y-2">
+                <Skeleton class="h-5 w-3/4" />
+                <Skeleton class="h-3 w-1/2" />
+              </div>
+              <div class="flex gap-1">
+                <Skeleton class="h-7 w-7 rounded" />
+                <Skeleton class="h-7 w-7 rounded" />
+              </div>
+            </div>
+            <div class="space-y-2 pt-2">
+              <Skeleton class="h-4 w-full" />
+              <Skeleton class="h-4 w-5/6" />
+              <Skeleton class="h-4 w-full" />
+              <Skeleton class="h-4 w-4/5" />
+              <Skeleton class="h-4 w-full" />
+              <Skeleton class="h-4 w-2/3" />
+            </div>
+            <div class="grid grid-cols-2 gap-2 pt-2">
+              <Skeleton class="h-9 w-full rounded" />
+              <Skeleton class="h-9 w-full rounded" />
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Error State -->
+      <div v-else-if="error" class="text-center py-10">
+        <Icon name="ph:warning-circle-duotone" class="mx-auto h-16 w-16 text-destructive mb-4" />
+        <p class="text-xl font-medium text-destructive">Failed to load podcasts</p>
+        <p class="text-md text-muted-foreground mb-6">{{ error }}</p>
+        <Button @click="fetchPodcasts" size="lg">
+          <Icon name="ph:arrow-clockwise-duotone" class="mr-2 h-5 w-5" />
+          Try Again
+        </Button>
+      </div>
+      
+      <!-- Podcast List (includes its own empty state) -->
       <PodcastList
-        :podcasts="podcasts"
+        v-else
+        :podcasts="filteredPodcasts"
         :current-previewing-id="currentlyPreviewingId"
         :is-audio-playing="isPlayingPreview"
         @select-podcast="handleSelectPodcast"
@@ -51,19 +103,45 @@
 
 <script setup lang="ts">
 import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input'; // Import Input
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from '@/components/ui/sheet';
-import { nextTick, onMounted, ref } from 'vue';
+import { Skeleton } from '@/components/ui/skeleton'; // Import Skeleton
+import { computed, nextTick, onMounted, ref } from 'vue'; // Import computed
 import PodcastDetailDrawer from '~/components/podcasts/PodcastDetailDrawer.vue';
 import PodcastList from '~/components/podcasts/PodcastList.vue';
 import { usePodcastDatabase, type Podcast, type Segment, type SegmentAudio } from '~/composables/usePodcastDatabase';
 
-const { podcasts, selectedPodcast, fetchPodcasts, fetchPodcastById, deletePodcast, downloadPodcast, resynthesizeAllSegments } = usePodcastDatabase();
+const searchTerm = ref('');
+
+const {
+  podcasts,
+  selectedPodcast,
+  loading, // Destructure loading state
+  error,   // Destructure error state
+  fetchPodcasts, 
+  fetchPodcastById, 
+  deletePodcast, 
+  downloadPodcast, 
+  resynthesizeAllSegments 
+} = usePodcastDatabase();
 
 const audioPlayer = ref<HTMLAudioElement | null>(null);
 const audioQueue = ref<string[]>([]);
 const currentSegmentIndex = ref(0);
 const isPlayingPreview = ref(false);
 const currentlyPreviewingId = ref<string | null>(null);
+
+// Filtered podcasts based on searchTerm
+const filteredPodcasts = computed<Podcast[]>(() => { // Explicitly type the computed property
+  if (!searchTerm.value) {
+    return podcasts.value;
+  }
+  const lowerSearchTerm = searchTerm.value.toLowerCase();
+  return podcasts.value.filter(podcast =>
+    (podcast.title && podcast.title.toLowerCase().includes(lowerSearchTerm)) ||
+    (podcast.topic && podcast.topic.toLowerCase().includes(lowerSearchTerm))
+  );
+});
 
 // Fetch podcasts on component mount
 onMounted(() => {

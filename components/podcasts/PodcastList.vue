@@ -9,75 +9,61 @@
       ]"
       @click="currentPreviewingId === podcast.podcast_id ? null : emit('select-podcast', podcast.podcast_id)"
     >
-      <CardHeader class="pb-3 relative">
-        <div class="flex justify-between items-start gap-2">
-          <div class="flex-1 min-w-0">
-            <CardTitle class="text-lg font-semibold leading-tight flex items-center min-w-0">
-              <Icon
-                v-if="currentPreviewingId === podcast.podcast_id && isAudioPlaying"
-                name="ph:speaker-high-duotone" class="mr-2 h-5 w-5 text-primary flex-shrink-0 animate-pulse"
-              />
-              <Icon
-                v-else
-                name="ph:microphone-stage-duotone" class="mr-2 h-5 w-5 text-primary flex-shrink-0"
-              />
-              <span class="truncate text-md max-w-[250px]">{{ podcast.title || `Podcast #${podcast.podcast_id}` }}</span>
-            </CardTitle>
-            <CardDescription class="text-xs text-muted-foreground mt-1 truncate">
-              {{ podcast.topic || 'No topic specified' }}
-            </CardDescription>
-          </div>
-          <div class="flex flex-row gap-1 flex-shrink-0">
-             <Button
-              v-if="!(currentPreviewingId === podcast.podcast_id)"
-              variant="ghost"
-              size="icon"
-              @click.stop="emit('edit-podcast', podcast.podcast_id)"
-              class="h-7 w-7"
-              title="Edit Podcast"
-            >
-              <Icon name="ph:pencil-simple" class="h-4 w-4" />
-            </Button>
-            <Button
-              variant="ghost"
-              size="icon"
-              @click.stop="emit('delete-podcast', podcast.podcast_id)"
-              class="text-destructive hover:text-destructive h-7 w-7"
-              title="Delete Podcast"
-            >
-              <Icon name="ph:trash" class="h-4 w-4" />
-            </Button>
-          </div>
-        </div>
-      </CardHeader>
+<CardHeader class="pb-3 relative group">
+  <div class="flex justify-between items-start gap-2">
+    <div class="flex-1 min-w-0">
+      <CardTitle class="text-xl font-bold leading-tight flex items-center min-w-0">
+        <Icon
+          v-if="currentPreviewingId === podcast.podcast_id && isAudioPlaying"
+          name="ph:speaker-high-duotone" class="mr-2 h-5 w-5 text-primary flex-shrink-0 animate-pulse"
+        />
+        <Icon
+          v-else
+          name="ph:microphone-stage-duotone" class="mr-2 h-5 w-5 text-primary flex-shrink-0"
+        />
+        <span
+          class="line-clamp-2 max-w-[220px] break-words text-left"
+          :title="podcast.title"
+        >{{ podcast.title || `Podcast #${podcast.podcast_id}` }}</span>
+        <span v-if="podcast.topic" class="ml-2 px-2 py-0.5 rounded-full bg-primary/10 text-primary text-xs font-semibold">{{ podcast.topic }}</span>
+      </CardTitle>
+      <CardDescription class="text-xs text-muted-foreground mt-1 truncate">
+        <span v-if="podcast.host_name" class="font-medium text-foreground mr-2">Host: {{ podcast.host_name }}</span>
+        <span v-if="podcast.guest_name" class="font-medium text-foreground">Guest: {{ podcast.guest_name }}</span>
+      </CardDescription>
+    </div>
+    <div class="flex flex-row gap-1 flex-shrink-0 opacity-0 group-hover:opacity-100 transition-opacity">
+       <Button
+        v-if="!(currentPreviewingId === podcast.podcast_id)"
+        variant="ghost"
+        size="icon"
+        @click.stop="emit('edit-podcast', podcast.podcast_id)"
+        class="h-7 w-7"
+        title="Edit Podcast"
+      >
+        <Icon name="ph:pencil-simple" class="h-4 w-4" />
+      </Button>
+      <Button
+        variant="ghost"
+        size="icon"
+        @click.stop="emit('delete-podcast', podcast.podcast_id)"
+        class="text-destructive hover:text-destructive h-7 w-7"
+        title="Delete Podcast"
+      >
+        <Icon name="ph:trash" class="h-4 w-4" />
+      </Button>
+    </div>
+  </div>
+</CardHeader>
       <CardContent class="py-3 text-sm flex-grow">
-        <div class="space-y-2">
+        <div class="flex flex-col gap-2">
           <div class="flex items-center justify-between">
             <span class="text-muted-foreground">Status:</span>
             <span :class="getSynthesisStatusClass(podcast)">{{ getSynthesisStatusText(podcast) }}</span>
           </div>
           <div class="flex items-center justify-between">
-            <span class="text-muted-foreground">Segments Synced:</span>
-            <span>{{ getSyncedSegmentsCount(podcast) }} / {{ podcast.podcast_segments?.length || 0 }}</span>
-          </div>
-          <div class="flex items-center justify-between">
-            <span class="text-muted-foreground">Total Duration:</span>
-            <!-- TODO: Calculate or fetch total duration -->
+            <span class="text-muted-foreground">Duration:</span>
             <span>{{ getPodcastTotalDuration(podcast) }}</span>
-          </div>
-          <div class="flex items-center justify-between">
-            <span class="text-muted-foreground">Host:</span>
-            <!-- TODO: Fetch host name from podcast data -->
-            <span>{{ podcast.host_name || 'N/A' }}</span>
-          </div>
-          <div class="flex items-center justify-between">
-            <span class="text-muted-foreground">Guest:</span>
-            <!-- TODO: Fetch guest name from podcast data -->
-            <span>{{ podcast.guest_name || 'N/A' }}</span>
-          </div>
-          <div class="flex items-center justify-between">
-            <span class="text-muted-foreground">Created:</span>
-            <span>{{ podcast.created_at ? new Date(podcast.created_at).toLocaleDateString() : 'N/A' }}</span>
           </div>
         </div>
       </CardContent>
@@ -94,9 +80,9 @@
         </Button>
         <Button
           v-else
-          variant="outline"
+          variant="default"
           size="sm"
-          class="w-full"
+          class="w-full font-semibold"
           @click.stop="emit('preview-podcast', podcast.podcast_id)"
         >
           <Icon name="ph:play-fill" class="mr-2 h-4 w-4" />
@@ -123,15 +109,26 @@
 </template>
 
 <script setup lang="ts">
+import { ref } from 'vue';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import type { Database } from '~/types/supabase';
+import { useDateFormatter } from '~/composables/useDateFormatter';
 // Icon component is globally available or auto-imported
+
+const { formatRelativeTime } = useDateFormatter();
+
+// 展开/收起分段的状态
+const showAllSegments = ref<Record<string, boolean>>({});
+
+function toggleSegments(podcastId: string) {
+  showAllSegments.value[podcastId] = !showAllSegments.value[podcastId];
+}
 
 // Define types with nested relationships based on Supabase types
 type SegmentAudio = Database['public']['Tables']['segment_audios']['Row'] & {
-  duration_ms?: number; // Added for duration calculation
-  params?: { duration_ms?: number } & Record<string, any>; // Added for duration_ms potentially in params
+  duration_ms?: number | null; // Allow null to match database type
+  params?: any; // Use 'any' or import 'Json' type for broader compatibility
 };
 type Segment = Database['public']['Tables']['podcast_segments']['Row'] & {
   segment_audios?: SegmentAudio[];

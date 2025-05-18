@@ -39,7 +39,7 @@
     </div>
 
     <!-- 空状态 -->
-    <div v-else-if="!guideTexts.length" class="text-center py-12 border-2 border-dashed border-muted rounded-lg">
+    <div v-else-if="!guideTexts || !guideTexts.length" class="text-center py-12 border-2 border-dashed border-muted rounded-lg">
       <Icon name="heroicons-outline:document-text" class="mx-auto h-12 w-12 text-muted-foreground" />
       <h3 class="mt-2 text-sm font-medium text-foreground">No transcripts</h3>
       <p class="mt-1 text-sm text-muted-foreground">Get started by creating a new transcript.</p>
@@ -116,7 +116,7 @@
               >
                 <Icon name="ph:cube" class="inline h-4 w-4 align-text-bottom" />
                 <span class="font-medium text-blue-500 dark:text-blue-300">Object</span>:
-                <span>{{ transcript.object_id }}</span>
+                <span>{{ transcript.objects?.title || transcript.object_id }}</span>
               </span>
               <span
                 v-if="transcript.gallery_id"
@@ -124,7 +124,7 @@
               >
                 <Icon name="ph:image-square" class="inline h-4 w-4 align-text-bottom" />
                 <span class="font-medium text-purple-500 dark:text-purple-300">Gallery</span>:
-                <span>{{ transcript.gallery_id }}</span>
+                <span>{{ transcript.galleries?.name || transcript.gallery_id }}</span>
               </span>
               <span
                 v-if="transcript.museum_id"
@@ -132,7 +132,7 @@
               >
                 <Icon name="ph:bank" class="inline h-4 w-4 align-text-bottom" />
                 <span class="font-medium text-green-500 dark:text-green-300">Museum</span>:
-                <span>{{ transcript.museum_id }}</span>
+                <span>{{ transcript.museums?.name || transcript.museum_id }}</span>
               </span>
             </template>
           </div>
@@ -141,7 +141,7 @@
     </div>
 
     <!-- 翻页和统计信息 -->
-    <div v-if="!pending && !error && guideTexts.length > 0" class="mt-8 flex justify-between items-center">
+    <div v-if="guideTexts && guideTexts.length > 0 && !pending && !error" class="mt-8 flex justify-between items-center">
       <p class="text-sm text-muted-foreground">
         Showing {{ guideTexts.length }} transcripts
       </p>
@@ -233,13 +233,37 @@
 </template>
 
 <script setup lang="ts">
-import type { GuideText } from '~/types/supabase';
+import type { Database } from '~/types/supabase';
 
+// Define types based on Supabase schema
+type PersonaRow = Database['public']['Tables']['personas']['Row'];
+type MuseumRow = Database['public']['Tables']['museums']['Row'];
+type GalleryRow = Database['public']['Tables']['galleries']['Row'];
+type DBObjectRow = Database['public']['Tables']['objects']['Row']; // Renamed to avoid conflict with global Object
+
+// Define the main GuideText type including potential nested objects from joins
+export type GuideText = Database['public']['Tables']['guide_texts']['Row'] & {
+  personas?: PersonaRow | null;
+  objects?: DBObjectRow | null;
+  galleries?: GalleryRow | null;
+  museums?: MuseumRow | null;
+};
+
+// Type for the data fetched for the personas dropdown
+type PersonaSelectItem = Pick<PersonaRow, 'persona_id' | 'name'>;
+
+// Type definition for new/editing transcript form data
+interface TranscriptFormData {
+  transcript: string;
+  language: string;
+  persona_id: number | null;
+  guide_text_id?: number | null; // Optional for new, required for edit
+}
 
 /**
  * 日期格式化函数：优先“x小时前”，否则“YYYY-MM-DD HH:mm”
  */
-function formatDate(dateString) {
+function formatDate(dateString: string | null | undefined): string {
   if (!dateString) return 'Unknown date';
   const date = new Date(dateString);
   const now = new Date();
@@ -254,61 +278,58 @@ function formatDate(dateString) {
   if (diffHour < 24) return `${diffHour} hours ago`;
   if (diffDay < 7) return `${diffDay} days ago`;
 
-  // YYYY-MM-DD HH:mm
-  const pad = (n) => n.toString().padStart(2, '0');
+  const pad = (n: number): string => n.toString().padStart(2, '0');
   return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())} ${pad(date.getHours())}:${pad(date.getMinutes())}`;
 }
 
-// 获取数据
-const { data: guideTexts, pending, error, refresh } = useAsyncData('guideTexts',
+// Fetching data
+const { data: guideTexts, pending, error, refresh } = useAsyncData<GuideText[]>('guideTexts',
   async () => {
-    const data = await $fetch('/api/transcripts');
+    const data = await $fetch<GuideText[]>('/api/transcripts');
     console.log('API response:', data);
     return data;
   },
   {
-    default: () => [],
-    watch: false  // 避免不必要的重新获取
+    default: () => [] as GuideText[],
   }
 );
 
-// 获取 personas 数据用于选择框
-const { data: personas } = useAsyncData('personas', 
-  () => $fetch('/api/personas'), 
-  { default: () => [] }
+const { data: personas } = useAsyncData<PersonaSelectItem[]>('personas', 
+  () => $fetch<PersonaSelectItem[]>('/api/personas'), 
+  { default: () => [] as PersonaSelectItem[] }
 );
 
-// 对话框状态
+// Dialog states
 const isAddDialogOpen = ref(false);
 const isEditDialogOpen = ref(false);
 const isDeleteDialogOpen = ref(false);
 
-// 处理表单数据
-const newTranscript = reactive({
+// Form data
+const newTranscript = reactive<TranscriptFormData>({
   transcript: '',
   language: '',
   persona_id: null,
 });
-const editingTranscript = reactive({
+const editingTranscript = reactive<TranscriptFormData>({
   guide_text_id: null,
   transcript: '',
   language: '',
   persona_id: null,
 });
-const deletingTranscriptId = ref(null);
+const deletingTranscriptId = ref<number | null>(null);
 
-// 处理状态
+// Pending states
 const pendingAdd = ref(false);
-const pendingEdit = ref(false);
+const pendingEdit = ref(false); // Added for completeness, though editTranscript is not fully implemented
 const pendingDelete = ref(false);
 
-// 对话框操作
+// Dialog operations
 function openAddTranscriptDialog() {
-  // 重置表单
   Object.assign(newTranscript, {
     transcript: '',
     language: '',
     persona_id: null,
+    guide_text_id: undefined, // Ensure all fields are reset
   });
   isAddDialogOpen.value = true;
 }
@@ -318,21 +339,19 @@ function closeAddDialog() {
 }
 
 function openEditTranscriptDialog(transcript: GuideText) {
-  Object.assign(editingTranscript, {
-    guide_text_id: transcript.guide_text_id,
-    transcript: transcript.transcript,
-    language: transcript.language,
-    persona_id: transcript.persona_id,
-  });
+  editingTranscript.guide_text_id = transcript.guide_text_id;
+  editingTranscript.transcript = transcript.transcript;
+  editingTranscript.language = transcript.language;
+  editingTranscript.persona_id = transcript.persona_id;
   isEditDialogOpen.value = true;
 }
 
-function confirmDeleteTranscript(id) {
+function confirmDeleteTranscript(id: number) {
   deletingTranscriptId.value = id;
   isDeleteDialogOpen.value = true;
 }
 
-// API 交互
+// API interactions
 async function addTranscript() {
   if (!validateTranscript(newTranscript)) return;
   
@@ -340,18 +359,44 @@ async function addTranscript() {
     pendingAdd.value = true;
     await $fetch('/api/transcripts', {
       method: 'POST',
-      body: newTranscript
+      body: { // Send only necessary fields for creation
+        transcript: newTranscript.transcript,
+        language: newTranscript.language,
+        persona_id: newTranscript.persona_id,
+        // object_id, gallery_id, museum_id would be added here if part of the form
+      }
     });
     
     isAddDialogOpen.value = false;
-    refresh(); // 刷新数据
-  } catch (err) {
+    refresh();
+  } catch (err: unknown) {
     console.error('Failed to add transcript:', err);
-    alert(`Failed to add transcript: ${err.message || 'Unknown error'}`);
+    const message = err instanceof Error ? err.message : 'An unknown error occurred';
+    alert(`Failed to add transcript: ${message}`);
   } finally {
     pendingAdd.value = false;
   }
 }
+
+// Placeholder for edit transcript functionality
+// async function editTranscript() {
+//   if (!editingTranscript.guide_text_id || !validateTranscript(editingTranscript)) return;
+//   try {
+//     pendingEdit.value = true;
+//     await $fetch(`/api/transcripts/${editingTranscript.guide_text_id}`, {
+//       method: 'PUT', // or PATCH
+//       body: editingTranscript
+//     });
+//     isEditDialogOpen.value = false;
+//     refresh();
+//   } catch (err: unknown) {
+//     console.error('Failed to edit transcript:', err);
+//     const message = err instanceof Error ? err.message : 'An unknown error occurred';
+//     alert(`Failed to edit transcript: ${message}`);
+//   } finally {
+//     pendingEdit.value = false;
+//   }
+// }
 
 async function deleteTranscript() {
   if (!deletingTranscriptId.value) return;
@@ -363,17 +408,18 @@ async function deleteTranscript() {
     });
     
     isDeleteDialogOpen.value = false;
-    refresh(); // 刷新数据
-  } catch (err) {
+    refresh();
+  } catch (err: unknown) {
     console.error('Failed to delete transcript:', err);
-    alert(`Failed to delete transcript: ${err.message || 'Unknown error'}`);
+    const message = err instanceof Error ? err.message : 'An unknown error occurred';
+    alert(`Failed to delete transcript: ${message}`);
   } finally {
     pendingDelete.value = false;
   }
 }
 
-// 表单验证
-function validateTranscript(data) {
+// Form validation
+function validateTranscript(data: TranscriptFormData): boolean {
   if (!data.transcript?.trim()) {
     alert('Transcript content is required');
     return false;
@@ -382,18 +428,18 @@ function validateTranscript(data) {
     alert('Language is required');
     return false;
   }
-  // 确保 persona_id 是一个数字
-  const personaIdNum = Number(data.persona_id);
-  if (isNaN(personaIdNum) || personaIdNum <= 0) {
+  if (data.persona_id === null || isNaN(Number(data.persona_id)) || Number(data.persona_id) <= 0) {
      alert('Please select a valid persona');
      return false;
   }
-  // 更新响应式对象
-  data.persona_id = personaIdNum;
+  // Ensure persona_id is a number if it's not null
+  if (data.persona_id !== null) {
+    data.persona_id = Number(data.persona_id);
+  }
   return true;
 }
 
-// 页面元数据
+// Page meta
 definePageMeta({
   layout: 'default',
   title: 'Transcripts Management'

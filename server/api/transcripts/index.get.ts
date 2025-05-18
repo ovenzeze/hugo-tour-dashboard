@@ -20,7 +20,10 @@ export default defineEventHandler(async (event) => {
       object_id,
       gallery_id,
       museum_id,
-      personas ( persona_id, name ) 
+      personas ( persona_id, name ),
+      objects ( object_id, title ),
+      galleries ( gallery_id, name ),
+      museums ( museum_id, name )
     `)
     .order('updated_at', { ascending: false })
 
