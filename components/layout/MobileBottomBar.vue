@@ -1,6 +1,6 @@
 <script setup lang="ts">
-import { Button } from '@/components/ui/button'
-import { Icon } from '@iconify/vue'
+import { Button } from '@/components/ui/button';
+import { Icon } from '@iconify/vue';
 
 const mainLinks = [
   { path: '/dashboard', icon: 'heroicons-outline:chart-bar-square' },
@@ -14,7 +14,7 @@ const mainLinks = [
 </script>
 
 <template>
-  <div class="fixed bottom-0 left-0 right-0 border-t bg-background md:hidden">
+  <div class="fixed bottom-0 left-0 right-0 border-t md:hidden">
     <div class="flex justify-around py-2">
       <nuxt-link 
         v-for="link in mainLinks"

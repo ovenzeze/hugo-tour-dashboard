@@ -4,7 +4,7 @@
       <div class="relative flex flex-col md:flex-row w-full">
         <!-- 桌面端侧边栏 -->
         <ClientOnly>
-          <aside class="sidebar-width fixed inset-y-0 z-10 transition-[left,right,width] duration-200 ease-linear md:flex left-0 group-data-[collapsible=offcanvas]:left-[calc(var(--sidebar-width)*-1)] group-data-[collapsible=icon]:w-[var(--sidebar-width-icon)] group-data-[side=left]:border-r group-data-[side=right]:border-l flex h-full max-h-screen flex-col bg-card">
+          <aside class="sidebar-width hidden fixed inset-y-0 z-10 transition-[left,right,width] duration-200 ease-linear md:flex left-0 group-data-[collapsible=offcanvas]:left-[calc(var(--sidebar-width)*-1)] group-data-[collapsible=icon]:w-[var(--sidebar-width-icon)] group-data-[side=left]:border-r group-data-[side=right]:border-l flex h-full max-h-screen flex-col bg-card">
             <SidebarNav :menuGroups="menuGroups" />
           </aside>
         </ClientOnly>
@@ -61,7 +61,6 @@ const menuGroups = {
     { path: '/podcasts', label: 'Podcasts', icon: 'ph:microphone' },
     { path: '/transcripts', label: 'Guide Texts', icon: 'ph:file-text' },
     { path: '/personas', label: 'Personas', icon: 'ph:user-circle' },
-    { path: '/components', label: 'Components', icon: 'ph:puzzle-piece' }
   ],
   resources: [
     { path: '/museums', label: 'Museums', icon: 'ph:buildings' },
@@ -77,7 +76,9 @@ const menuGroups = {
     { path: '/users', label: 'Users', icon: 'ph:users' },
     { path: '/preference', label: 'Preference', icon: 'ph:sliders' },
     { path: '/docs', label: 'Docs', icon: 'ph:book' },
-    { path: '/debug', label: 'Debug', icon: 'ph:bug' }
+    { path: '/debug', label: 'Debug', icon: 'ph:bug' },
+        { path: '/components', label: 'Components', icon: 'ph:puzzle-piece' }
+
   ]
 };
 
