@@ -12,48 +12,50 @@
 <CardHeader class="pb-3 relative group">
   <div class="flex justify-between items-start gap-2">
     <div class="flex-1 min-w-0">
-      <CardTitle class="text-xl font-bold leading-tight flex items-center min-w-0">
-        <Icon
-          v-if="currentPreviewingId === podcast.podcast_id && isAudioPlaying"
-          name="ph:speaker-high-duotone" class="mr-2 h-5 w-5 text-primary flex-shrink-0 animate-pulse"
-        />
-        <Icon
-          v-else
-          name="ph:microphone-stage-duotone" class="mr-2 h-5 w-5 text-primary flex-shrink-0"
-        />
+      <CardTitle class="text-lg font-bold leading-tight flex items-center min-w-0">
         <span
-          class="line-clamp-2 max-w-[220px] break-words text-left"
+          class="line-clamp-2 break-words text-center text-xs"
           :title="podcast.title"
         >{{ podcast.title || `Podcast #${podcast.podcast_id}` }}</span>
-        <span v-if="podcast.topic" class="ml-2 px-2 py-0.5 rounded-full bg-primary/10 text-primary text-xs font-semibold">{{ podcast.topic }}</span>
       </CardTitle>
-      <CardDescription class="text-xs text-muted-foreground mt-1 truncate">
+      <CardDescription class="text-xs text-muted-foreground mt-1 truncate text-center">
         <span v-if="podcast.host_name" class="font-medium text-foreground mr-2">Host: {{ podcast.host_name }}</span>
         <span v-if="podcast.guest_name" class="font-medium text-foreground">Guest: {{ podcast.guest_name }}</span>
       </CardDescription>
     </div>
-    <div class="flex flex-row gap-1 flex-shrink-0 opacity-0 group-hover:opacity-100 transition-opacity">
-       <Button
-        v-if="!(currentPreviewingId === podcast.podcast_id)"
-        variant="ghost"
-        size="icon"
-        @click.stop="emit('edit-podcast', podcast.podcast_id)"
-        class="h-7 w-7"
-        title="Edit Podcast"
-      >
-        <Icon name="ph:pencil-simple" class="h-4 w-4" />
-      </Button>
-      <Button
-        variant="ghost"
-        size="icon"
-        @click.stop="emit('delete-podcast', podcast.podcast_id)"
-        class="text-destructive hover:text-destructive h-7 w-7"
-        title="Delete Podcast"
-      >
-        <Icon name="ph:trash" class="h-4 w-4" />
-      </Button>
-    </div>
+    <!-- Right part: Topic and Buttons -->
   </div>
+      <div class=" w-full flex flex-col items-center justify-center gap-y-1.5 flex-shrink-0">
+      <span
+        v-if="podcast.topic"
+        class="px-4 py-1 rounded-full bg-primary/10 text-primary text-xs font-semibold line-clamp-1"
+        :title="podcast.topic"
+        style="max-width: 200px;"
+      >
+        {{ podcast.topic }}
+      </span>
+      <div class="flex flex-row gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+         <Button
+          v-if="!(currentPreviewingId === podcast.podcast_id)"
+          variant="ghost"
+          size="icon"
+          @click.stop="emit('edit-podcast', podcast.podcast_id)"
+          class="h-7 w-7"
+          title="Edit Podcast"
+        >
+          <Icon name="ph:pencil-simple" class="h-4 w-4" />
+        </Button>
+        <Button
+          variant="ghost"
+          size="icon"
+          @click.stop="emit('delete-podcast', podcast.podcast_id)"
+          class="text-destructive hover:text-destructive h-7 w-7"
+          title="Delete Podcast"
+        >
+          <Icon name="ph:trash" class="h-4 w-4" />
+        </Button>
+      </div>
+    </div>
 </CardHeader>
       <CardContent class="py-3 text-sm flex-grow">
         <!-- 主信息区 -->
@@ -102,10 +104,10 @@
                 {{ (segment.speaker && segment.speaker[0]) ? segment.speaker[0].toUpperCase() : '?' }}
               </span>
               <div class="flex-1 min-w-0">
-                <span class="text-xs font-medium text-foreground" :title="segment.speaker">
+                <span class="text-xs font-medium text-foreground" :title="segment.speaker ?? undefined">
                   {{ segment.speaker || 'Unknown Speaker' }}
                 </span>
-                <span class="text-xs text-muted-foreground ml-2 truncate" :title="segment.text">
+                <span class="text-xs text-muted-foreground ml-2 truncate" :title="segment.text ?? undefined">
                   {{ segment.text || 'No text available' }}
                 </span>
               </div>
@@ -155,11 +157,11 @@
 </template>
 
 <script setup lang="ts">
-import { ref } from 'vue';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
-import type { Database } from '~/types/supabase';
+import { ref } from 'vue';
 import { useDateFormatter } from '~/composables/useDateFormatter';
+import type { Database } from '~/types/supabase';
 // Icon component is globally available or auto-imported
 
 const { formatRelativeTime } = useDateFormatter();

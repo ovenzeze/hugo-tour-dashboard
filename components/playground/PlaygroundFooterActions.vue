@@ -21,21 +21,60 @@
       </Button>
       <template v-if="currentStepIndex === 1">
 
-        <Button
-          @click="emit('generate-ai-script')"
-          :disabled="isGeneratingOverall"
-          :variant="textToSynthesize ? 'outline' : 'destructive'"
-          class="w-full md:w-auto"
-        >
-        
-          <Icon v-if="isScriptGenerating" name="ph:spinner" class="w-4 h-4 mr-2 animate-spin" />
-          <Icon v-else name="ph:robot" class="w-4 h-4" />
-          <span v-if="isScriptGenerating">Generating...</span>
-          <span v-else>AI Script</span>
-        </Button>
-                <Button variant="outline" @click="emit('use-preset-script')" :disabled="isGeneratingOverall" class="w-full md:w-auto">
-          <Icon name="ph:book-open-text" class="w-4 h-4" /> Use Preset
-        </Button>
+        <TooltipProvider>
+          <Tooltip :delay-duration="200">
+            <TooltipTrigger as-child>
+              <Button
+                @click="emit('generate-ai-script')"
+                :disabled="isGeneratingOverall"
+                :variant="textToSynthesize ? 'outline' : 'default'"
+                class="w-full md:w-auto relative overflow-hidden group"
+              >
+                <div class="flex items-center justify-center">
+                  <div v-if="isScriptGenerating" class="absolute inset-0 bg-primary/10 animate-pulse"></div>
+                  <div class="flex items-center justify-center relative z-10">
+                    <Icon 
+                      v-if="isScriptGenerating" 
+                      name="ph:sparkle" 
+                      class="w-4 h-4 mr-2 animate-pulse text-primary" 
+                    />
+                    <Icon 
+                      v-else 
+                      name="ph:magic-wand" 
+                      class="w-4 h-4 mr-2 group-hover:rotate-12 transition-transform duration-300" 
+                    />
+                    <span v-if="isScriptGenerating">AI Creating...</span>
+                    <span v-else>AI Create Script</span>
+                  </div>
+                </div>
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent>
+              <p>Use AI to automatically generate a podcast script based on your settings</p>
+            </TooltipContent>
+          </Tooltip>
+        </TooltipProvider>
+                <TooltipProvider>
+          <Tooltip :delay-duration="200">
+            <TooltipTrigger as-child>
+              <Button 
+                variant="outline" 
+                @click="emit('use-preset-script')" 
+                :disabled="isGeneratingOverall" 
+                class="w-full md:w-auto group"
+              >
+                <Icon 
+                  name="ph:book-open-text" 
+                  class="w-4 h-4 mr-2 group-hover:scale-110 transition-transform duration-300" 
+                />
+                <span>Use Preset Script</span>
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent>
+              <p>Load a preset example script for quick testing</p>
+            </TooltipContent>
+          </Tooltip>
+        </TooltipProvider>
       </template>
     </div>
     <!-- Right Main Action Button Group -->
@@ -60,14 +99,24 @@
           <Icon v-else name="ph:broadcast" class="w-4 h-4 mr-2" />
           {{ isGeneratingAudioPreview ? 'Generating...' : 'Generate Audio Preview' }}
         </Button>
-        <Button
-          variant="default"
-          :disabled="!canProceedFromStep2"
-          @click="emit('synthesize-podcast')"
-        >
-          Synthesize Podcast
-          <Icon name="ph:broadcast" class="w-4 h-4 ml-2" />
-        </Button>
+        <TooltipProvider v-if="currentStepIndex === 2">
+          <Tooltip :delay-duration="200">
+            <TooltipTrigger as-child>
+              <Button
+                variant="default"
+                :disabled="!isPodcastGenerationAllowed || isGeneratingAudioPreview"
+                @click="emit('synthesize-podcast')"
+                class="w-full md:w-auto"
+              >
+                Synthesize Podcast
+                <Icon name="ph:rocket-launch" class="w-4 h-4 ml-2" />
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent v-if="!isPodcastGenerationAllowed">
+              <p>Please ensure all audio segments have been successfully previewed.</p>
+            </TooltipContent>
+          </Tooltip>
+        </TooltipProvider>
       </template>
       <template v-if="currentStepIndex === 3">
         <Button
@@ -94,6 +143,7 @@
 <script setup lang="ts">
 import { Button } from '@/components/ui/button';
 import { CardFooter } from '@/components/ui/card';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 // Icon is auto-imported
 
 interface Props {
@@ -106,6 +156,7 @@ interface Props {
   isGeneratingAudioPreview: boolean;
   textToSynthesize: string | null | undefined;
   audioUrl: string | null;
+  isPodcastGenerationAllowed?: boolean; // Added for step 2 podcast synthesis button
 }
 
 defineProps<Props>();

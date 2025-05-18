@@ -149,8 +149,11 @@
 </template>
 
 <script setup lang="ts">
-import { computed, type PropType } from 'vue';
+import { computed, type PropType, watch } from 'vue';
+import { useRouter } from 'vue-router';
 import type { ModalStatus, ConfirmData, ProcessingData, SuccessData, ErrorData } from './PodcastSynthesisModalTypes';
+
+const router = useRouter();
 
 // --- Props ---
 const props = defineProps({
@@ -176,7 +179,7 @@ const props = defineProps({
     default: () => ({ progress: 0, currentStage: 'Initializing...', remainingTime: 'Calculating...' }),
   },
   successData: {
-    type: Object as PropType<SuccessData>,
+    type: Object as PropType<SuccessData & { podcastId?: string | number }>, // Add podcastId to SuccessData
     default: () => ({ podcastDuration: 'N/A', fileSize: 'N/A' }),
   },
   errorData: {
@@ -214,6 +217,26 @@ const modalTitle = computed(() => {
       return 'Podcast Synthesis';
   }
 });
+
+// --- Watch for successful synthesis and navigate ---
+watch(() => [props.status, props.successData.podcastId], ([newStatus, newPodcastId]) => {
+  if (newStatus === 'success' && newPodcastId) {
+    // Navigate to the new podcast's page
+    // Assuming the route is /podcasts/[id]
+    // Make sure to handle cases where navigation might fail or podcastId is invalid
+    const navigationPath = `/podcasts/${newPodcastId}`;
+    console.log(`Navigating to ${navigationPath}`);
+    router.push(navigationPath).catch(err => {
+      console.error('Failed to navigate to podcast page:', err);
+      // Optionally, inform the user about the navigation failure
+    });
+    // It might be good to close the modal after attempting navigation,
+    // or let the user close it manually. For now, let's keep it open.
+    // emit('update:visible', false);
+    // emit('close');
+  }
+}, { immediate: true, deep: true });
+
 
 // --- Event Handlers ---
 const handleClose = () => {

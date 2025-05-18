@@ -1,29 +1,30 @@
 <template>
   <div class="container mx-auto py-10">
-    <!-- 顶部操作栏 -->
-    <div class="flex justify-between items-center mb-6 px-6">
-      <h1 class="text-3xl font-bold">Podcast</h1>
-      <!-- New Podcast Button -->
-      <Button @click="handleCreateNewPodcast">
-        <Icon name="ph:plus-circle-duotone" class="mr-2 h-5 w-5" />
-        New Podcast
-      </Button>
-    </div>
-
-    <!-- Filter Controls -->
-    <div class="mb-6 px-6">
-      <Input
-        v-model="searchTerm"
-        placeholder="Search by title or topic..."
-        class="max-w-sm"
-      />
+    <!-- 顶部操作栏和过滤 -->
+    <div class="flex flex-wrap justify-between items-center gap-4 mb-6 px-6">
+      <h1 class="text-3xl font-bold">Podcasts</h1>
+      <div class="flex items-center gap-4">
+        <Input
+          v-model="searchTerm"
+          placeholder="Search by title or topic..."
+          class="max-w-xs h-10"
+        />
+        <div class="flex items-center space-x-2">
+          <Switch id="hide-empty-podcasts" v-model:checked="hideEmptyPodcasts" />
+          <Label for="hide-empty-podcasts" class="text-sm">Hide Empty Podcasts</Label>
+        </div>
+        <Button @click="handleCreateNewPodcast" size="lg">
+          <Icon name="ph:plus-circle-duotone" class="mr-2 h-5 w-5" />
+          New Podcast
+        </Button>
+      </div>
     </div>
 
     <!-- Conditional Rendering for Content Area -->
     <div class="p-4">
       <!-- Loading State -->
       <div v-if="loading" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mt-4">
-        <div v-for="n in 3" :key="`skeleton-${n}`" class="border rounded-xl overflow-hidden shadow-md bg-card"> {/* Changed v-for to 3 items for better mobile view */}
+        <div v-for="n in 3" :key="`skeleton-${n}`" class="border rounded-xl overflow-hidden shadow-md bg-card"> 
           <div class="p-4 space-y-3">
             <div class="flex justify-between items-start">
               <div class="flex-1 space-y-2">
@@ -103,26 +104,29 @@
 
 <script setup lang="ts">
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input'; // Import Input
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from '@/components/ui/sheet';
-import { Skeleton } from '@/components/ui/skeleton'; // Import Skeleton
-import { computed, nextTick, onMounted, ref } from 'vue'; // Import computed
+import { Skeleton } from '@/components/ui/skeleton';
+import { Switch } from '@/components/ui/switch';
+import { computed, nextTick, onMounted, ref } from 'vue';
 import PodcastDetailDrawer from '~/components/podcasts/PodcastDetailDrawer.vue';
 import PodcastList from '~/components/podcasts/PodcastList.vue';
 import { usePodcastDatabase, type Podcast, type Segment, type SegmentAudio } from '~/composables/usePodcastDatabase';
 
 const searchTerm = ref('');
+const hideEmptyPodcasts = ref(true); // New filter state, default true
 
 const {
   podcasts,
   selectedPodcast,
   loading, // Destructure loading state
   error,   // Destructure error state
-  fetchPodcasts, 
-  fetchPodcastById, 
-  deletePodcast, 
-  downloadPodcast, 
-  resynthesizeAllSegments 
+  fetchPodcasts,
+  fetchPodcastById,
+  deletePodcast,
+  downloadPodcast,
+  resynthesizeAllSegments
 } = usePodcastDatabase();
 
 const audioPlayer = ref<HTMLAudioElement | null>(null);
@@ -131,16 +135,27 @@ const currentSegmentIndex = ref(0);
 const isPlayingPreview = ref(false);
 const currentlyPreviewingId = ref<string | null>(null);
 
-// Filtered podcasts based on searchTerm
-const filteredPodcasts = computed<Podcast[]>(() => { // Explicitly type the computed property
-  if (!searchTerm.value) {
-    return podcasts.value;
+// Filtered podcasts based on searchTerm and hideEmptyPodcasts
+const filteredPodcasts = computed<Podcast[]>(() => {
+  let result = podcasts.value;
+
+  // Apply search term filter
+  if (searchTerm.value) {
+    const lowerSearchTerm = searchTerm.value.toLowerCase();
+    result = result.filter(podcast =>
+      (podcast.title && podcast.title.toLowerCase().includes(lowerSearchTerm)) ||
+      (podcast.topic && podcast.topic.toLowerCase().includes(lowerSearchTerm))
+    );
   }
-  const lowerSearchTerm = searchTerm.value.toLowerCase();
-  return podcasts.value.filter(podcast =>
-    (podcast.title && podcast.title.toLowerCase().includes(lowerSearchTerm)) ||
-    (podcast.topic && podcast.topic.toLowerCase().includes(lowerSearchTerm))
-  );
+
+  // Apply hide empty podcasts filter
+  if (hideEmptyPodcasts.value) {
+    result = result.filter(podcast =>
+      podcast.podcast_segments && podcast.podcast_segments.length > 0
+    );
+  }
+
+  return result;
 });
 
 // Fetch podcasts on component mount

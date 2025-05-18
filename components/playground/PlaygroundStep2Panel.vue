@@ -3,6 +3,7 @@
     <VoicePerformanceSettings
       :script-content="scriptContent"
       :synth-progress="synthProgress"
+      :is-global-preview-loading="props.isGlobalPreviewLoading"
       class="w-full overflow-y-auto p-2 md:p-4 flex-1"
       @update:script-content="emit('update:scriptContent', $event)"
       ref="voicePerformanceSettingsRef"
@@ -38,6 +39,7 @@ interface Props {
   synthProgress?: SynthProgress; // Made the prop optional to align with VoicePerformanceSettings
   audioUrl: string | null;
   podcastPerformanceConfig: PodcastPerformanceConfig | null;
+  isGlobalPreviewLoading?: boolean; // Added new prop
 }
 
 const props = defineProps<Props>();

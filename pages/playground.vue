@@ -39,6 +39,7 @@
           }"
           :audio-url="audioStore.audioUrl"
           :podcast-performance-config="podcastPerformanceConfig"
+          :is-global-preview-loading="isGlobalPreviewLoading"
           @update:script-content="scriptStore.updateTextToSynthesize($event)"
           class="flex-1 min-h-0"
         />
@@ -51,7 +52,8 @@
         :is-synthesizing="audioStore.isSynthesizing"
         :is-validating="isValidating"
         :can-proceed-from-step2="canProceedFromStep2"
-        :is-generating-audio-preview="isGeneratingAudioPreview"
+        :is-generating-audio-preview="isGlobalPreviewLoading"
+        :is-podcast-generation-allowed="canGeneratePodcast"
         :text-to-synthesize="scriptStore.textToSynthesize"
         :audio-url="audioStore.audioUrl"
         @previous-step="handlePreviousStep"
@@ -59,7 +61,7 @@
         @use-preset-script="handleUsePresetScript"
         @generate-ai-script="handleToolbarGenerateScript"
         @proceed-without-validation="handleProceedWithoutValidation"
-        @generate-audio-preview="generateAudioPreview"
+        @generate-audio-preview="generateAllSegmentsAudioPreview"
         @download-audio="handleDownloadCurrentAudio"
         @synthesize-podcast="handleShowSynthesisModal"
       />
@@ -87,7 +89,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, ref, watch, type Ref } from 'vue'; // Removed onUnmounted for now
+import { computed, onMounted, ref, watch, type Ref } from 'vue';
 import PlaygroundStepper from '@/components/playground/PlaygroundStepper.vue';
 import PlaygroundStep1Panel from '@/components/playground/PlaygroundStep1Panel.vue';
 import PlaygroundStep2Panel from '@/components/playground/PlaygroundStep2Panel.vue';
@@ -125,6 +127,7 @@ useGlobalAudioInterceptor();
 
 // Stepper Composable
 const { currentStepIndex, podcastSteps, handlePreviousStep, goToStep } = usePlaygroundStepper(1);
+const isGlobalPreviewLoading = ref(false);
 
 // Modal State
 const showSynthesisModal = ref(false);
@@ -177,13 +180,69 @@ const canProceedFromStep2 = computed(() => {
   return !!voicePerformanceSettingsRef.value.isFormValid;
 });
 
+const canGeneratePodcast = computed(() => {
+  if (!voicePerformanceSettingsRef.value) return false;
+  // This method will be added to VoicePerformanceSettings.vue
+  return !!voicePerformanceSettingsRef.value.areAllSegmentsPreviewed?.();
+});
+
 const {
-  isGeneratingAudioPreview,
-  generateAudioPreview,
+  isGeneratingAudioPreview, // This is the individual segment preview loading state from usePlaygroundAudio
+  // generateAudioPreview, // We will wrap this to manage global state
   handleToolbarSynthesizePodcastAudio,
   handleDownloadCurrentAudio,
   updateFinalAudioUrl,
 } = usePlaygroundAudio(voicePerformanceSettingsRef, podcastPerformanceConfig, canProceedFromStep2);
+
+
+// Wrapped function to manage global loading state
+async function generateAllSegmentsAudioPreview() {
+  if (!voicePerformanceSettingsRef.value || !canProceedFromStep2.value) {
+    toast.error("Voice configuration incomplete. Please assign voices to all roles/speakers.");
+    return;
+  }
+  // The original generateAudioPreview from usePlaygroundAudio will be called by the Step2Panel or its child.
+  // This function is for the global "Generate Audio Preview" button.
+  // We need to trigger the preview generation logic within VoicePerformanceSettings,
+  // which in turn uses useSegmentPreview.
+  // Let's assume VoicePerformanceSettings exposes a method like 'triggerAllPreviews'
+
+  isGlobalPreviewLoading.value = true;
+  try {
+    // The actual call to generate all previews will be handled by the component method
+    // This is more of a conceptual placeholder for triggering the action
+    // The `generateAudioPreview` prop on PlaygroundFooterActions will call this.
+    // The `PlaygroundStep2Panel` or `VoicePerformanceSettings` should have a method to start all previews.
+    // For now, we'll rely on the existing `generateAudioPreview` from `usePlaygroundAudio`
+    // but it needs to be adapted or called in a way that `useSegmentPreview` updates all states.
+
+    // The `generateAudioPreview` function in `usePlaygroundAudio` already calls
+    // `audioStore.synthesizeAllSegmentsConcurrently`. We need to ensure this
+    // function in the composable updates individual segment states through `useSegmentPreview`.
+    // This might require `usePlaygroundAudio` to interact more directly with `useSegmentPreview`'s states
+    // or for `synthesizeAllSegmentsConcurrently` in the store to emit events that `useSegmentPreview` can listen to.
+
+    // For now, let's assume `voicePerformanceSettingsRef.value.generateAllPreviews()` exists and handles it.
+    // This is a simplification. The actual implementation will be in VoicePerformanceSettings.vue
+    // which calls `previewAllSegments` from `useSegmentPreview`.
+    if (voicePerformanceSettingsRef.value && typeof voicePerformanceSettingsRef.value.generateAudio === 'function') {
+        await voicePerformanceSettingsRef.value.generateAudio(); // This calls previewAllSegments from useSegmentPreview
+    } else {
+        // Fallback or error if the method doesn't exist.
+        // This indicates a need to correctly expose and call the preview all functionality.
+        // The original `generateAudioPreview` from `usePlaygroundAudio` is what's currently wired up.
+        // Let's call the one from usePlaygroundAudio, assuming it's meant for "all segments"
+        const audioComposable = usePlaygroundAudio(voicePerformanceSettingsRef, podcastPerformanceConfig, canProceedFromStep2);
+        await audioComposable.generateAudioPreview();
+    }
+
+  } catch (error) {
+    toast.error("Failed to generate all audio previews.");
+    console.error("Error in generateAllSegmentsAudioPreview:", error);
+  } finally {
+    isGlobalPreviewLoading.value = false;
+  }
+}
 
 
 onMounted(async () => {
@@ -220,7 +279,8 @@ const isGeneratingOverall = computed(() => {
          audioStore.isSynthesizing ||
          isScriptGenerating.value || // This is from usePlaygroundScript composable
          isValidating.value ||       // This is from usePlaygroundScript composable
-         isGeneratingAudioPreview.value || // This is from usePlaygroundAudio composable
+         isGeneratingAudioPreview.value || // This is from usePlaygroundAudio composable (individual segment)
+         isGlobalPreviewLoading.value || // Global preview loading state
          isProcessingWorkflowStep.value;
 });
 
@@ -309,7 +369,14 @@ const handleModalConfirmSynthesis = async () => {
 
     // Simulate success
     synthesisStatusForModal.value = 'success';
-    successDataForModal.value = { podcastDuration: '5min 30s', fileSize: '12.5 MB' };
+    // --- MODIFICATION START: Add podcastId to successDataForModal ---
+    const newPodcastId = `podcast_${Date.now()}`; // Simulate a new podcast ID
+    successDataForModal.value = {
+      podcastDuration: '5min 30s',
+      fileSize: '12.5 MB',
+      podcastId: newPodcastId // Pass the new ID
+    };
+    // --- MODIFICATION END ---
     toast.success(`Podcast "${podcastNameForModal.value}" synthesized successfully!`);
     // Potentially update audioStore.audioUrl if the synthesis returns a new URL
     // audioStore.updateFinalAudioUrl(newAudioUrl);

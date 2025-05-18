@@ -28,9 +28,9 @@
       
       <!-- Voice Selection -->
       <div class="flex items-center gap-2">
-        <Select 
+        <Select
           :model-value="speakerAssignment"
-          @update:model-value="emit('update:speakerAssignment', $event)"
+          @update:model-value="(value) => emit('update:speakerAssignment', value === null || value === undefined ? undefined : String(value))"
           :disabled="isLoadingVoices || availableVoices.length === 0"
         >
           <SelectTrigger :id="`speaker-voice-${segment.speakerTag}-${segmentIndex}`" class="h-8 text-sm w-36">
@@ -52,11 +52,11 @@
         <Button
           size="sm"
           variant="outline"
-          :disabled="!speakerAssignment || isPreviewingThisSegment || segmentState?.status === 'loading'"
+          :disabled="!speakerAssignment || props.isGlobalLoading || isPreviewingThisSegment || segmentState?.status === 'loading'"
           @click="emit('preview-segment')"
-          class="w-auto px-2 py-1 h-8" 
+          class="w-auto px-2 py-1 h-8"
         >
-          <Icon v-if="isPreviewingThisSegment || segmentState?.status === 'loading'" name="ph:spinner" class="w-3 h-3 mr-1.5 animate-spin" />
+          <Icon v-if="props.isGlobalLoading || isPreviewingThisSegment || segmentState?.status === 'loading'" name="ph:spinner" class="w-3 h-3 mr-1.5 animate-spin" />
           <Icon v-else name="ph:sparkle" class="w-3 h-3 mr-1.5" />
           {{ previewButtonText }}
         </Button>
@@ -135,6 +135,7 @@ const props = defineProps<{
   isPreviewingThisSegment: boolean;
   segmentState?: SegmentState | null;
   audioUrl?: string | null; // URL for the preview audio of this segment
+  isGlobalLoading?: boolean; // Added new prop
 }>();
 
 const emit = defineEmits<{
@@ -154,6 +155,7 @@ const voiceSelectionPlaceholder = computed(() => {
 });
 
 const previewButtonText = computed(() => {
+  if (props.isGlobalLoading) return 'Generating All...';
   if (props.isPreviewingThisSegment || props.segmentState?.status === 'loading') return 'Generating...';
   return props.audioUrl ? 'Re-preview' : 'Preview';
 });

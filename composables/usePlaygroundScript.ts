@@ -11,8 +11,8 @@ export function usePlaygroundScript() {
   const settingsStore = usePlaygroundSettingsStore();
   const { isValidating, validateScript: originalValidateScript } = useScriptValidator(); // Renamed to avoid conflict
 
-  const isScriptGenerating = ref(false); // 总 loading
-  const aiScriptStep = ref<0 | 1 | 2>(0); // 0=未开始, 1=生成元信息, 2=生成脚本
+  const isScriptGenerating = ref(false); // Overall loading state
+  const aiScriptStep = ref<0 | 1 | 2>(0); // 0=not started, 1=generating metadata, 2=generating script
   const aiScriptStepText = ref('');
 
   const mainEditorContent = computed({
@@ -50,25 +50,61 @@ export function usePlaygroundScript() {
     return highlightedHtml;
   });
 
-  // 分步AI脚本生成
+  // Step-by-step AI script generation
   async function handleToolbarGenerateScript() {
     isScriptGenerating.value = true;
     aiScriptStep.value = 1;
-    aiScriptStepText.value = 'Step 1: 正在生成播客元信息...';
+    
+    // Status text arrays - Step 1 (Metadata Generation)
+    const step1StatusTexts = [
+      'Selecting appropriate museum based on time period...',
+      'Researching historical artifacts and exhibits...',
+      'Identifying notable architectural features...',
+      'Exploring cultural significance of the location...',
+      'Discovering hidden stories behind the museum...',
+      'Determining optimal podcast title for this museum...',
+      'Mapping geographical and historical context...',
+      'Analyzing cultural impact of selected artifacts...'
+    ];
+    
+    // Status text arrays - Step 2 (Script Generation)
+    const step2StatusTexts = [
+      'Crafting engaging dialogue about museum exhibits...',
+      'Weaving historical context into conversations...',
+      'Developing character perspectives on artifacts...',
+      'Incorporating lesser-known historical facts...',
+      'Balancing educational content with entertainment...',
+      'Creating narrative flow through museum spaces...',
+      'Refining historical accuracy in dialogue...',
+      'Polishing transitions between museum sections...'
+    ];
+    
+    // Set initial status text
+    aiScriptStepText.value = step1StatusTexts[0];
+    
+    // Create status text rotation function
+    let statusIndex = 0;
+    const statusInterval = setInterval(() => {
+      statusIndex = (statusIndex + 1) % (aiScriptStep.value === 1 ? step1StatusTexts.length : step2StatusTexts.length);
+      aiScriptStepText.value = aiScriptStep.value === 1 
+        ? step1StatusTexts[statusIndex] 
+        : step2StatusTexts[statusIndex];
+    }, 3000);
+    
     try {
-      // Step 1: 生成元信息
+      // Step 1: Generate metadata
       const hostPersonaId = settingsStore.podcastSettings.hostPersonaId;
       const hostPersona = hostPersonaId ? personaStore.personas.find(p => p.persona_id === Number(hostPersonaId)) : undefined;
       const guestPersonas = (settingsStore.podcastSettings.guestPersonaIds || [])
         .map(id => personaStore.personas.find(p => p.persona_id === Number(id)))
         .filter(p => p !== undefined) as Persona[];
 
-      // 假设 scriptStore.generatePodcastMetaInfo 返回元信息
+      // Assume scriptStore.generatePodcastMetaInfo returns metadata
       const metaInfo = await scriptStore.generatePodcastMetaInfo?.(settingsStore.podcastSettings, hostPersona, guestPersonas);
       if (!metaInfo || scriptStore.scriptGenerationError) {
-        throw new Error(scriptStore.scriptGenerationError || '生成元信息失败');
+        throw new Error(scriptStore.scriptGenerationError || 'Failed to generate metadata');
       }
-      // 可选：更新 settingsStore/podcastSettings
+      // Optional: Update settingsStore/podcastSettings
       settingsStore.updateFullPodcastSettings({
         title: metaInfo.podcastTitle,
         topic: metaInfo.topic,
@@ -79,12 +115,12 @@ export function usePlaygroundScript() {
       });
 
       aiScriptStep.value = 2;
-      aiScriptStepText.value = 'Step 2: 正在生成完整播客脚本...';
+      aiScriptStepText.value = step2StatusTexts[0];
 
-      // Step 2: 用元信息生成完整脚本
+      // Step 2: Generate complete script using metadata
       const generatedScriptResponse = await scriptStore.generateScriptFromMeta?.(metaInfo, hostPersona, guestPersonas);
       if (generatedScriptResponse && !scriptStore.scriptGenerationError) {
-        // 更新 settingsStore
+        // Update settingsStore
         settingsStore.updateFullPodcastSettings({
           title: generatedScriptResponse.podcastTitle,
           topic: generatedScriptResponse.topic,
@@ -93,13 +129,18 @@ export function usePlaygroundScript() {
           numberOfSegments: generatedScriptResponse.numberOfSegments,
           language: generatedScriptResponse.language,
         });
-        toast.success("脚本生成成功，设置已更新！");
+        toast.success("Script generated successfully!", {
+          description: "Podcast settings and script content have been updated."
+        });
       } else {
-        throw new Error(scriptStore.scriptGenerationError || '生成脚本失败');
+        throw new Error(scriptStore.scriptGenerationError || 'Failed to generate script');
       }
     } catch (error) {
-      toast.error(`AI脚本生成失败: ${error instanceof Error ? error.message : '未知错误'}`);
+      toast.error(`AI script generation failed`, {
+        description: error instanceof Error ? error.message : 'Unknown error'
+      });
     } finally {
+      clearInterval(statusInterval);
       isScriptGenerating.value = false;
       aiScriptStep.value = 0;
       aiScriptStepText.value = '';

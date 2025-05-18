@@ -37,7 +37,19 @@
                 :key="persona.id"
                 :value="String(persona.id)"
               >
-                {{ persona.name }}
+                <div>
+                  <div class="font-medium flex items-center gap-1">
+                    {{ persona.name }}
+                    <span class="text-xs bg-primary/10 text-primary px-1.5 py-0.5 rounded-full">Host</span>
+                  </div>
+                  <div class="text-xs text-muted-foreground mt-0.5">
+                    {{ persona.description || 'No description available' }}
+                  </div>
+                  <div v-if="persona.voice_id" class="text-xs text-muted-foreground mt-0.5 flex items-center gap-1">
+                    <Icon name="ph:microphone-stage" class="h-3 w-3" />
+                    Voice ID: {{ persona.voice_id }}
+                  </div>
+                </div>
               </SelectItem>
             </SelectGroup>
           </SelectContent>
@@ -62,7 +74,19 @@
                 :key="persona.id"
                 :value="String(persona.id)"
               >
-                {{ persona.name }}
+                <div>
+                  <div class="font-medium flex items-center gap-1">
+                    {{ persona.name }}
+                    <span class="text-xs bg-secondary/20 text-secondary px-1.5 py-0.5 rounded-full">Guest</span>
+                  </div>
+                  <div class="text-xs text-muted-foreground mt-0.5">
+                    {{ persona.description || 'No description available' }}
+                  </div>
+                  <div v-if="persona.voice_id" class="text-xs text-muted-foreground mt-0.5 flex items-center gap-1">
+                    <Icon name="ph:microphone-stage" class="h-3 w-3" />
+                    Voice ID: {{ persona.voice_id }}
+                  </div>
+                </div>
               </SelectItem>
             </SelectGroup>
           </SelectContent>
@@ -294,5 +318,6 @@ watch(() => props.personas, (loadedPersonas) => {
 }
 .hide-spin[type="number"] {
   -moz-appearance: textfield;
+  appearance: textfield;
 }
 </style>

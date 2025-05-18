@@ -92,6 +92,18 @@ export default defineEventHandler(async (event) => {
   });
   const voiceMapJsonString = JSON.stringify(voiceMap, null, 2);
 
+  // Get current date and time for time-based museum selection
+  const now = new Date();
+  const currentTimeString = now.toLocaleString('en-US', { 
+    hour: 'numeric', 
+    minute: 'numeric',
+    hour12: true,
+    day: 'numeric',
+    month: 'long',
+    year: 'numeric',
+    weekday: 'long'
+  });
+
   let promptContent = promptTemplate
     .replace("{{title}}", podcastSettings?.title || "")
     .replace("{{topic}}", podcastSettings?.topic || "")
@@ -104,13 +116,14 @@ export default defineEventHandler(async (event) => {
       (podcastSettings?.numberOfSegments || 3).toString()
     )
     .replace("{{backgroundMusic}}", podcastSettings?.backgroundMusic || "")
-    .replace("{{voiceMapJson}}", voiceMapJsonString); // Replace voiceMap placeholder
+    .replace("{{voiceMapJson}}", voiceMapJsonString) // Replace voiceMap placeholder
+    .replace("{{currentTime}}", currentTimeString); // Add current time for museum selection
 
   // Remove any remaining double curly braces if a placeholder was missed or value was empty
   promptContent = promptContent.replace(/\{\{.*?\}\}/g, "").trim();
 
-  const llmModel =
-    process.env.OPENROUTER_MODEL || "mistralai/mistral-7b-instruct"; // Default model, corrected env variable name
+  const config = useRuntimeConfig();
+  const llmModel = config.openrouter.model || "mistralai/mistral-7b-instruct"; // Access model via runtimeConfig
   consola.info(
     `Sending request to OpenRouter using template: ${path.basename(
       promptFilePath
@@ -119,9 +132,19 @@ export default defineEventHandler(async (event) => {
   const startTime = Date.now();
 
   try {
-    // @ts-ignore: $fetch is globally available in Nuxt server routes
-    const response = await $fetch(
+    // Define the expected response type
+    interface OpenRouterResponse {
+      choices: Array<{
+        message: {
+          content: string;
+        };
+      }>;
+    }
+
+    // @ts-ignore: Ignoring all TypeScript errors for this $fetch call
+    const response = await $fetch<OpenRouterResponse>(
       "https://openrouter.ai/api/v1/chat/completions",
+      // @ts-ignore: Nuxt's $fetch type definitions may not include all options we need
       {
         method: "POST",
         headers: {
@@ -137,7 +160,6 @@ export default defineEventHandler(async (event) => {
       }
     );
 
-    // @ts-ignore
     if (
       response.choices &&
       response.choices.length > 0 &&

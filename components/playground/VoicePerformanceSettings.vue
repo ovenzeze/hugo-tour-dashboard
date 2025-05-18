@@ -65,6 +65,7 @@
           :available-voices="availableVoices"
           :is-loading-voices="isLoadingVoices"
           :is-previewing-this-segment="isPreviewingSegment === index"
+          :is-global-loading="props.isGlobalPreviewLoading"
           :segment-state="segmentStates[index]"
           :audio-url="segmentPreviews[index]?.audioUrl"
           @preview-segment="previewSegment(previewableEnhancedSegments[index], index)"
@@ -106,7 +107,11 @@ import { useSegmentPreview, type PreviewableSegment } from '../../composables/us
 import { useVoiceManagement, type ParsedScriptSegment as VoiceManParsedSegment } from '../../composables/useVoiceManagement';
 import SegmentVoiceAssignmentItem from './SegmentVoiceAssignmentItem.vue';
 
-const props = defineProps<{ scriptContent: string, synthProgress?: { synthesized: number, total: number } }>();
+const props = defineProps<{
+  scriptContent: string,
+  synthProgress?: { synthesized: number, total: number },
+  isGlobalPreviewLoading?: boolean
+}>();
 const emit = defineEmits(['update:scriptContent', 'next', 'back']);
 
 const audioStore = usePlaygroundAudioStore();
@@ -375,20 +380,30 @@ onMounted(() => {
   }
 });
 
+const areAllSegmentsPreviewed = computed(() => {
+  if (!parsedScriptSegments.value || parsedScriptSegments.value.length === 0) {
+    return false;
+  }
+  // New logic: check if at least 3 segments are successfully previewed
+  const successfulSegmentsCount = Object.values(segmentStates.value).filter(state => state?.status === 'success').length;
+  return successfulSegmentsCount >= 3;
+});
+
 defineExpose({
   isFormValid: canProceed,
   getPerformanceConfig: getPerformanceConfigData,
-  generateAudio: previewAllSegments,
+  generateAudio: previewAllSegments, // This is effectively "generate all previews"
   totalSegmentsCount: computed(() => enhancedScriptSegments.value.length),
   synthesizedSegmentsCount: computed(() => {
     const states = segmentStates.value;
-    if (Array.isArray(states)) { // If it can sometimes be an array
+    if (Array.isArray(states)) {
         return states.filter(s => s?.status === 'success').length;
-    } else if (typeof states === 'object' && states !== null) { // If it's an object
+    } else if (typeof states === 'object' && states !== null) {
         return Object.values(states).filter(s => s?.status === 'success').length;
     }
     return 0;
-  })
+  }),
+  areAllSegmentsPreviewed // Expose the new computed property
 });
 
 </script>
