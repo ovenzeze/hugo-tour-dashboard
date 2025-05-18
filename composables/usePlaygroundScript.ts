@@ -11,7 +11,9 @@ export function usePlaygroundScript() {
   const settingsStore = usePlaygroundSettingsStore();
   const { isValidating, validateScript: originalValidateScript } = useScriptValidator(); // Renamed to avoid conflict
 
-  const isScriptGenerating = ref(false); // Local script generation/processing state
+  const isScriptGenerating = ref(false); // 总 loading
+  const aiScriptStep = ref<0 | 1 | 2>(0); // 0=未开始, 1=生成元信息, 2=生成脚本
+  const aiScriptStepText = ref('');
 
   const mainEditorContent = computed({
     get: () => scriptStore.textToSynthesize,
@@ -48,24 +50,41 @@ export function usePlaygroundScript() {
     return highlightedHtml;
   });
 
+  // 分步AI脚本生成
   async function handleToolbarGenerateScript() {
-    console.log('[usePlaygroundScript] Setting isScriptGenerating to true');
     isScriptGenerating.value = true;
+    aiScriptStep.value = 1;
+    aiScriptStepText.value = 'Step 1: 正在生成播客元信息...';
     try {
-      console.log('[usePlaygroundScript] Calling scriptStore.generateScript()');
-      // Fetch necessary data for generateScript action
+      // Step 1: 生成元信息
       const hostPersonaId = settingsStore.podcastSettings.hostPersonaId;
       const hostPersona = hostPersonaId ? personaStore.personas.find(p => p.persona_id === Number(hostPersonaId)) : undefined;
-      
       const guestPersonas = (settingsStore.podcastSettings.guestPersonaIds || [])
         .map(id => personaStore.personas.find(p => p.persona_id === Number(id)))
         .filter(p => p !== undefined) as Persona[];
 
-      const generatedScriptResponse = await scriptStore.generateScript(settingsStore.podcastSettings, hostPersona, guestPersonas);
-      console.log('[usePlaygroundScript] scriptStore.generateScript() finished');
-      
+      // 假设 scriptStore.generatePodcastMetaInfo 返回元信息
+      const metaInfo = await scriptStore.generatePodcastMetaInfo?.(settingsStore.podcastSettings, hostPersona, guestPersonas);
+      if (!metaInfo || scriptStore.scriptGenerationError) {
+        throw new Error(scriptStore.scriptGenerationError || '生成元信息失败');
+      }
+      // 可选：更新 settingsStore/podcastSettings
+      settingsStore.updateFullPodcastSettings({
+        title: metaInfo.podcastTitle,
+        topic: metaInfo.topic,
+        style: metaInfo.style,
+        keywords: metaInfo.keywords,
+        numberOfSegments: metaInfo.numberOfSegments,
+        language: metaInfo.language,
+      });
+
+      aiScriptStep.value = 2;
+      aiScriptStepText.value = 'Step 2: 正在生成完整播客脚本...';
+
+      // Step 2: 用元信息生成完整脚本
+      const generatedScriptResponse = await scriptStore.generateScriptFromMeta?.(metaInfo, hostPersona, guestPersonas);
       if (generatedScriptResponse && !scriptStore.scriptGenerationError) {
-        // Update settingsStore with AI response if successful
+        // 更新 settingsStore
         settingsStore.updateFullPodcastSettings({
           title: generatedScriptResponse.podcastTitle,
           topic: generatedScriptResponse.topic,
@@ -73,18 +92,17 @@ export function usePlaygroundScript() {
           keywords: generatedScriptResponse.keywords,
           numberOfSegments: generatedScriptResponse.numberOfSegments,
           language: generatedScriptResponse.language,
-          // hostPersonaId and guestPersonaIds are usually set by user, AI might suggest but user confirms
         });
-        toast.success("Script generated and settings updated!");
-      } else if (scriptStore.scriptGenerationError) {
-        // Error is already toasted by the store action
+        toast.success("脚本生成成功，设置已更新！");
+      } else {
+        throw new Error(scriptStore.scriptGenerationError || '生成脚本失败');
       }
     } catch (error) {
-      console.error("[usePlaygroundScript] Error during handleToolbarGenerateScript:", error);
-      toast.error(`Failed to generate script: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      toast.error(`AI脚本生成失败: ${error instanceof Error ? error.message : '未知错误'}`);
     } finally {
-      console.log('[usePlaygroundScript] Setting isScriptGenerating to false in finally block');
       isScriptGenerating.value = false;
+      aiScriptStep.value = 0;
+      aiScriptStepText.value = '';
     }
   }
 
@@ -136,6 +154,8 @@ export function usePlaygroundScript() {
   // The one in scriptStore.validateScript is the refactored version.
   return {
     isScriptGenerating,
+    aiScriptStep,
+    aiScriptStepText,
     mainEditorContent,
     highlightedScript,
     isValidating, // from useScriptValidator (might be stale if not refactored)

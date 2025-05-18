@@ -15,10 +15,22 @@
         <div class="flex flex-col items-center justify-center h-full">
           <Icon name="ph:spinner" class="h-12 w-12 animate-spin text-primary mb-4" />
           <p class="text-center text-lg font-medium">
-            {{ isScriptGenerating ? 'Standardizing Script...' : 'Validating Script...' }}
+            <template v-if="isScriptGenerating && aiScriptStep && aiScriptStepText">
+              <span v-if="aiScriptStep === 1">AI脚本生成步骤 1/2</span>
+              <span v-else-if="aiScriptStep === 2">AI脚本生成步骤 2/2</span>
+              <span v-else>AI脚本生成</span>
+            </template>
+            <template v-else>
+              {{ isScriptGenerating ? 'Standardizing Script...' : 'Validating Script...' }}
+            </template>
           </p>
           <p class="text-center text-sm text-muted-foreground mt-2">
-            {{ isScriptGenerating ? 'Processing and saving script...' : 'Checking script format and content.' }}
+            <template v-if="isScriptGenerating && aiScriptStepText">
+              {{ aiScriptStepText }}
+            </template>
+            <template v-else>
+              {{ isScriptGenerating ? 'Processing and saving script...' : 'Checking script format and content.' }}
+            </template>
           </p>
         </div>
       </template>
@@ -55,9 +67,14 @@ interface Props {
   mainEditorContent: string;
   selectedPersonaIdForHighlighting: number | null;
   highlightedScript: string;
+  aiScriptStep?: number;
+  aiScriptStepText?: string;
 }
 
-defineProps<Props>();
+const props = defineProps<Props>();
+
+const aiScriptStep = props.aiScriptStep ?? 0;
+const aiScriptStepText = props.aiScriptStepText ?? '';
 
 const emit = defineEmits(['update:podcastSettings', 'update:mainEditorContent']);
 </script>

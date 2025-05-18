@@ -98,12 +98,13 @@ Host: Couldn't agree more. Thanks for joining us, Elliot, and thank you to our l
         .filter((segment): segment is ValidatorScriptSegment => segment !== null && !!segment.speaker && !!segment.text);
     },
 
-    async generateScript(
-        podcastSettings: FullPodcastSettings, // Pass necessary settings
-        hostPersona: Persona | undefined,
-        guestPersonas: (Persona | undefined)[]
-      ) {
-      if (this.isGeneratingScript) return;
+    // Step 1: Generate Podcast Meta Information
+    async generatePodcastMetaInfo(
+      podcastSettings: FullPodcastSettings,
+      hostPersona: Persona | undefined,
+      guestPersonas: (Persona | undefined)[]
+    ): Promise<GenerateScriptApiResponse | null> {
+      if (this.isGeneratingScript) return null;
       this.isGeneratingScript = true;
       this.scriptGenerationError = null;
 
@@ -116,6 +117,58 @@ Host: Couldn't agree more. Thanks for joining us, Elliot, and thank you to our l
           },
           hostPersona: hostPersona ? { persona_id: hostPersona.persona_id, name: hostPersona.name, voice_model_identifier: hostPersona.voice_model_identifier || '' } : undefined,
           guestPersonas: guestPersonas.map(p => p ? { persona_id: p.persona_id, name: p.name, voice_model_identifier: p.voice_model_identifier || '' } : null).filter(p => p !== null) as any[],
+          generationStep: 'meta_info_only', // Indicate only meta info is needed
+        };
+
+        // @ts-ignore - Nuxt auto-imported $fetch.
+        const response = await $fetch<GenerateScriptApiResponse>("/api/generate-script", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: requestBody,
+        } as any);
+        
+        if (response && response.podcastTitle) { // Check for essential meta info fields
+          toast.success("Podcast meta information generated!");
+          return response;
+        } else {
+          throw new Error("AI did not return the expected meta information format.");
+        }
+      } catch (error: any) {
+        const errorMessage = error.data?.message || error.data?.statusMessage || error.message || "An unknown error occurred during meta info generation.";
+        this.scriptGenerationError = errorMessage;
+        toast.error("Meta information generation failed", { description: errorMessage });
+        return null;
+      } finally {
+        this.isGeneratingScript = false; // Reset for the next step or attempt
+      }
+    },
+
+    // Step 2: Generate Full Script from Meta Information
+    async generateScriptFromMeta(
+      metaInfo: GenerateScriptApiResponse, // Meta info from step 1
+      hostPersona: Persona | undefined,
+      guestPersonas: (Persona | undefined)[]
+    ): Promise<GenerateScriptApiResponse | null> {
+      if (this.isGeneratingScript) return null;
+      this.isGeneratingScript = true;
+      this.scriptGenerationError = null;
+
+      try {
+        const requestBody = {
+          podcastSettings: { // Pass relevant settings from metaInfo or original settings
+            title: metaInfo.podcastTitle,
+            topic: metaInfo.topic,
+            style: metaInfo.style,
+            keywords: metaInfo.keywords,
+            numberOfSegments: metaInfo.numberOfSegments,
+            language: metaInfo.language,
+            hostPersonaId: hostPersona?.persona_id ? Number(hostPersona.persona_id) : undefined,
+            guestPersonaIds: guestPersonas.map(p => p?.persona_id ? Number(p.persona_id) : undefined).filter(id => id !== undefined),
+          },
+          hostPersona: hostPersona ? { persona_id: hostPersona.persona_id, name: hostPersona.name, voice_model_identifier: hostPersona.voice_model_identifier || '' } : undefined,
+          guestPersonas: guestPersonas.map(p => p ? { persona_id: p.persona_id, name: p.name, voice_model_identifier: p.voice_model_identifier || '' } : null).filter(p => p !== null) as any[],
+          generationStep: 'full_script_from_meta', // Indicate full script generation from meta
+          metaInfo, // Pass the previously generated meta info
         };
 
         // @ts-ignore - Nuxt auto-imported $fetch.
@@ -128,8 +181,6 @@ Host: Couldn't agree more. Thanks for joining us, Elliot, and thank you to our l
         if (response && response.script && Array.isArray(response.script)) {
           this.textToSynthesize = response.script.map(segment => `${segment.name}: ${segment.text}`).join('\n');
           
-          // Update related settings in the settings store - this requires an event or direct call
-          // For now, we'll store the AI response directly in validationResult
           const structuredScriptForValidation = response.script.map(s => ({
             name: s.name,
             role: (s.role.toLowerCase() === 'host' || s.role.toLowerCase() === 'guest' ? s.role.toLowerCase() : (s.name.toLowerCase().includes('host') ? 'host' : 'guest')) as 'host' | 'guest',
@@ -147,27 +198,23 @@ Host: Couldn't agree more. Thanks for joining us, Elliot, and thank you to our l
             message: "Script and settings generated by AI.",
           };
           
-          // The calling component/page should also update the settingsStore with response.podcastTitle, etc.
-          // Emitting an event or returning the full response might be better.
-          // For now, the component will need to read this.validationResult and update settings store.
-
           toast.success("AI script generated successfully!", {
             description: "Script and podcast settings have been updated based on AI response.",
           });
-          return response; // Return the full response for the caller to update other stores
+          return response;
         } else {
-          throw new Error("AI did not return the expected structured data format.");
+          throw new Error("AI did not return the expected structured data format for the full script.");
         }
       } catch (error: any) {
-        const errorMessage = error.data?.message || error.data?.statusMessage || error.message || "An unknown error occurred during script generation.";
+        const errorMessage = error.data?.message || error.data?.statusMessage || error.message || "An unknown error occurred during full script generation.";
         this.scriptGenerationError = errorMessage;
-        toast.error("Script generation failed", { description: errorMessage });
+        toast.error("Full script generation failed", { description: errorMessage });
         return null;
       } finally {
         this.isGeneratingScript = false;
       }
     },
-
+    
     async validateScript(
         podcastSettings: FullPodcastSettings, // Pass necessary settings
         hostPersona: Persona | undefined,

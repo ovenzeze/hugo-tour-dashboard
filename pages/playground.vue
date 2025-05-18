@@ -61,9 +61,28 @@
         @proceed-without-validation="handleProceedWithoutValidation"
         @generate-audio-preview="generateAudioPreview"
         @download-audio="handleDownloadCurrentAudio"
-        @synthesize-podcast="() => toast.info('后台已经在合成，请到podcast页面查看最新状态')"
+        @synthesize-podcast="handleShowSynthesisModal"
       />
     </Card>
+    <PodcastSynthesisModal
+      :visible="showSynthesisModal"
+      :status="synthesisStatusForModal"
+      :podcast-name="podcastNameForModal"
+      :confirm-data="confirmDataForModal"
+      :processing-data="processingDataForModal"
+      :success-data="successDataForModal"
+      :error-data="errorDataForModal"
+      @update:visible="showSynthesisModal = $event"
+      @close="handleModalClose"
+      @confirm-synthesis="handleModalConfirmSynthesis"
+      @cancel-confirmation="handleModalCancelConfirmation"
+      @cancel-synthesis="handleModalCancelSynthesis"
+      @retry-synthesis="handleModalRetrySynthesis"
+      @play-podcast="handleModalPlayPodcast"
+      @download-podcast="handleModalDownloadPodcast"
+      @share-podcast="handleModalSharePodcast"
+      @view-help="handleModalViewHelp"
+    />
   </div>
 </template>
 
@@ -72,9 +91,11 @@ import { computed, onMounted, ref, watch, type Ref } from 'vue'; // Removed onUn
 import PlaygroundStepper from '@/components/playground/PlaygroundStepper.vue';
 import PlaygroundStep1Panel from '@/components/playground/PlaygroundStep1Panel.vue';
 import PlaygroundStep2Panel from '@/components/playground/PlaygroundStep2Panel.vue';
-import PlaygroundStep3Panel from '@/components/playground/PlaygroundStep3Panel.vue';
+// import PlaygroundStep3Panel from '@/components/playground/PlaygroundStep3Panel.vue'; // Step 3 panel might not be used directly if modal handles final state
 import PlaygroundFooterActions from '@/components/playground/PlaygroundFooterActions.vue';
-import Step2ConfirmationDialog from '@/components/playground/Step2ConfirmationDialog.vue';
+// import Step2ConfirmationDialog from '@/components/playground/Step2ConfirmationDialog.vue'; // Replaced by new modal for synthesis
+import PodcastSynthesisModal from '@/components/podcasts/PodcastSynthesisModal.vue';
+import type { ModalStatus, ConfirmData, ProcessingData, SuccessData, ErrorData } from '../components/podcasts/PodcastSynthesisModalTypes';
 
 import { useRoute, useRouter } from 'vue-router';
 import { toast } from 'vue-sonner';
@@ -104,6 +125,16 @@ useGlobalAudioInterceptor();
 
 // Stepper Composable
 const { currentStepIndex, podcastSteps, handlePreviousStep, goToStep } = usePlaygroundStepper(1);
+
+// Modal State
+const showSynthesisModal = ref(false);
+const podcastNameForModal = ref('Untitled Podcast'); // Default or get from settings
+const synthesisStatusForModal = ref<ModalStatus>('confirm');
+const confirmDataForModal = ref<ConfirmData>({ estimatedCost: 'Calculating...', estimatedTime: 'Calculating...' });
+const processingDataForModal = ref<ProcessingData>({ progress: 0, currentStage: 'Initializing...', remainingTime: 'Calculating...' });
+const successDataForModal = ref<SuccessData>({ podcastDuration: 'N/A', fileSize: 'N/A' });
+const errorDataForModal = ref<ErrorData>({ errorMessage: 'An unknown error occurred' });
+
 
 // Script Composable
 const {
@@ -241,6 +272,137 @@ function handlePlayCurrentAudio() {
     toast.error('Playback failed: ' + (error as Error).message);
   });
 }
+
+// --- Modal Event Handlers ---
+const handleModalClose = () => {
+  showSynthesisModal.value = false;
+  // Optionally reset modal state if needed when closed from 'X' or 'hide'
+  // For example, if processing, it might just hide, not reset.
+  // If it was an error or success, it's fine to reset to 'confirm' for next time.
+  if (synthesisStatusForModal.value === 'success' || synthesisStatusForModal.value === 'error') {
+    synthesisStatusForModal.value = 'confirm';
+  }
+};
+
+const handleModalConfirmSynthesis = async () => {
+  console.log('Modal confirm synthesis triggered');
+  synthesisStatusForModal.value = 'processing';
+  processingDataForModal.value = { progress: 10, currentStage: 'Preparing synthesis parameters...' };
+
+  // TODO: Implement actual synthesis call
+  // This is where you'd call your backend API to start the synthesis
+  // For now, simulate processing and then success/error
+  await new Promise(resolve => setTimeout(resolve, 2000)); // Simulate network delay
+
+  // Simulate API call
+  try {
+    // const synthesisParams = { ... }; // Gather necessary params
+    // const response = await $fetch('/api/podcast/synthesize', { method: 'POST', body: synthesisParams });
+    
+    // Simulate progress
+    processingDataForModal.value = { progress: 30, currentStage: 'Sending request to synthesis service...' };
+    await new Promise(resolve => setTimeout(resolve, 2000));
+    processingDataForModal.value = { progress: 60, currentStage: 'Generating audio...' };
+    await new Promise(resolve => setTimeout(resolve, 3000));
+    processingDataForModal.value = { progress: 90, currentStage: 'Processing audio file...' };
+    await new Promise(resolve => setTimeout(resolve, 2000));
+
+    // Simulate success
+    synthesisStatusForModal.value = 'success';
+    successDataForModal.value = { podcastDuration: '5min 30s', fileSize: '12.5 MB' };
+    toast.success(`Podcast "${podcastNameForModal.value}" synthesized successfully!`);
+    // Potentially update audioStore.audioUrl if the synthesis returns a new URL
+    // audioStore.updateFinalAudioUrl(newAudioUrl);
+
+  } catch (error) {
+    console.error('Synthesis error:', error);
+    synthesisStatusForModal.value = 'error';
+    errorDataForModal.value = { errorMessage: (error as Error).message || 'An unknown error occurred during synthesis.' };
+    toast.error(`Podcast "${podcastNameForModal.value}" synthesis failed.`);
+  }
+};
+
+const handleModalCancelConfirmation = () => {
+  showSynthesisModal.value = false;
+  toast.info('Synthesis cancelled');
+};
+
+const handleModalCancelSynthesis = () => {
+  // TODO: Implement actual cancellation logic if possible (e.g., API call to stop processing)
+  console.log('Modal cancel synthesis triggered');
+  showSynthesisModal.value = false;
+  synthesisStatusForModal.value = 'confirm'; // Reset to confirm or show an error/cancellation message
+  toast.warning('Podcast synthesis has been cancelled.');
+  // Potentially set status to 'error' with a "Cancelled by user" message
+  // errorDataForModal.value = { errorMessage: 'Synthesis cancelled by user.' };
+  // synthesisStatusForModal.value = 'error';
+};
+
+const handleModalRetrySynthesis = () => {
+  console.log('Modal retry synthesis triggered');
+  synthesisStatusForModal.value = 'confirm'; // Reset to confirm
+  // Optionally, re-populate confirmData or re-trigger the confirm phase logic
+  // For now, just reset to confirm and let user click "Confirm Synthesis" again
+  // which will re-trigger handleModalConfirmSynthesis
+  toast.info('Please reconfirm synthesis parameters.');
+  // Or directly call handleModalConfirmSynthesis if no re-confirmation is needed
+  // handleModalConfirmSynthesis();
+};
+
+const handleModalPlayPodcast = () => {
+  // Assuming successData might contain a URL or identifier to play
+  toast.info('Play Podcast feature is pending implementation.');
+  // if (audioStore.audioUrl) {
+  //   handlePlayCurrentAudio(); // Use existing play function if applicable
+  // } else if (successDataForModal.value.audioUrl) { // Or if modal has its own URL
+  //   const audio = new Audio(successDataForModal.value.audioUrl);
+  //   audio.play();
+  // }
+};
+
+const handleModalDownloadPodcast = () => {
+  toast.info('Download Podcast feature is pending implementation.');
+  // if (audioStore.audioUrl) {
+  //   handleDownloadCurrentAudio(); // Use existing download function
+  // } else if (successDataForModal.value.downloadUrl) {
+  //   window.open(successDataForModal.value.downloadUrl, '_blank');
+  // }
+};
+
+const handleModalSharePodcast = () => {
+  toast.info('Share Podcast feature is pending implementation.');
+};
+
+const handleModalViewHelp = () => {
+  toast.info('View Help feature is pending implementation.');
+};
+
+
+// --- Update PlaygroundFooterActions synthesize-podcast handler ---
+const handleShowSynthesisModal = () => {
+  // Prepare data for the modal
+  // podcastNameForModal.value = settingsStore.podcastSettings.title || '未命名 Podcast'; // Get from actual settings
+  // For now, let's use a placeholder or the current value
+  if (!settingsStore.podcastSettings.title && mainEditorContent.value) {
+      // Try to extract a title from the script if no explicit title is set
+      const firstLine = mainEditorContent.value.split('\n')[0];
+      podcastNameForModal.value = firstLine.length > 50 ? firstLine.substring(0, 47) + '...' : firstLine || 'New Podcast';
+  } else {
+      podcastNameForModal.value = settingsStore.podcastSettings.title || 'New Podcast';
+  }
+
+  confirmDataForModal.value = {
+    // These should be calculated or fetched based on script length, voice models, etc.
+    estimatedCost: 'Approx. 0.5 Credits', // Placeholder
+    estimatedTime: 'Approx. 2-5 minutes', // Placeholder
+  };
+  processingDataForModal.value = { progress: 0, currentStage: 'Initializing...', remainingTime: 'Calculating...' }; // Reset processing
+  successDataForModal.value = { podcastDuration: 'N/A', fileSize: 'N/A' }; // Reset success
+  errorDataForModal.value = { errorMessage: 'An unknown error occurred' }; // Reset error
+  synthesisStatusForModal.value = 'confirm'; // Start with the confirm step
+  showSynthesisModal.value = true;
+};
+
 </script>
 
 <style scoped>
