@@ -19,11 +19,11 @@
       
       <div class="flex-1 flex items-center space-x-4 px-4">
         <div class="flex items-center gap-2 flex-1">
-          <Label class="whitespace-nowrap text-sm">Temperature: {{ playgroundStore.synthesisParams.temperature.toFixed(1) }}</Label>
+          <Label class="whitespace-nowrap text-sm">Temperature: {{ audioStore.synthesisParams.temperature.toFixed(1) }}</Label>
           <Slider
             class="flex-1"
-            :model-value="playgroundStore.synthesisParams.temperatureArray"
-            @update:model-value="(value: number[] | undefined) => { if (value && value.length > 0) playgroundStore.updateSynthesisParams({ temperature: value[0] }) }"
+            :model-value="audioStore.synthesisParams.temperatureArray"
+            @update:model-value="(value: number[] | undefined) => { if (value && value.length > 0) audioStore.updateSynthesisParams({ temperature: value[0] }) }"
             :min="0"
             :max="1"
             :step="0.1"
@@ -31,11 +31,11 @@
         </div>
         
         <div class="flex items-center gap-2 flex-1">
-          <Label class="whitespace-nowrap text-sm">Speed: {{ playgroundStore.synthesisParams.speed.toFixed(1) }}x</Label>
+          <Label class="whitespace-nowrap text-sm">Speed: {{ audioStore.synthesisParams.speed.toFixed(1) }}x</Label>
           <Slider
             class="flex-1"
-            :model-value="playgroundStore.synthesisParams.speedArray"
-            @update:model-value="(value: number[] | undefined) => { if (value && value.length > 0) playgroundStore.updateSynthesisParams({ speed: value[0] }) }"
+            :model-value="audioStore.synthesisParams.speedArray"
+            @update:model-value="(value: number[] | undefined) => { if (value && value.length > 0) audioStore.updateSynthesisParams({ speed: value[0] }) }"
             :min="0.5"
             :max="2"
             :step="0.1"
@@ -97,7 +97,10 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue';
 import { toast } from 'vue-sonner';
-import { usePlaygroundStore, type Persona } from '../../stores/playground';
+import { usePlaygroundAudioStore } from '../../stores/playgroundAudio';
+import { usePlaygroundPersonaStore, type Persona } from '../../stores/playgroundPersona';
+import { usePlaygroundSettingsStore } from '../../stores/playgroundSettings';
+import { usePlaygroundScriptStore } from '../../stores/playgroundScript';
 
 import { useSegmentPreview, type PreviewableSegment } from '../../composables/useSegmentPreview';
 import { useVoiceManagement, type ParsedScriptSegment as VoiceManParsedSegment } from '../../composables/useVoiceManagement';
@@ -106,10 +109,17 @@ import SegmentVoiceAssignmentItem from './SegmentVoiceAssignmentItem.vue';
 const props = defineProps<{ scriptContent: string, synthProgress?: { synthesized: number, total: number } }>();
 const emit = defineEmits(['update:scriptContent', 'next', 'back']);
 
-const playgroundStore = usePlaygroundStore();
+const audioStore = usePlaygroundAudioStore();
+const personaStore = usePlaygroundPersonaStore();
+const settingsStore = usePlaygroundSettingsStore();
+const scriptStore = usePlaygroundScriptStore();
 
-// Declare ttsProvider as a ref before use
-const ttsProvider = ref<string>('elevenlabs'); // Default to 'elevenlabs' or an appropriate initial value
+// Declare ttsProvider as a ref, and sync it with settingsStore
+const ttsProvider = ref<string>(settingsStore.selectedProvider || 'elevenlabs');
+watch(ttsProvider, (newProvider) => {
+  settingsStore.updateSelectedProvider(newProvider);
+});
+
 
 const parsedScriptSegments = computed<VoiceManParsedSegment[]>(() => {
   if (props.scriptContent) {
@@ -132,27 +142,27 @@ const parsedScriptSegments = computed<VoiceManParsedSegment[]>(() => {
 });
 
 const selectedHostPersona = computed<Persona | undefined>(() => {
-  if (!playgroundStore.podcastSettings.hostPersonaId) return undefined;
-  return playgroundStore.personas.find((p: Persona) => p.persona_id === Number(playgroundStore.podcastSettings.hostPersonaId));
+  if (!settingsStore.podcastSettings.hostPersonaId) return undefined;
+  return personaStore.personas.find((p: Persona) => p.persona_id === Number(settingsStore.podcastSettings.hostPersonaId));
 });
 
 const selectedGuestPersonas = computed<Persona[]>(() => {
-  if (!playgroundStore.podcastSettings.guestPersonaIds || playgroundStore.podcastSettings.guestPersonaIds.length === 0) return [];
-  return playgroundStore.podcastSettings.guestPersonaIds
-    .map((id: string | number | undefined) => playgroundStore.personas.find((p: Persona) => p.persona_id === Number(id)))
+  if (!settingsStore.podcastSettings.guestPersonaIds || settingsStore.podcastSettings.guestPersonaIds.length === 0) return [];
+  return settingsStore.podcastSettings.guestPersonaIds
+    .map((id: string | number | undefined) => personaStore.personas.find((p: Persona) => p.persona_id === Number(id)))
     .filter((p: Persona | undefined): p is Persona => p !== undefined);
 });
 
 const getPersonaForSpeaker = (speakerTag: string): Persona | undefined => {
-  const validationInfo = playgroundStore.validationResult?.structuredData?.voiceMap?.[speakerTag];
+  const validationInfo = scriptStore.validationResult?.structuredData?.voiceMap?.[speakerTag];
   if (validationInfo?.personaId) {
     const personaId = Number(validationInfo.personaId);
-    const matchingPersona = playgroundStore.personas.find(p => p.persona_id === personaId);
+    const matchingPersona = personaStore.personas.find(p => p.persona_id === personaId);
     if (matchingPersona) return matchingPersona;
   }
   
-  if (playgroundStore.validationResult?.structuredData?.script) {
-    const scriptEntry = playgroundStore.validationResult.structuredData.script.find(
+  if (scriptStore.validationResult?.structuredData?.script) {
+    const scriptEntry = scriptStore.validationResult.structuredData.script.find(
       entry => entry.name === speakerTag
     );
     if (scriptEntry) {
@@ -201,11 +211,11 @@ interface EnhancedSegmentForDisplay extends VoiceManParsedSegment {
 const enhancedScriptSegments = computed<EnhancedSegmentForDisplay[]>(() => {
   return parsedScriptSegments.value.map(segment => {
     const persona = getPersonaForSpeaker(segment.speakerTag);
-    const validationInfo = playgroundStore.validationResult?.structuredData?.voiceMap?.[segment.speakerTag];
+    const validationInfo = scriptStore.validationResult?.structuredData?.voiceMap?.[segment.speakerTag];
     let roleType: 'host' | 'guest' = 'guest';
 
-    if (playgroundStore.validationResult?.structuredData?.script) {
-      const scriptEntry = playgroundStore.validationResult.structuredData.script.find(
+    if (scriptStore.validationResult?.structuredData?.script) {
+      const scriptEntry = scriptStore.validationResult.structuredData.script.find(
         entry => entry.name === segment.speakerTag
       );
       if (scriptEntry) roleType = scriptEntry.role;
@@ -343,8 +353,8 @@ const getPerformanceConfigData = () => {
 };
 
 onMounted(() => {
-  if (playgroundStore.personas.length === 0) {
-    playgroundStore.fetchPersonas();
+  if (personaStore.personas.length === 0) {
+    personaStore.fetchPersonas();
   }
   // Voice loading and auto-assignment are handled by useVoiceManagement's internal watch effects
   // and its immediate watcher on ttsProvider.
@@ -352,7 +362,15 @@ onMounted(() => {
   // Initialize segment states if needed (useSegmentPreview also has an immediate watcher)
   // initializeSegmentStates(); //This is now handled by useSegmentPreview internally
 
-  if (playgroundStore.validationResult?.structuredData) {
+  // Sync local ttsProvider with the store's selectedProvider if it changes elsewhere
+  watch(() => settingsStore.selectedProvider, (newProvider) => {
+    if (newProvider && ttsProvider.value !== newProvider) {
+      ttsProvider.value = newProvider;
+    }
+  }, { immediate: true });
+
+
+  if (scriptStore.validationResult?.structuredData) {
     toast.info('Pre-validated script data is available and will be used for recommendations.');
   }
 });

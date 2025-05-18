@@ -60,7 +60,8 @@ const menuGroups = {
 
     { path: '/podcasts', label: 'Podcasts', icon: 'ph:microphone' },
     { path: '/transcripts', label: 'Guide Texts', icon: 'ph:file-text' },
-    { path: '/personas', label: 'Personas', icon: 'ph:user-circle' }
+    { path: '/personas', label: 'Personas', icon: 'ph:user-circle' },
+    { path: '/components', label: 'Components', icon: 'ph:puzzle-piece' }
   ],
   resources: [
     { path: '/museums', label: 'Museums', icon: 'ph:buildings' },

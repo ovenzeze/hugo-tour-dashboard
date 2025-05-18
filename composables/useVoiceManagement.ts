@@ -1,5 +1,6 @@
 import { ref, watch, computed } from 'vue';
-import { usePlaygroundStore, type Persona } from '../stores/playground';
+import { usePlaygroundPersonaStore, type Persona } from '../stores/playgroundPersona';
+import { usePlaygroundScriptStore } from '../stores/playgroundScript';
 import { toast } from 'vue-sonner';
 import type { Tables } from '~/types/supabase';
 
@@ -26,9 +27,10 @@ export function useVoiceManagement(
   selectedHostPersona: globalThis.Ref<Persona | undefined>, // Pass as a ref
   selectedGuestPersonas: globalThis.Ref<Persona[]> // Pass as a ref
 ) {
-  const playgroundStore = usePlaygroundStore();
+  const personaStore = usePlaygroundPersonaStore();
+  const scriptStore = usePlaygroundScriptStore();
 
-  const ttsProvider = ref('elevenlabs');
+  const ttsProvider = ref('elevenlabs'); // This is the local ttsProvider for this composable
   const availableVoices = ref<Voice[]>([]);
   const isLoadingVoices = ref(false);
   const speakerAssignments = ref<Record<string, string>>({}); // speakerTag -> voice_id
@@ -61,14 +63,14 @@ export function useVoiceManagement(
     try {
       const previousAssignments = { ...speakerAssignments.value };
       
-      if (playgroundStore.personas.length === 0) {
-        await playgroundStore.fetchPersonas();
+      if (personaStore.personas.length === 0) {
+        await personaStore.fetchPersonas();
       }
       
       let fetchedVoices: Voice[] = [];
 
       if (provider === 'elevenlabs') {
-        const personaVoices = playgroundStore.personas
+        const personaVoices = personaStore.personas
           .filter(p => p.voice_model_identifier && p.tts_provider === 'elevenlabs')
           .map(p => ({
             id: p.voice_model_identifier || '',
@@ -105,7 +107,7 @@ export function useVoiceManagement(
           }
         }
       } else if (provider === 'azure') {
-        const personaVoices = playgroundStore.personas
+        const personaVoices = personaStore.personas
           .filter(p => p.voice_model_identifier && p.tts_provider === 'azure')
           .map(p => ({
             id: p.voice_model_identifier || '',
@@ -123,7 +125,7 @@ export function useVoiceManagement(
           );
         }
       } else if (provider === 'openai_tts') {
-        const personaVoices = playgroundStore.personas
+        const personaVoices = personaStore.personas
           .filter(p => p.voice_model_identifier && p.tts_provider === 'openai')
           .map(p => ({
             id: p.voice_model_identifier || '',
@@ -208,10 +210,10 @@ export function useVoiceManagement(
     console.log('Starting auto voice assignment...');
     let assigned_something = false;
 
-    if (playgroundStore.validationResult?.structuredData?.voiceMap) {
-      console.log('Voice map from validation:', playgroundStore.validationResult.structuredData.voiceMap);
-      const { voiceMap } = playgroundStore.validationResult.structuredData;
-      const scriptValidationData = playgroundStore.validationResult.structuredData.script;
+    if (scriptStore.validationResult?.structuredData?.voiceMap) {
+      console.log('Voice map from validation:', scriptStore.validationResult.structuredData.voiceMap);
+      const { voiceMap } = scriptStore.validationResult.structuredData;
+      const scriptValidationData = scriptStore.validationResult.structuredData.script;
       
       const roleTypeToNameMap: Record<string, string> = {};
       if (scriptValidationData && Array.isArray(scriptValidationData)) {
@@ -301,7 +303,7 @@ export function useVoiceManagement(
 
   // Watchers for re-triggering auto-assignment if relevant data changes
   watch(
-    () => playgroundStore.validationResult, 
+    () => scriptStore.validationResult,
     (newResult) => {
       if (newResult?.structuredData?.voiceMap && Object.keys(speakerAssignments.value).filter(k => speakerAssignments.value[k]).length === 0) {
          console.log("Validation result changed, re-attempting auto-assignment.");

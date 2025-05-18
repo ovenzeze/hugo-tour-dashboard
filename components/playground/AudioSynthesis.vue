@@ -142,7 +142,7 @@ import {
 import { RadioTower, Download, Loader2, HelpCircle } from 'lucide-vue-next'
 
 const props = defineProps<{
-  modelValue?: string // 音频 URL
+  modelValue?: string // Audio URL
   scriptContent: string
   synthesisParams: {
     temperature: number
@@ -180,10 +180,10 @@ const useTimestampsForSynthesis = ref(true); // Added this ref
 const handleSynthesize = () => {
   if (!props.scriptContent?.trim()) return;
   
-  // 检查是否有时间戳数据并且用户选择使用
+  // Check if timestamp data exists and the user has chosen to use it
   const useTimestamps = !!(props.performanceConfig?.useTimestamps && useTimestampsForSynthesis.value);
   
-  // 发送合成请求时包含时间戳数据和其他必要参数
+  // Include timestamp data and other necessary parameters when sending the synthesis request
   emit('synthesize', {
     useTimestamps,
     synthesisParams: props.synthesisParams,

@@ -159,6 +159,11 @@ const apiDocs = [
     title: 'Database Design',
     slug: 'database-design',
     description: 'Database table structure and relationship documentation'
+  },
+  {
+    title: '播客处理流程与相关API文档',
+    slug: 'podcast-process-api-docs',
+    description: '播客处理流程与相关API文档'
   }
 ]
 

@@ -1,53 +1,55 @@
 import { ref } from 'vue';
 import { toast } from 'vue-sonner';
-import { usePlaygroundStore } from '~/stores/playground';
+import { usePlaygroundSettingsStore } from '~/stores/playgroundSettings';
+import { usePlaygroundScriptStore } from '~/stores/playgroundScript';
+import { usePlaygroundPersonaStore } from '~/stores/playgroundPersona';
 
 export interface ValidateScriptRequest {
-  // 必要字段
-  rawScript: string;                // 编辑器中填写的原始脚本内容
-  title: string;                    // 播客标题
+  // Required fields
+  rawScript: string;                // Original script content entered in the editor
+  title: string;                    // Podcast title
   
-  // 角色信息
+  // Character information
   personas: {
-    hostPersona: {                  // 主持人信息
+    hostPersona: {                  // Host information
       id: number;                   // persona_id
-      name: string;                 // 角色名称
-      voice_model_identifier: string; // 语音模型标识符
+      name: string;                 // Character name
+      voice_model_identifier: string; // Voice model identifier
     },
-    guestPersonas: Array<{          // 嘉宾信息列表
+    guestPersonas: Array<{          // Guest information list
       id: number;                   // persona_id
-      name: string;                 // 角色名称
-      voice_model_identifier: string; // 语音模型标识符
+      name: string;                 // Character name
+      voice_model_identifier: string; // Voice model identifier
     }>
   };
   
-  // 风格偏好
+  // Style preferences
   preferences: {
-    style: string;                  // 播客风格，如"对话式"、"访谈式"等
-    language: string;               // 语言，默认"en-US"
-    keywords: string;               // 关键词
-    numberOfSegments?: number;      // 分段数量
-    backgroundMusic?: string;       // 背景音乐类型
+    style: string;                  // Podcast style, e.g., "conversational", "interview"
+    language: string;               // Language, default "en-US"
+    keywords: string;               // Keywords
+    numberOfSegments?: number;      // Number of segments
+    backgroundMusic?: string;       // Background music type
   };
 }
 
 export interface ValidateScriptResponse {
-  success: boolean;                 // 是否验证成功
-  message?: string;                 // 成功/失败消息
+  success: boolean;                 // Whether validation was successful
+  message?: string;                 // Success/failure message
   structuredData?: {
-    podcastTitle: string;           // 播客标题
-    script: Array<{                 // 结构化脚本
-      role: 'host' | 'guest';       // 角色类型
-      name: string;                 // 角色名称
-      text: string;                 // 对话内容
+    podcastTitle: string;           // Podcast title
+    script: Array<{                 // Structured script
+      role: 'host' | 'guest';       // Role type
+      name: string;                 // Character name
+      text: string;                 // Dialogue content
     }>;
-    voiceMap: Record<string, {      // 角色名称到语音的映射
+    voiceMap: Record<string, {      // Mapping of character names to voices
       personaId: number;            // persona ID
-      voice_model_identifier: string; // 语音模型标识符
+      voice_model_identifier: string; // Voice model identifier
     }>;
-    language: string;               // 语言
+    language: string;               // Language
   };
-  error?: string;                   // 错误信息
+  error?: string;                   // Error message
 }
 
 export interface ScriptSegment {
@@ -56,13 +58,15 @@ export interface ScriptSegment {
 }
 
 export function useScriptValidator() {
-  const playgroundStore = usePlaygroundStore();
+  const settingsStore = usePlaygroundSettingsStore();
+  const scriptStore = usePlaygroundScriptStore();
+  const personaStore = usePlaygroundPersonaStore();
   const isValidating = ref(false);
   const validationResult = ref<ValidateScriptResponse | null>(null);
   const validationError = ref<string | null>(null);
 
   /**
-   * 解析脚本内容为段落
+   * Parses script content into segments
    */
   function parseScriptToSegments(content: string): ScriptSegment[] {
     if (!content) return [];
@@ -71,7 +75,7 @@ export function useScriptValidator() {
       .split('\n')
       .map(line => {
         const colonIndex = line.indexOf(':');
-        if (colonIndex <= 0) return null; // 无效行
+        if (colonIndex <= 0) return null; // Invalid line
         
         const speaker = line.substring(0, colonIndex).trim();
         const text = line.substring(colonIndex + 1).trim();
@@ -82,11 +86,11 @@ export function useScriptValidator() {
   }
 
   /**
-   * 验证脚本内容
+   * Validates script content
    */
   async function validateScript() {
     if (isValidating.value) {
-      return { success: false, error: '验证已在进行中' };
+      return { success: false, error: 'Validation is already in progress' };
     }
     
     isValidating.value = true;
@@ -94,62 +98,61 @@ export function useScriptValidator() {
     validationError.value = null;
 
     try {
-      // 验证基本设置
-      const podcastSettings = playgroundStore.podcastSettings;
-      
-      if (!podcastSettings?.title) {
-        toast.error('请设置播客标题');
-        return { success: false, error: '请设置播客标题' };
-      }
-      
-      if (!podcastSettings?.hostPersonaId) {
-        toast.error('请选择主持人');
-        return { success: false, error: '请选择主持人' };
-      }
-      
-      if (!playgroundStore.textToSynthesize) {
-        toast.error('脚本内容为空');
-        return { success: false, error: '脚本内容为空' };
-      }
-      
-      // 获取主持人信息
-      const hostPersona = playgroundStore.personas.find(
-        (p) => p.persona_id === Number(podcastSettings.hostPersonaId)
-      );
-      
-      if (!hostPersona) {
-        toast.error('所选主持人未找到');
-        return { success: false, error: '所选主持人未找到' };
-      }
-      
-      // 获取嘉宾信息
-      const guestPersonas = podcastSettings.guestPersonaIds
-        .map(id => Number(id))
-        .filter(id => !isNaN(id) && id > 0)
-        .map(id => playgroundStore.personas.find(p => p.persona_id === id))
-        .filter(p => p !== undefined) as any[];
-      
-      if (guestPersonas.length === 0) {
-        toast.error('请至少选择一位嘉宾');
-        return { success: false, error: '请至少选择一位嘉宾' };
-      }
-      
-      // 解析脚本
-      const scriptSegments = parseScriptToSegments(playgroundStore.textToSynthesize);
-      
-      if (scriptSegments.length === 0) {
-        toast.error('无法解析脚本。请确保格式为"说话者: 文本内容"');
-        return { success: false, error: '无法解析脚本' };
-      }
-      
-      // 构建请求体
-      const requestBody: ValidateScriptRequest = {
-        title: podcastSettings.title,
-        rawScript: playgroundStore.textToSynthesize,
-        personas: {
-          hostPersona: {
-            id: hostPersona.persona_id,
-            name: hostPersona.name,
+        // Validate basic settings
+        const podcastSettings = settingsStore.podcastSettings; // Use settingsStore
+        
+        if (!podcastSettings?.title) {
+          toast.error('Please set the podcast title');
+          return { success: false, error: 'Please set the podcast title' };
+        }
+        
+        if (!podcastSettings?.hostPersonaId) {
+          toast.error('Please select a host');
+          return { success: false, error: 'Please select a host' };
+        }
+        
+        if (!scriptStore.textToSynthesize) { // Use scriptStore
+          toast.error('Script content is empty');
+          return { success: false, error: 'Script content is empty' };
+        }
+        
+        // Get host information
+        const hostPersona = personaStore.personas.find( // Use personaStore
+          (p) => p.persona_id === Number(podcastSettings.hostPersonaId)
+        );
+        
+        if (!hostPersona) {
+          toast.error('Selected host not found');
+          return { success: false, error: 'Selected host not found' };
+        }
+        
+        // Get guest information
+        const guestPersonas = podcastSettings.guestPersonaIds
+          .map(id => Number(id))
+          .filter(id => !isNaN(id) && id > 0)
+          .map(id => personaStore.personas.find(p => p.persona_id === id)) // Use personaStore
+          .filter(p => p !== undefined) as any[];
+        
+        if (guestPersonas.length === 0) {
+          toast.error('Please select at least one guest');
+          return { success: false, error: 'Please select at least one guest' };
+        }
+        
+        // Parse script
+        const scriptSegments = parseScriptToSegments(scriptStore.textToSynthesize); // Use scriptStore
+        
+        if (scriptSegments.length === 0) {
+          toast.error('Failed to parse script. Please ensure the format is "Speaker: Text content"');
+          return { success: false, error: 'Failed to parse script' };
+        }
+        
+        // Build request body
+        const requestBody: ValidateScriptRequest = {
+          title: podcastSettings.title,
+          rawScript: scriptStore.textToSynthesize, // Use scriptStore
+          personas: {
+            hostPersona: {
+              id: hostPersona.persona_id,
             voice_model_identifier: hostPersona.voice_model_identifier || ''
           },
           guestPersonas: guestPersonas.map(persona => ({
@@ -159,7 +162,7 @@ export function useScriptValidator() {
           }))
         },
         preferences: {
-          style: podcastSettings.style || '对话式',
+          style: podcastSettings.style || 'conversational',
           language: 'en-US',
           keywords: podcastSettings.keywords || '',
           numberOfSegments: podcastSettings.numberOfSegments || 3,
@@ -169,10 +172,10 @@ export function useScriptValidator() {
       
       console.log('[DEBUG] API request body (standalone validation):', JSON.stringify(requestBody, null, 2));
       
-      // 调用API
+      // Call API
       const response = await $fetch<ValidateScriptResponse>('/api/podcast/process/validate', {
         method: 'POST',
-        body: requestBody
+        body: requestBody as Record<string, any>
       });
       
       console.log('[DEBUG] API response (standalone validation):', response);
@@ -180,17 +183,17 @@ export function useScriptValidator() {
       validationResult.value = response;
       
       if (response.success) {
-        toast.success('脚本验证通过');
+        toast.success('Script validation passed');
         return { success: true, data: response.structuredData };
       } else {
-        toast.error(`验证失败: ${response.message || response.error || '未知错误'}`);
-        validationError.value = response.error || response.message || '验证失败';
+        toast.error(`Validation failed: ${response.message || response.error || 'Unknown error'}`);
+        validationError.value = response.error || response.message || 'Validation failed';
         return { success: false, error: validationError.value };
       }
     } catch (err: any) {
       console.error('[ERROR] API request failed (standalone validation):', err);
-      const errorMessage = err.data?.message || err.message || '服务器错误';
-      toast.error(`请求错误: ${errorMessage}`);
+      const errorMessage = err.data?.message || err.message || 'Server error';
+      toast.error(`Request error: ${errorMessage}`);
       validationError.value = errorMessage;
       return { success: false, error: errorMessage };
     } finally {

@@ -15,28 +15,28 @@ interface RequestPayload {
     hostPersona?: Persona;
     guestPersonas?: Persona[];
   };
-  // 新增支持前端发送的格式
+  // Add support for format sent by frontend
   config?: {
     ttsProvider: string;
     speakerAssignments: Record<string, string>;
     segments: { speakerTag: string; text: string; timestamps?: any[] }[];
   };
   synthesisParams?: any;
-  // 添加重试相关参数
-  retrySegments?: number[]; // 需要重试的段落索引
-  maxRetries?: number; // 最大重试次数
+  // Add retry-related parameters
+  retrySegments?: number[]; // Indexes of segments to retry
+  maxRetries?: number; // Maximum number of retries
 }
 
-// 定义段落处理结果接口
+// Define interface for segment processing result
 interface SegmentResult {
   speaker: string;
   text: string;
-  audio?: string; // Base64编码的音频
+  audio?: string; // Base64 encoded audio
   timestamps?: any[];
   contentType?: string;
-  error?: string; // 如果处理失败，包含错误信息
-  retryCount?: number; // 已重试次数
-  status: 'success' | 'failed' | 'skipped'; // 处理状态
+  error?: string; // Contains error message if processing failed
+  retryCount?: number; // Number of retries already attempted
+  status: 'success' | 'failed' | 'skipped'; // Processing status
 }
 
 export default defineEventHandler(async (event) => {
@@ -44,28 +44,28 @@ export default defineEventHandler(async (event) => {
     const body = await readBody(event) as RequestPayload;
     const runtimeConfig = useRuntimeConfig(event);
     
-    // 处理两种不同的数据格式
+    // Handle two different data formats
     let script: { speaker: string; text: string }[] = [];
     let personas: { hostPersona?: Persona; guestPersonas?: Persona[] } = {};
-    let ttsProviderName = 'elevenlabs'; // 默认使用elevenlabs
-    const maxRetries = body.maxRetries || 2; // 默认最大重试2次
+    let ttsProviderName = 'elevenlabs'; // Default to using elevenlabs
+    const maxRetries = body.maxRetries || 2; // Default maximum retries is 2
     
     if (body.script && body.personas) {
-      // 原始格式
+      // Original format
       script = body.script;
       personas = body.personas;
     } else if (body.config) {
-      // 新格式 - 从config中提取数据
+      // New format - extract data from config
       ttsProviderName = body.config.ttsProvider || 'elevenlabs';
       
-      // 将segments转换为script格式
+      // Convert segments to script format
       script = body.config.segments.map(seg => ({
         speaker: seg.speakerTag,
         text: seg.text
       }));
       
-      // 从speakerAssignments创建personas
-      // 简化处理：将所有角色都作为guest处理
+      // Create personas from speakerAssignments
+      // Simplified handling: treat all roles as guests
       const guestPersonas: Persona[] = [];
       
       for (const speakerTag in body.config.speakerAssignments) {
@@ -83,7 +83,7 @@ export default defineEventHandler(async (event) => {
       };
     }
     
-    // 验证数据
+    // Validate data
     if (!script || !Array.isArray(script) || script.length === 0 || !personas) {
       throw createError({
         statusCode: 400,
@@ -92,7 +92,7 @@ export default defineEventHandler(async (event) => {
     }
 
     const segmentResults: SegmentResult[] = [];
-    // 使用指定的TTS提供商
+    // Use the specified TTS provider
     const ttsProvider = getTtsProvider(ttsProviderName, runtimeConfig); 
 
     if (!ttsProvider.generateSpeechWithTimestamps) {
@@ -102,12 +102,12 @@ export default defineEventHandler(async (event) => {
       });
     }
 
-    // 确定需要处理的段落
+    // Determine segments to process
     const segmentsToProcess = body.retrySegments && body.retrySegments.length > 0
       ? body.retrySegments.map(index => ({ index, segment: script[index] })).filter(item => item.segment)
       : script.map((segment, index) => ({ index, segment }));
 
-    // 处理每个段落
+    // Process each segment
     for (const { index, segment } of segmentsToProcess) {
       const { speaker, text } = segment;
 
@@ -145,14 +145,14 @@ export default defineEventHandler(async (event) => {
 
       console.log(`Generating audio with timestamps for speaker: ${speaker} with voiceId: ${voiceId} via TTS Provider`);
 
-      // 获取当前重试次数
+      // Get current retry count
       const currentRetryCount = segmentResults[index]?.retryCount || 0;
       
       try {
         const synthesisRequest: VoiceSynthesisRequest = {
           text: text,
           voiceId: voiceId,
-          // 如果有合成参数，可以添加到请求中
+          // If there are synthesis parameters, they can be added to the request
           ...(body.synthesisParams ? { providerOptions: body.synthesisParams } : {})
         };
         
@@ -177,7 +177,7 @@ export default defineEventHandler(async (event) => {
       } catch (ttsError: any) {
         console.error(`Error generating TTS for speaker ${speaker}:`, ttsError.message || ttsError);
         
-        // 检查是否可以重试
+        // Check if retry is possible
         if (currentRetryCount < maxRetries) {
           console.log(`Will retry segment ${index} for speaker ${speaker}, retry ${currentRetryCount + 1}/${maxRetries}`);
           segmentResults[index] = {
@@ -200,13 +200,13 @@ export default defineEventHandler(async (event) => {
       }
     }
 
-    // 统计处理结果
+    // Summarize processing results
     const successCount = segmentResults.filter(seg => seg?.status === 'success').length;
     const failedCount = segmentResults.filter(seg => seg?.status === 'failed').length;
     const skippedCount = segmentResults.filter(seg => seg?.status === 'skipped').length;
     const totalCount = script.length;
     
-    // 获取需要重试的段落索引
+    // Get indexes of segments to retry
     const segmentsToRetry = segmentResults
       .map((seg, idx) => seg?.status === 'failed' && (seg.retryCount || 0) < maxRetries ? idx : -1)
       .filter(idx => idx !== -1);

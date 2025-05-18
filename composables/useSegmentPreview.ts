@@ -1,5 +1,6 @@
-import { ref, reactive } from 'vue';
-import { usePlaygroundStore } from '../stores/playground';
+import { ref, reactive, watch } from 'vue'; // Added watch
+import { usePlaygroundAudioStore } from '../stores/playgroundAudio';
+import { usePlaygroundSettingsStore } from '../stores/playgroundSettings';
 import { toast } from 'vue-sonner';
 import type { ParsedScriptSegment, Voice } from './useVoiceManagement'; // Assuming interfaces are exported
 
@@ -28,7 +29,8 @@ export function useSegmentPreview(
     speakerAssignments: globalThis.Ref<Record<string, string>>,
     ttsProvider: globalThis.Ref<string> // Needed for some API calls
 ) {
-  const playgroundStore = usePlaygroundStore();
+  const audioStore = usePlaygroundAudioStore();
+  const settingsStore = usePlaygroundSettingsStore();
 
   const isPreviewingSegment = ref<number | null>(null); // Index of the segment being previewed
   const segmentPreviews = ref<Record<number, SegmentPreviewData>>({}); // Index -> { audioUrl, timestamps }
@@ -70,32 +72,31 @@ export function useSegmentPreview(
     isPreviewingSegment.value = index;
 
     try {
-      // Use the actual podcastId from the store if available, otherwise generate a temporary one for preview
-      const podcastIdToUse = playgroundStore.podcastId || `preview_session_${playgroundStore.podcastSettings.title?.trim().replace(/\s+/g, '_') || Date.now()}`;
-
-      const response = await fetch('/api/podcast/process/synthesize-segments', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          podcastId: podcastIdToUse, // Use the ID from the store or temporary
-          segments: [
-            {
-              segmentIndex: index,
-              text: segment.text,
-              voiceId: voiceId,
-              speakerName: segment.speakerTag
+        // Use the actual podcastId from the store if available, otherwise generate a temporary one for preview
+        const podcastIdToUse = audioStore.podcastId || `preview_session_${settingsStore.podcastSettings.title?.trim().replace(/\s+/g, '_') || Date.now()}`;
+  
+        const response = await fetch('/api/podcast/process/synthesize-segments', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            podcastId: podcastIdToUse, // Use the ID from the store or temporary
+            segments: [
+              {
+                segmentIndex: index,
+                text: segment.text,
+                voiceId: voiceId,
+                speakerName: segment.speakerTag
+              }
+            ],
+            defaultModelId: settingsStore.podcastSettings.elevenLabsProjectId || 'eleven_multilingual_v2', // Use project ID or fallback
+            voiceSettings: { // Pass global synthesis params from the store
+              stability: audioStore.synthesisParams.temperature,
+              similarity_boost: audioStore.synthesisParams.speed, // Use speed for similarity_boost
+              // style: 0, // TODO: Make configurable or part of persona if API supports
+              // use_speaker_boost: true // TODO: Make configurable or part of persona if API supports
             }
-          ],
-          defaultModelId: 'eleven_multilingual_v2', // TODO: Make configurable
-          voiceSettings: { // Pass global synthesis params from the store
-            stability: playgroundStore.synthesisParams.temperature,
-            similarity_boost: 0.75, // TODO: Make configurable or part of persona
-            style: 0, // TODO: Make configurable or part of persona
-            use_speaker_boost: true // TODO: Make configurable or part of persona
-          }
-        })
-      });
-
+          })
+        });
       if (!response.ok) {
         const errorText = await response.text();
         throw new Error(`API Error (${response.status}): ${errorText || response.statusText}`);
@@ -160,23 +161,23 @@ export function useSegmentPreview(
         const response = await fetch('/api/podcast/preview/segments', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
+            body: JSON.stringify({ // Correctly stringify the entire body object
                 config: {
                     ttsProvider: ttsProvider.value,
                     speakerAssignments: speakerAssignments.value,
                     segments: payloadSegments
                 },
-                synthesisParams: {
-                    stability: playgroundStore.synthesisParams.temperature,
-                    similarity_boost: 0.75,
-                    style: 0,
-                    use_speaker_boost: true
+                synthesisParams: { // This should be part of the object passed to stringify
+                    stability: audioStore.synthesisParams.temperature,
+                    similarity_boost: audioStore.synthesisParams.speed,
+                    // style and use_speaker_boost can be added if supported by the API
                 }
             })
         });
 
         if (!response.ok) {
-            throw new Error(`Preview all generation failed: ${response.statusText}`);
+            const errorText = await response.text();
+            throw new Error(`Preview all generation failed: ${response.statusText} - ${errorText}`);
         }
 
         const result = await response.json();

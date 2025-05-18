@@ -65,7 +65,7 @@ export default defineEventHandler(async (event) => {
   const guestPersonas = body.guestPersonas || [];
 
   // Construct guest names string for the prompt
-  const guestNames = guestPersonas.map(p => p.name).join("、") || "嘉宾";
+  const guestNames = guestPersonas.map(p => p.name).join("、") || "Guest";
 
   // Construct voiceMap JSON string for the prompt
   const voiceMap: { [key: string]: { personaId: number; voice_model_identifier: string } } = {};
@@ -87,7 +87,7 @@ export default defineEventHandler(async (event) => {
   let promptContent = promptTemplate
     .replace('{{title}}', podcastSettings?.title || '')
     .replace('{{topic}}', podcastSettings?.topic || '')
-    .replace('{{hostName}}', hostPersona?.name || '主持人') // Use hostPersona name
+    .replace('{{hostName}}', hostPersona?.name || 'Host') // Use hostPersona name
     .replace('{{guestNames}}', guestNames) // Use constructed guest names string
     .replace('{{style}}', podcastSettings?.style || '')
     .replace('{{keywords}}', podcastSettings?.keywords || '')
