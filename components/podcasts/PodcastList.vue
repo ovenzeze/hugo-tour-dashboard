@@ -56,7 +56,8 @@
   </div>
 </CardHeader>
       <CardContent class="py-3 text-sm flex-grow">
-        <div class="flex flex-col gap-2">
+        <!-- 主信息区 -->
+        <div class="flex flex-col gap-2 mb-2">
           <div class="flex items-center justify-between">
             <span class="text-muted-foreground">Status:</span>
             <span :class="getSynthesisStatusClass(podcast)">{{ getSynthesisStatusText(podcast) }}</span>
@@ -64,6 +65,51 @@
           <div class="flex items-center justify-between">
             <span class="text-muted-foreground">Duration:</span>
             <span>{{ getPodcastTotalDuration(podcast) }}</span>
+          </div>
+          <div class="flex items-center justify-between">
+            <span class="text-muted-foreground">Host:</span>
+            <span>{{ podcast.host_name || 'N/A' }}</span>
+          </div>
+          <div class="flex items-center justify-between">
+            <span class="text-muted-foreground">Guest:</span>
+            <span>{{ podcast.guest_name || 'N/A' }}</span>
+          </div>
+          <div class="flex items-center justify-between">
+            <span class="text-muted-foreground">Created:</span>
+            <span>{{ formatRelativeTime(podcast.created_at) }}</span>
+          </div>
+        </div>
+        <!-- 分段信息（仅展示前2条，可展开） -->
+        <div v-if="podcast.podcast_segments && podcast.podcast_segments.length > 0" class="border-t pt-2 mt-2">
+          <div class="flex items-center justify-between mb-1">
+            <span class="text-xs font-semibold text-muted-foreground">Segments</span>
+            <button
+              v-if="podcast.podcast_segments.length > 2"
+              class="text-xs text-primary hover:underline"
+              @click="toggleSegments(String(podcast.podcast_id))"
+              type="button"
+            >
+              {{ showAllSegments[String(podcast.podcast_id)] ? 'Collapse' : 'Show All' }}
+            </button>
+          </div>
+          <div class="space-y-1 max-h-32 overflow-y-auto pr-1">
+            <div
+              v-for="(segment, index) in showAllSegments[String(podcast.podcast_id)] ? podcast.podcast_segments : podcast.podcast_segments.slice(0, 2)"
+              :key="index"
+              class="px-2 py-1 rounded bg-muted/50 flex items-start gap-2"
+            >
+              <span class="inline-flex items-center justify-center h-5 w-5 rounded-full bg-primary/20 text-primary font-bold text-xs mt-0.5">
+                {{ (segment.speaker && segment.speaker[0]) ? segment.speaker[0].toUpperCase() : '?' }}
+              </span>
+              <div class="flex-1 min-w-0">
+                <span class="text-xs font-medium text-foreground" :title="segment.speaker">
+                  {{ segment.speaker || 'Unknown Speaker' }}
+                </span>
+                <span class="text-xs text-muted-foreground ml-2 truncate" :title="segment.text">
+                  {{ segment.text || 'No text available' }}
+                </span>
+              </div>
+            </div>
           </div>
         </div>
       </CardContent>

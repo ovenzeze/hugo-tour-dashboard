@@ -42,13 +42,6 @@
           @update:script-content="scriptStore.updateTextToSynthesize($event)"
           class="flex-1 min-h-0"
         />
-        <PlaygroundStep3Panel
-          v-if="currentStepIndex === 3"
-          :audio-url="audioStore.audioUrl"
-          :podcast-performance-config="podcastPerformanceConfig"
-          :is-generating-overall="isGeneratingOverall"
-          class="flex-1 min-h-0"
-        />
       </CardContent>
 
       <PlaygroundFooterActions
@@ -67,18 +60,10 @@
         @generate-ai-script="handleToolbarGenerateScript"
         @proceed-without-validation="handleProceedWithoutValidation"
         @generate-audio-preview="generateAudioPreview"
-        @next-from-step2="handleNextFromStep2"
         @download-audio="handleDownloadCurrentAudio"
-        @synthesize-podcast="handleToolbarSynthesizePodcastAudio"
+        @synthesize-podcast="() => toast.info('后台已经在合成，请到podcast页面查看最新状态')"
       />
     </Card>
-
-    <Step2ConfirmationDialog
-      :open="showStep2ProceedConfirmation"
-      :pending-segments-count="pendingSegmentsCount"
-      @update:open="showStep2ProceedConfirmation = $event"
-      @confirm="confirmProceedToStep3"
-    />
   </div>
 </template>
 

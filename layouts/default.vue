@@ -23,7 +23,7 @@
                   </Button>
                 </SidebarTrigger>
 <SheetContent side="left" class="w-[320px] p-0">
-  <SidebarNav :menuGroups="menuGroups" @close="sidebarOpen = false" />
+  <SidebarNav :menuGroups="menuGroups" @close="sidebarOpen = false" collapsible="none" />
 </SheetContent>
               </Sheet>
             </ClientOnly>

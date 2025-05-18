@@ -1,5 +1,5 @@
 <template>
-  <Sidebar class="flex h-full max-h-screen flex-col">
+  <Sidebar class="flex h-full max-h-screen flex-col" :collapsible="props.collapsible">
     <!-- 头部区域 -->
     <SidebarHeader>
       <NuxtLink to="/" class="flex items-center gap-2 overflow-hidden">
@@ -197,6 +197,7 @@ interface MenuGroups {
 
 const props = defineProps<{
   menuGroups: MenuGroups;
+  collapsible?: 'icon' | 'offcanvas' | 'none';
 }>();
 
 defineEmits(['close']);

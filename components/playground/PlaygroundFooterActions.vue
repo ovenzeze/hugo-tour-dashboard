@@ -61,11 +61,12 @@
           {{ isGeneratingAudioPreview ? 'Generating...' : 'Generate Audio Preview' }}
         </Button>
         <Button
-          @click="emit('next-from-step2')"
+          variant="default"
           :disabled="!canProceedFromStep2"
+          @click="emit('synthesize-podcast')"
         >
-          Proceed to Synthesis
-          <Icon name="ph:arrow-right" class="w-4 h-4 ml-2" />
+          Synthesize Podcast
+          <Icon name="ph:broadcast" class="w-4 h-4 ml-2" />
         </Button>
       </template>
       <template v-if="currentStepIndex === 3">
