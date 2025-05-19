@@ -32,6 +32,7 @@ export const usePlaygroundPersonaStore = defineStore("playgroundPersona", {
           headers: { "Content-Type": "application/json" },
         } as any);
         this.personas = data;
+        console.log('Fetched personas:', data); // <-- 添加这一行
 
         if (this.personas.length === 0) {
           toast.info("No available personas found.", {

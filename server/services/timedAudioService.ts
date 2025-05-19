@@ -1,35 +1,60 @@
 // server/services/timedAudioService.ts
 import { ElevenLabsClient } from 'elevenlabs';
 import type { IStorageService } from './storageService';
+import {
+  synthesizeSpeechVolcengine,
+  type SynthesizeSpeechParams as VolcengineSynthesizeParams,
+  type SynthesizedAudioResult as VolcengineSynthesizedAudioResult,
+  type FrontendTimestampData as VolcengineTimestamps,
+} from '~/server/utils/volcengineTTS'; // Assuming volcengineTTS.ts is in server/utils
 
 export interface TimedAudioSegmentResult {
   audioFileUrl?: string;
   timestampFileUrl?: string;
-  durationMs?: number; // Add duration in milliseconds
+  durationMs?: number;
   error?: string;
+  provider?: 'elevenlabs' | 'volcengine'; // Optional: to indicate which provider was used
 }
 
-export async function generateAndStoreTimedAudioSegment(
-  params: {
-    text: string;
-    voiceId: string;
-    storageService: IStorageService;
-    elevenLabsApiKey: string;
-    publicOutputDirectory: string; // Relative to public root, e.g., 'podcasts/podcastId/segments'
-    storageOutputDirectory: string; // Relative to project root for storage, e.g., 'public/podcasts/podcastId/segments'
-    baseFilename: string;    // e.g., '001_speaker_name' (without extension)
-    defaultModelId?: string; // e.g., 'eleven_multilingual_v2'
-    voiceSettings?: {
-      stability?: number;
-      similarity_boost?: number;
-      style?: number;
-      use_speaker_boost?: boolean;
-    };
-  }
+// Parameters for ElevenLabs
+export interface ElevenLabsParams {
+  text: string;
+  voiceId: string; // ElevenLabs specific voice ID
+  storageService: IStorageService;
+  elevenLabsApiKey: string;
+  publicOutputDirectory: string;
+  storageOutputDirectory: string;
+  baseFilename: string;
+  defaultModelId?: string;
+  voiceSettings?: {
+    stability?: number;
+    similarity_boost?: number;
+    style?: number;
+    use_speaker_boost?: boolean;
+  };
+}
+
+// Parameters for Volcengine
+export interface VolcengineParams {
+  text: string;
+  voiceType: string; // Volcengine specific voice type (e.g., 'BV001_streaming')
+  storageService: IStorageService;
+  // Volcengine config (appId, accessToken, cluster, instanceId) will be read from runtimeConfig by synthesizeSpeechVolcengine
+  publicOutputDirectory: string;
+  storageOutputDirectory: string;
+  baseFilename: string;
+  encoding?: 'mp3' | 'pcm' | 'wav';
+  speedRatio?: number;
+  volumeRatio?: number;
+  pitchRatio?: number;
+}
+
+export async function generateAndStoreTimedAudioSegmentElevenLabs(
+  params: ElevenLabsParams
 ): Promise<TimedAudioSegmentResult> {
   const {
     text,
-    voiceId,
+    voiceId, // This is the ElevenLabs voiceId
     storageService,
     elevenLabsApiKey,
     publicOutputDirectory,
@@ -38,18 +63,18 @@ export async function generateAndStoreTimedAudioSegment(
     defaultModelId,
     voiceSettings,
   } = params;
-  console.log('[timedAudioService] Received storageOutputDirectory:', storageOutputDirectory);
-  console.log('[timedAudioService] Received publicOutputDirectory:', publicOutputDirectory);
+  console.log('[timedAudioService - ElevenLabs] Received storageOutputDirectory:', storageOutputDirectory);
+  console.log('[timedAudioService - ElevenLabs] Received publicOutputDirectory:', publicOutputDirectory);
 
   if (!elevenLabsApiKey) {
-    console.error('[timedAudioService] ElevenLabs API key is missing.');
-    return { error: 'ElevenLabs API key is missing.' };
+    console.error('[timedAudioService - ElevenLabs] API key is missing.');
+    return { error: 'ElevenLabs API key is missing.', provider: 'elevenlabs' };
   }
 
   const elevenlabs = new ElevenLabsClient({ apiKey: elevenLabsApiKey });
 
   try {
-    console.log(`[timedAudioService] Calling ElevenLabs convertWithTimestamps for voice: ${voiceId}, baseFilename: ${baseFilename}`);
+    console.log(`[timedAudioService - ElevenLabs] Calling convertWithTimestamps for voice: ${voiceId}, baseFilename: ${baseFilename}`);
 
     const ttsRequest: any = { text: text };
     if (defaultModelId) {
@@ -60,35 +85,22 @@ export async function generateAndStoreTimedAudioSegment(
     }
 
     const response = await elevenlabs.textToSpeech.convertWithTimestamps(voiceId, ttsRequest);
-
-    console.log('[timedAudioService] ElevenLabs SDK response received.');
-    // console.dir(response, { depth: null }); // Commented out to reduce log verbosity
-
-    const responseAsAny = response as any;
+    const responseAsAny = response as any; // ElevenLabs SDK types might not be fully up-to-date or complete
 
     const hasAudioBase64 = responseAsAny && typeof responseAsAny.audio_base64 === 'string';
     const hasValidAlignment = responseAsAny && responseAsAny.alignment && Array.isArray(responseAsAny.alignment.characters);
 
     if (!hasAudioBase64 || !hasValidAlignment) {
-      console.error('[timedAudioService] Validation failed for ElevenLabs SDK response structure.');
-      console.error(`[timedAudioService] Has Audio Base64: ${hasAudioBase64}, Has Valid Alignment: ${hasValidAlignment}`);
-      if (responseAsAny && !hasAudioBase64) {
-        console.error(`[timedAudioService] response.audio_base64 is missing or not a string. Found:`, responseAsAny.audio_base64);
-      }
-      if (responseAsAny && responseAsAny.alignment) {
-        console.error(`[timedAudioService] Actual response.alignment:`, responseAsAny.alignment);
-      } else {
-        console.error(`[timedAudioService] response.alignment is missing.`);
-      }
-      return { error: 'Invalid response structure from ElevenLabs SDK (expected audio_base64 string and alignment data).' };
+      console.error('[timedAudioService - ElevenLabs] Validation failed for SDK response structure.');
+      return { error: 'Invalid response structure from ElevenLabs SDK.', provider: 'elevenlabs' };
     }
 
     const audioBuffer = Buffer.from(responseAsAny.audio_base64, 'base64');
-    const alignmentData = responseAsAny.alignment;
+    const alignmentData = responseAsAny.alignment; // This is ElevenLabs specific alignment format
 
-    const audioExtension = 'mp3'; // Assuming MP3 from base64 audio
+    const audioExtension = 'mp3';
     const audioFilename = `${baseFilename}.${audioExtension}`;
-    const timestampFilename = `${baseFilename}.json`;
+    const timestampFilename = `${baseFilename}.elevenlabs.json`; // Differentiate timestamp format
 
     const audioStoragePath = storageService.joinPath(storageOutputDirectory, audioFilename);
     const timestampStoragePath = storageService.joinPath(storageOutputDirectory, timestampFilename);
@@ -98,29 +110,89 @@ export async function generateAndStoreTimedAudioSegment(
 
     const audioFileUrl = storageService.getPublicUrl(storageService.joinPath(publicOutputDirectory, audioFilename));
     const timestampFileUrl = storageService.getPublicUrl(storageService.joinPath(publicOutputDirectory, timestampFilename));
-
-    console.log(`[timedAudioService] Saved audio to ${audioFileUrl}`);
-    console.log(`[timedAudioService] Saved timestamps to ${timestampFileUrl}`);
-
-    // Assuming ElevenLabs response includes duration, extract it here
-    // The exact path to duration might vary based on the ElevenLabs SDK version and response structure.
-    // You might need to inspect the `responseAsAny` object to find the correct path.
-    // For example, it might be responseAsAny.duration_ms or similar.
-    // Let's assume for now it's responseAsAny.duration_ms
-    const durationMs = responseAsAny.duration_ms; // Extract duration
+    
+    const durationMs = responseAsAny.duration_ms;
 
     return {
       audioFileUrl,
       timestampFileUrl,
-      durationMs, // Include duration in the result
+      durationMs,
+      provider: 'elevenlabs',
     };
 
   } catch (error: any) {
     const errorMessage = error.message || 'Unknown error during ElevenLabs TTS or file storage.';
-    console.error(`[timedAudioService] Error for ${baseFilename}: ${errorMessage}`, error);
-    if (error.stack) {
-        console.error(error.stack);
+    console.error(`[timedAudioService - ElevenLabs] Error for ${baseFilename}: ${errorMessage}`, error);
+    return { error: `TTS/Storage Error: ${errorMessage}`, provider: 'elevenlabs' };
+  }
+}
+
+
+export async function generateAndStoreTimedAudioSegmentVolcengine(
+  params: VolcengineParams
+): Promise<TimedAudioSegmentResult> {
+  const {
+    text,
+    voiceType,
+    storageService,
+    publicOutputDirectory,
+    storageOutputDirectory,
+    baseFilename,
+    encoding = 'mp3', // Default to mp3 for Volcengine as well
+    speedRatio,
+    volumeRatio,
+    pitchRatio,
+  } = params;
+
+  console.log('[timedAudioService - Volcengine] Received storageOutputDirectory:', storageOutputDirectory);
+  console.log('[timedAudioService - Volcengine] Received publicOutputDirectory:', publicOutputDirectory);
+
+  try {
+    const volcengineParams: VolcengineSynthesizeParams = {
+      text,
+      voice: voiceType,
+      enableTimestamps: true, // Always enable for this service's purpose
+      encoding,
+      speedRatio,
+      volumeRatio,
+      pitchRatio,
+    };
+
+    console.log(`[timedAudioService - Volcengine] Calling synthesizeSpeechVolcengine for voice: ${voiceType}, baseFilename: ${baseFilename}`);
+    const volcResponse = await synthesizeSpeechVolcengine(volcengineParams);
+
+    if (volcResponse.error || !volcResponse.audioBase64 || !volcResponse.timestamps) {
+      console.error('[timedAudioService - Volcengine] Error from synthesizeSpeechVolcengine:', volcResponse.error);
+      return { error: volcResponse.error || 'Failed to get audio or timestamps from Volcengine.', provider: 'volcengine' };
     }
-    return { error: `TTS/Storage Error: ${errorMessage}` };
+
+    const audioBuffer = Buffer.from(volcResponse.audioBase64, 'base64');
+    // Volcengine provides timestamps in `FrontendTimestampData` format (words, phonemes)
+    const timestampData: VolcengineTimestamps = volcResponse.timestamps;
+
+    const audioExtension = encoding; // mp3, wav, pcm
+    const audioFilename = `${baseFilename}.${audioExtension}`;
+    const timestampFilename = `${baseFilename}.volcengine.json`; // Differentiate timestamp format
+
+    const audioStoragePath = storageService.joinPath(storageOutputDirectory, audioFilename);
+    const timestampStoragePath = storageService.joinPath(storageOutputDirectory, timestampFilename);
+
+    await storageService.writeFile(audioStoragePath, audioBuffer);
+    await storageService.writeFile(timestampStoragePath, JSON.stringify(timestampData, null, 2));
+
+    const audioFileUrl = storageService.getPublicUrl(storageService.joinPath(publicOutputDirectory, audioFilename));
+    const timestampFileUrl = storageService.getPublicUrl(storageService.joinPath(publicOutputDirectory, timestampFilename));
+    
+    return {
+      audioFileUrl,
+      timestampFileUrl,
+      durationMs: volcResponse.durationMs === null ? undefined : volcResponse.durationMs,
+      provider: 'volcengine',
+    };
+
+  } catch (error: any) {
+    const errorMessage = error.message || 'Unknown error during Volcengine TTS or file storage.';
+    console.error(`[timedAudioService - Volcengine] Error for ${baseFilename}: ${errorMessage}`, error);
+    return { error: `TTS/Storage Error: ${errorMessage}`, provider: 'volcengine' };
   }
 }

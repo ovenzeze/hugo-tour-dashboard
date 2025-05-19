@@ -81,11 +81,12 @@ import { Button } from '@/components/ui/button'; // Import Button
 // Icon is auto-imported
 import PodcastSettingsForm from './PodcastSettingsForm.vue';
 // Import types expected by PodcastSettingsForm
-import type { FullPodcastSettings, Persona } from '~/types/playground';
+import type { FullPodcastSettings } from '~/types/playground'; // Persona type will come from the store
+import type { Persona } from '@/stores/playgroundPersona'; // Import Persona from the store
 
 interface Props {
   podcastSettings: FullPodcastSettings; // Use FullPodcastSettings from ~/types/playground
-  personasForForm: Persona[]; // Use Persona from ~/types/playground
+  personasForForm: Persona[]; // Use Persona from the store
   personasLoading: boolean;
   isScriptGenerating: boolean;
   isValidating: boolean;

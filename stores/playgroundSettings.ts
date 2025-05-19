@@ -13,7 +13,7 @@ export interface FullPodcastSettings {
   topic: string;
   numberOfSegments: number;
   style: string;
-  keywords: string;
+  keywords: string[]; // Changed to string array
   hostPersonaId: number | string | undefined; // Allow string for initial prop, store as number
   guestPersonaIds: (number | string | undefined)[]; // Allow string for initial prop, store as number
   backgroundMusic: string | undefined;
@@ -22,6 +22,7 @@ export interface FullPodcastSettings {
   museumId: number | undefined;
   galleryId: number | undefined;
   objectId: number | undefined;
+  ttsProvider?: 'elevenlabs' | 'volcengine'; // Added TTS Provider
 }
 
 // Copied from playground.ts
@@ -30,7 +31,7 @@ export const defaultPodcastSettings: FullPodcastSettings = {
   topic: "",
   numberOfSegments: 3,
   style: "",
-  keywords: "",
+  keywords: [], // Changed to empty array
   hostPersonaId: undefined,
   guestPersonaIds: [],
   backgroundMusic: undefined,
@@ -39,6 +40,7 @@ export const defaultPodcastSettings: FullPodcastSettings = {
   museumId: undefined,
   galleryId: undefined,
   objectId: undefined,
+  ttsProvider: 'elevenlabs', // Default TTS provider
 };
 
 export interface PlaygroundSettingsState {
@@ -112,13 +114,31 @@ export const usePlaygroundSettingsStore = defineStore("playgroundSettings", {
           .filter(id => id !== undefined) as number[];
         processedSettings.guestPersonaIds = parsedIds;
       }
+      
+      // Handle keywords: if it's a string, split it; otherwise, expect it to be string[] or undefined
+      if (typeof settings.keywords === 'string') {
+        processedSettings.keywords = settings.keywords.split(',').map(k => k.trim()).filter(k => k);
+      } else if (settings.keywords === undefined) {
+        // If keywords is explicitly set to undefined in partial update, respect it or default to []
+        processedSettings.keywords = []; 
+      }
+      // If settings.keywords is already string[], it will be spread correctly by { ...settings }
 
       this.podcastSettings = { ...this.podcastSettings, ...processedSettings };
 
-      // Ensure guestPersonaIds is an array after update
+      // Ensure guestPersonaIds and keywords are arrays after update
       if (!Array.isArray(this.podcastSettings.guestPersonaIds)) {
         this.podcastSettings.guestPersonaIds = [];
       }
+      if (!Array.isArray(this.podcastSettings.keywords)) {
+        // This case should ideally be handled by the logic above,
+        // but as a safeguard if it somehow ends up non-array (e.g. null)
+        this.podcastSettings.keywords = [];
+      }
+    },
+
+    updateTtsProvider(provider: 'elevenlabs' | 'volcengine') {
+      this.podcastSettings.ttsProvider = provider;
     },
 
     setCreatePodcastMode(isCreatingWithAI: boolean) {

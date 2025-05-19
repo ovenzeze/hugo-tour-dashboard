@@ -85,27 +85,31 @@
             <TooltipTrigger as-child>
               <Button
                 variant="default"
-                :disabled="!textToSynthesize || isGeneratingOverall || isValidating"
+                :disabled="!textToSynthesize || isGeneratingOverall || isValidating || isProcessingNextStep"
                 @click="emit('proceed-without-validation')"
                 class="w-full md:w-auto relative overflow-hidden group"
               >
                 <div class="flex items-center justify-center">
-                  <div v-if="isValidating" class="absolute inset-0 bg-primary/10 animate-pulse"></div>
+                  <div v-if="isValidating || isProcessingNextStep" class="absolute inset-0 bg-primary/10 animate-pulse"></div>
                   <div class="flex items-center justify-center relative z-10">
                     <Icon
-                      v-if="isValidating"
+                      v-if="isValidating || isProcessingNextStep"
                       name="ph:spinner"
                       class="w-4 h-4 mr-2 animate-spin text-primary"
                     />
                     <span v-if="isValidating">Validating...</span>
+                    <span v-else-if="isProcessingNextStep">Processing...</span>
                     <span v-else>Next</span>
-                    <Icon v-if="!isValidating" name="ph:arrow-right" class="w-4 h-4 ml-2" />
+                    <Icon v-if="!isValidating && !isProcessingNextStep" name="ph:arrow-right" class="w-4 h-4 ml-2" />
                   </div>
                 </div>
               </Button>
             </TooltipTrigger>
             <TooltipContent v-if="isValidating">
               <p>正在验证脚本并准备下一步...</p>
+            </TooltipContent>
+            <TooltipContent v-else-if="isProcessingNextStep">
+              <p>正在处理并准备下一步...</p>
             </TooltipContent>
           </Tooltip>
         </TooltipProvider>
@@ -173,6 +177,7 @@ interface Props {
   isScriptGenerating: boolean; // Specifically for AI Script button
   isSynthesizing: boolean; // Specifically for Synthesize Podcast button
   isValidating: boolean;
+  isProcessingNextStep?: boolean; // Added new prop
   canProceedFromStep2: boolean;
   isGeneratingAudioPreview: boolean;
   textToSynthesize: string | null | undefined;
@@ -180,7 +185,7 @@ interface Props {
   isPodcastGenerationAllowed?: boolean; // Added for step 2 podcast synthesis button
 }
 
-defineProps<Props>();
+const props = defineProps<Props>();
 
 const emit = defineEmits([
   'previous-step',

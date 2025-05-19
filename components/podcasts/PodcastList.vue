@@ -1,5 +1,5 @@
 <template>
-  <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mt-4">
+  <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-x-10 gap-y-20 mt-4 px-6">
     <Card
       v-for="podcast in filteredPodcasts"
       :key="podcast.podcast_id"
@@ -7,7 +7,7 @@
       @mouseleave="hoveredPodcastId = null"
       :style="podcast.cover_image_url ? { backgroundImage: `url(${podcast.cover_image_url})`, backgroundSize: 'cover', backgroundPosition: 'center' } : {}"
       :class="[
-        'border rounded-xl overflow-hidden shadow-md flex flex-col relative',
+        'border rounded-xl overflow-hidden shadow-md flex flex-col relative min-w-[320px]',
         currentPreviewingId === podcast.podcast_id ? 'ring-2 ring-primary shadow-xl' : 'cursor-pointer',
         podcast.cover_image_url ? 'text-white' : 'bg-card text-card-foreground',
         hoveredPodcastId === podcast.podcast_id ? 'shadow-lg' : ''
@@ -253,14 +253,14 @@
             >
               <Icon name="ph:eye" class="h-4 w-4" />
             </Button>
-            <Button 
-              variant="outline" 
-              size="icon" 
-              class="h-9 w-9" 
-              title="Copy Share Link"
+            <Button
+              variant="outline"
+              size="icon"
+              class="h-9 w-9 hover:bg-primary/10"
+              title="Share Podcast"
               @click.stop="sharePodcast(String(podcast.podcast_id))"
             >
-              <Icon name="ph:link" class="h-4 w-4" />
+              <Icon name="ph:share-network" class="h-5 w-5 text-primary" />
             </Button>
           </div>
         </CardFooter>
@@ -311,6 +311,7 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/comp
 import { ref, computed, watch } from 'vue';
 import { useDateFormatter } from '~/composables/useDateFormatter';
 import type { Database } from '~/types/supabase';
+import { toast } from 'vue-sonner';
 // Icon component is globally available or auto-imported
 
 const { formatRelativeTime } = useDateFormatter();
@@ -530,13 +531,39 @@ async function sharePodcast(podcastId: string | number) {
   try {
     if (navigator.clipboard && window.isSecureContext) {
       await navigator.clipboard.writeText(shareUrl);
-      alert('Share link copied to clipboard!');
+      toast.success('Share link copied to clipboard!');
     } else {
-      window.prompt('Copy this link to share:', shareUrl);
+      // For non-secure contexts or when clipboard API is not available
+      toast.info('Please copy the link manually.', {
+        description: shareUrl,
+        duration: 10000, // Keep it longer for manual copy
+        action: {
+          label: 'Copy',
+          onClick: () => {
+            try {
+              const textArea = document.createElement('textarea');
+              textArea.value = shareUrl;
+              document.body.appendChild(textArea);
+              textArea.select();
+              document.execCommand('copy');
+              document.body.removeChild(textArea);
+              toast.success('Link copied!');
+            } catch (copyErr) {
+              toast.error('Failed to auto-copy. Please copy manually.');
+            }
+          },
+        },
+      });
+      // Fallback for very old browsers or specific scenarios, though less likely with vue-sonner
+      // window.prompt('Copy this link to share:', shareUrl);
     }
   } catch (err) {
     console.error('Failed to copy share link: ', err);
-    window.prompt('Could not copy to clipboard. Please copy this link manually:', shareUrl);
+    toast.error('Failed to copy share link. Please copy manually.', {
+      description: shareUrl,
+      duration: 10000,
+    });
+    // window.prompt('Could not copy to clipboard. Please copy this link manually:', shareUrl);
   }
 }
 

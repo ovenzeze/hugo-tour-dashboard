@@ -1,15 +1,15 @@
 <template>
   <div class="container mx-auto py-10">
     <!-- Top Action Bar and Filters -->
-    <div class="flex flex-wrap justify-between items-center gap-4 mb-6 px-6">
-      <h1 class="text-3xl font-bold">Podcasts</h1>
+    <div class="w-full flex flex-wrap justify-between items-center gap-4 mb-6 px-6">
+      <!-- <h1 class="text-3xl font-bold">Podcasts</h1> -->
       <div class="flex items-center gap-4">
         <Input
           v-model="searchTerm"
           placeholder="Search by title or topic..."
-          class="max-w-xs h-10"
+          class="max-w-xs h-10 min-w-96 opacity-50"
         />
-        <div class="flex items-center space-x-2">
+        <div class="flex items-center space-x-2 min-w-44">
           <Switch id="hide-empty-podcasts" v-model:checked="hideEmptyPodcasts" />
           <Label for="hide-empty-podcasts" class="text-sm">Hide Empty Podcasts</Label>
         </div>
@@ -192,7 +192,7 @@ const playNextSegment = () => {
   if (isPlayingPreview.value && currentSegmentIndex.value < audioQueue.value.length -1) {
     currentSegmentIndex.value++;
     if (audioPlayer.value) {
-      audioPlayer.value.src = audioQueue.value[currentSegmentIndex.value];
+      audioPlayer.value.src = encodeURI(audioQueue.value[currentSegmentIndex.value]);
       audioPlayer.value.play().catch(e => console.error("Error playing audio:", e));
     }
   } else {
@@ -250,7 +250,7 @@ const handlePreviewPodcast = async (podcastId: string) => {
       isPlayingPreview.value = true;
       await nextTick(); // Ensure audioPlayer ref is available
       if (audioPlayer.value) {
-        audioPlayer.value.src = audioQueue.value[0];
+        audioPlayer.value.src = encodeURI(audioQueue.value[0]);
         audioPlayer.value.play().catch(e => {
           console.error("Error playing audio:", e);
           stopPreview(); // Stop if playback fails

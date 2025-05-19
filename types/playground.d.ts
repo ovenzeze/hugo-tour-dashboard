@@ -10,11 +10,12 @@ export interface FullPodcastSettings {
   topic: string;
   numberOfSegments: number;
   style: string;
-  keywords: string;
+  keywords: string[]; // Changed to string[] to match PodcastSettingsForm logic
   hostPersonaId: number | string | undefined;
   guestPersonaIds: (number | string | undefined)[];
   backgroundMusic?: string | undefined;
-  elevenLabsProjectId?: string | undefined;
+  elevenLabsProjectId?: string | undefined; // Specific to ElevenLabs
+  ttsProvider?: 'elevenlabs' | 'volcengine'; // New field for TTS provider
 }
 
-export type { Persona }; 
+export type { Persona };

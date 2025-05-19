@@ -1,5 +1,6 @@
 <template>
-  <div >
+  <div>
+    <Toaster richColors />
     <SidebarProvider>
       <div class="relative flex flex-col md:flex-row w-full">
         <!-- 桌面端侧边栏 -->
@@ -31,13 +32,13 @@
           </header>
 
           <!-- 主内容区 -->
-          <main class="flex-1 flex flex-col pb-20 md:pb-0">
+          <main class="flex-1 flex flex-col md:pb-0 main-content-mobile-full-height">
             <slot />
           </main>
         </div>
 
         <!-- 移动端底部导航 -->
-        <MobileBottomBar />
+        <!-- <MobileBottomBar /> -->
       </div>
     </SidebarProvider>
   </div>
@@ -45,7 +46,8 @@
 
 <script setup lang="ts">
 import { useRoute } from '#imports';
-import MobileBottomBar from '@/components/layout/MobileBottomBar.vue';
+import { Toaster } from 'vue-sonner';
+// import MobileBottomBar from '@/components/layout/MobileBottomBar.vue';
 import SidebarNav from '@/components/layout/SidebarNav.vue';
 
 const route = useRoute()
@@ -140,4 +142,9 @@ defineExpose({
   border-radius: 20px;
 }
 
+@media (max-width: 767px) {
+  .main-content-mobile-full-height {
+    height: 100svh;
+  }
+}
 </style>

@@ -19,7 +19,7 @@
         <PlaygroundStep1Panel
           v-if="currentStepIndex === 1"
           :podcast-settings="settingsStore.podcastSettings"
-          :personas-for-form="personasForForm"
+          :personas-for-form="personaStore.personas"
           :personas-loading="personaStore.personasLoading"
           :is-script-generating="isScriptGenerating"
           :is-validating="isValidating"
@@ -55,6 +55,7 @@
         :is-script-generating="isScriptGenerating"
         :is-synthesizing="audioStore.isSynthesizing"
         :is-validating="isValidating"
+        :is-processing-next-step="isProcessingWorkflowStep"
         :can-proceed-from-step2="canProceedFromStep2"
         :is-generating-audio-preview="isGlobalPreviewLoading"
         :is-podcast-generation-allowed="canGeneratePodcast"
@@ -256,7 +257,6 @@ async function generateAllSegmentsAudioPreview() {
     isGlobalPreviewLoading.value = false;
   }
 }
-; // Added closing bracket
 
 const handleClearErrorAndRetry = () => {
 clearScriptError();
@@ -271,15 +271,15 @@ onMounted(async () => {
   // Global audio interceptor is handled by its own onMounted/onUnmounted
 });
 
-// Computed property to map personas for the form
-const personasForForm = computed(() : { id: string; name: string; voice_id?: string; description?: string; }[] => {
-  return personaStore.personas.map((p: Persona) => ({ // Persona type from playgroundPersonaStore
-    id: String(p.persona_id),
-    name: p.name,
-    voice_id: p.voice_model_identifier || undefined,
-    description: p.description === null ? undefined : p.description,
-  }));
-});
+// Computed property to map personas for the form - no longer needed here as raw personas are passed down
+// const personasForForm = computed(() : { id: string; name: string; voice_id?: string; description?: string; }[] => {
+//   return personaStore.personas.map((p: Persona) => ({ // Persona type from playgroundPersonaStore
+//     id: String(p.persona_id),
+//     name: p.name,
+//     voice_id: p.voice_model_identifier || undefined,
+//     description: p.description === null ? undefined : p.description,
+//   }));
+// });
 
 const getCurrentStepTitle = computed(() => {
   const step = podcastSteps.find((s: PlaygroundStep) => s.step === currentStepIndex.value);

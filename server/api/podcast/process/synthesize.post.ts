@@ -4,7 +4,13 @@ import { defineEventHandler, readBody, createError } from 'h3';
 import { useRuntimeConfig } from '#imports';
 import { getStorageService } from '../../../services/storageService';
 import type { IStorageService } from '../../../services/storageService';
-import { generateAndStoreTimedAudioSegment, type TimedAudioSegmentResult } from '../../../services/timedAudioService';
+import { 
+  generateAndStoreTimedAudioSegmentElevenLabs, 
+  generateAndStoreTimedAudioSegmentVolcengine,
+  type TimedAudioSegmentResult,
+  type ElevenLabsParams,
+  type VolcengineParams,
+} from '../../../services/timedAudioService';
 // Import server-side database utilities
 import { createServerPodcastDatabase } from '~/server/composables/useServerPodcastDatabase';
 import { serverSupabaseServiceRole } from '#supabase/server';
@@ -29,17 +35,22 @@ interface RequestBody {
   segments?: InputSegment[];
   segmentIndices?: number[] | 'all'; // New: used to specify which segments to synthesize
   defaultModelId?: string;
-  voiceSettings?: {
+  voiceSettings?: { // Primarily for ElevenLabs
     stability?: number;
     similarity_boost?: number;
     style?: number;
     use_speaker_boost?: boolean;
   };
-  synthesisParams?: {
-    temperature?: number;
-    speed?: number;
+  synthesisParams?: { // Generic params, can be mapped
+    temperature?: number; // For ElevenLabs style
+    speed?: number;       // For ElevenLabs speed, Volcengine speed_ratio
+    pitch?: number;       // For Volcengine pitch_ratio
+    volume?: number;      // For Volcengine volume_ratio
+    // Volcengine specific params can be added if needed, or mapped from generic ones
+    volcengineEncoding?: 'mp3' | 'pcm' | 'wav';
     [key: string]: any;
   };
+  ttsProvider?: 'elevenlabs' | 'volcengine'; // New field to select TTS provider
   // Validate structured format
   podcastTitle?: string;
   script?: Array<{ role: string; name?: string; text: string }>;
@@ -63,8 +74,9 @@ export default defineEventHandler(async (event) => {
     const podcastId = body.podcastId;
     let segments = body.segments;
     const segmentIndices = body.segmentIndices;
-    const defaultModelId = body.defaultModelId;
-    const voiceSettings = body.voiceSettings;
+    const defaultModelId = body.defaultModelId; // Primarily for ElevenLabs
+    const voiceSettings = body.voiceSettings; // Primarily for ElevenLabs
+    const ttsProvider = body.ttsProvider || 'elevenlabs'; // Default to elevenlabs
     
     // Check for preset voice parameters
     const synthesisParams = body.synthesisParams || {};
@@ -141,13 +153,11 @@ export default defineEventHandler(async (event) => {
       });
     }
 
-    const runtimeConfig = useRuntimeConfig(event);
-    const elevenLabsApiKey = runtimeConfig.elevenlabs?.apiKey || process.env.ELEVENLABS_API_KEY;
-
-    if (!elevenLabsApiKey) {
-      console.error('[synthesize.post.ts] ElevenLabs API key is missing.');
-      throw createError({ statusCode: 500, statusMessage: 'ElevenLabs API key is not configured.' });
-    }
+    const runtimeConfig = useRuntimeConfig(event); // Ensure this is called once at the top if possible
+    
+    // API Key validation will happen within the respective service functions
+    // but we can pre-check if needed, or rely on the service to throw.
+    // For now, let the service functions handle their specific API key checks.
 
     const results: (TimedAudioSegmentResult & { segmentIndex: number })[] = [];
 
@@ -180,21 +190,60 @@ export default defineEventHandler(async (event) => {
         ...voiceSettings,
         stability: synthesisParams.stability || voiceSettings?.stability,
         similarity_boost: synthesisParams.similarity_boost || voiceSettings?.similarity_boost,
-        speed: synthesisParams.speed || 1.0, // Default speed 1.0
-        temperature: synthesisParams.temperature || 0.7, // Default temperature 0.7
+        speed: synthesisParams.speed || 1.0, 
+        temperature: synthesisParams.temperature || 0.7,
       };
+
+      let result: TimedAudioSegmentResult;
+
+      if (ttsProvider === 'volcengine') {
+        if (!runtimeConfig.volcengine?.appId || !runtimeConfig.volcengine?.accessToken || !runtimeConfig.volcengine?.cluster) {
+          console.error('[synthesize.post.ts] Volcengine TTS configuration missing for segment:', segment.segmentIndex);
+          results.push({ error: 'Volcengine configuration missing.', segmentIndex: segment.segmentIndex, provider: 'volcengine' });
+          continue;
+        }
+        const volcengineTTSParams: VolcengineParams = {
+          text: segment.text,
+          voiceType: segment.voiceId, // Assuming voiceId for Volcengine is its voiceType string
+          storageService,
+          publicOutputDirectory,
+          storageOutputDirectory,
+          baseFilename,
+          encoding: synthesisParams.volcengineEncoding || 'mp3',
+          speedRatio: mergedVoiceSettings.speed, // Map from generic speed
+          pitchRatio: synthesisParams.pitch,    // Map from generic pitch
+          volumeRatio: synthesisParams.volume,  // Map from generic volume
+        };
+        result = await generateAndStoreTimedAudioSegmentVolcengine(volcengineTTSParams);
+      } else { // Default to ElevenLabs
+        const elevenLabsApiKey = runtimeConfig.elevenlabs?.apiKey;
+        if (!elevenLabsApiKey) {
+          console.error('[synthesize.post.ts] ElevenLabs API key is missing for segment:', segment.segmentIndex);
+          results.push({ error: 'ElevenLabs API key is not configured.', segmentIndex: segment.segmentIndex, provider: 'elevenlabs' });
+          continue;
+        }
+        const elevenLabsTTSParams: ElevenLabsParams = {
+          text: segment.text,
+          voiceId: segment.voiceId,
+          storageService,
+          elevenLabsApiKey,
+          publicOutputDirectory,
+          storageOutputDirectory,
+          baseFilename,
+          defaultModelId: defaultModelId,
+          voiceSettings: { // Pass specific ElevenLabs voice settings
+            stability: mergedVoiceSettings.stability,
+            similarity_boost: mergedVoiceSettings.similarity_boost,
+            style: voiceSettings?.style, // original voiceSettings might have this
+            use_speaker_boost: voiceSettings?.use_speaker_boost,
+          },
+          // Note: ElevenLabs SDK might handle speed/temperature differently or not at all via these params.
+          // The `elevenlabs.textToSpeech.convertWithTimestamps` might not directly accept speed/temp.
+          // These are usually part of voice_settings if supported.
+        };
+        result = await generateAndStoreTimedAudioSegmentElevenLabs(elevenLabsTTSParams);
+      }
       
-      const result = await generateAndStoreTimedAudioSegment({
-        text: segment.text,
-        voiceId: segment.voiceId,
-        storageService,
-        elevenLabsApiKey,
-        publicOutputDirectory: publicOutputDirectory,
-        storageOutputDirectory: storageOutputDirectory,
-        baseFilename,
-        defaultModelId: defaultModelId, 
-        voiceSettings: mergedVoiceSettings,
-      });
       results.push({ ...result, segmentIndex: segment.segmentIndex });
 
       // ---- BEGIN DATABASE INSERT FOR AUDIO URL ----
@@ -215,13 +264,41 @@ export default defineEventHandler(async (event) => {
 
           if (dbSegment) {
             // Save the audio URL and metadata to segment_audios table
+            // Construct a more detailed params object for database logging
+            const dbAudioParams: Record<string, any> = {
+              ttsProvider: ttsProvider,
+              voiceIdUsed: segment.voiceId, // The actual voiceId/voiceType used for this segment
+              timestampFileUrl: result.timestampFileUrl,
+              durationMs: result.durationMs,
+              // Provider-specific settings that were applied
+              ...(ttsProvider === 'elevenlabs' && {
+                modelId: defaultModelId, // Global defaultModelId if used
+                stability: mergedVoiceSettings.stability,
+                similarity_boost: mergedVoiceSettings.similarity_boost,
+                style: voiceSettings?.style,
+                use_speaker_boost: voiceSettings?.use_speaker_boost,
+                // Explicitly log generic params if they influenced ElevenLabs settings
+                appliedSpeed: mergedVoiceSettings.speed, // Speed might not be directly settable in EL SDK this way
+                appliedTemperature: mergedVoiceSettings.temperature, // Temperature might be part of 'style' or not directly settable
+              }),
+              ...(ttsProvider === 'volcengine' && {
+                encoding: synthesisParams.volcengineEncoding || 'mp3',
+                speedRatio: mergedVoiceSettings.speed, // Mapped from generic speed
+                pitchRatio: synthesisParams.pitch,
+                volumeRatio: synthesisParams.volume,
+              }),
+              // Optionally, store the raw input params for full traceability if needed
+              // rawRequestBodySynthesisParams: synthesisParams,
+              // rawRequestBodyVoiceSettings: voiceSettings,
+            };
+
             await podcastDb.addSegmentAudio(
-              dbSegment.segment_text_id, // Changed from id to segment_text_id
+              dbSegment.segment_text_id, 
               result.audioFileUrl,
-              'v1', // Or derive version tag from synthesis parameters/logic
-              mergedVoiceSettings // Save synthesis parameters as params
+              'v1', // Using 'v1' as the version tag. This can be made dynamic if needed.
+              dbAudioParams 
             );
-            console.log(`Successfully saved audio URL for segment ${segment.segmentIndex} (DB ID: ${dbSegment.segment_text_id}) to database.`);
+            console.log(`Successfully saved audio URL for segment ${segment.segmentIndex} (DB ID: ${dbSegment.segment_text_id}) to database with detailed params.`);
           } else {
             console.warn(`Could not find database segment for index ${segment.segmentIndex} in podcast ${podcastId}. Audio URL not saved to DB.`);
           }
