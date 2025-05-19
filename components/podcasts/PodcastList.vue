@@ -170,6 +170,24 @@
           >
             <Icon name="ph:pencil-simple" class="h-4 w-4" />
           </Button>
+          <Button
+            variant="outline"
+            size="icon"
+            class="h-9 w-9"
+            title="Preview Share"
+            @click.stop="openSharePreviewModal(String(podcast.podcast_id))"
+          >
+            <Icon name="ph:eye" class="h-4 w-4" />
+          </Button>
+          <Button
+            variant="outline"
+            size="icon"
+            class="h-9 w-9"
+            title="Copy Share Link"
+            @click.stop="sharePodcast(String(podcast.podcast_id))"
+          >
+            <Icon name="ph:link" class="h-4 w-4" />
+          </Button>
         </div>
       </CardFooter>
     </Card>
@@ -179,18 +197,64 @@
       <p class="mt-1 text-sm">Get started by creating a new podcast.</p>
     </div>
   </div>
+
+  <!-- Share Preview Modal -->
+  <Dialog :open="isShareModalOpen" @update:open="isShareModalOpen = $event">
+    <DialogContent class="sm:max-w-[90vw] md:max-w-[80vw] lg:max-w-[700px] h-[80vh] p-0">
+      <DialogHeader class="p-6 pb-0">
+        <DialogTitle>Share Podcast Preview</DialogTitle>
+        <DialogDescription>
+          This is a preview of how your podcast will look when shared.
+        </DialogDescription>
+      </DialogHeader>
+      <div class="p-6 pt-2 h-[calc(100%-100px)]">
+        <iframe
+          v-if="shareIframeSrc"
+          :src="shareIframeSrc"
+          class="w-full h-full border-0 rounded-md"
+          title="Podcast Share Preview"
+          allow="autoplay; encrypted-media"
+          allowfullscreen
+        ></iframe>
+        <div v-else class="flex items-center justify-center h-full text-muted-foreground">
+          Loading preview...
+        </div>
+      </div>
+      <DialogFooter class="p-6 pt-0">
+        <Button variant="outline" @click="isShareModalOpen = false">Close</Button>
+      </DialogFooter>
+    </DialogContent>
+  </Dialog>
 </template>
 
 <script setup lang="ts">
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { ref, computed } from 'vue';
 import { useDateFormatter } from '~/composables/useDateFormatter';
 import type { Database } from '~/types/supabase';
 // Icon component is globally available or auto-imported
 
 const { formatRelativeTime } = useDateFormatter();
+
+// Share Modal State
+const isShareModalOpen = ref(false);
+const currentPodcastIdForModal = ref<string | null>(null);
+
+const shareIframeSrc = computed(() => {
+  if (currentPodcastIdForModal.value) {
+    return `/share/podcast/${currentPodcastIdForModal.value}`;
+  }
+  return '';
+});
+
+function openSharePreviewModal(podcastId: string) {
+  currentPodcastIdForModal.value = podcastId;
+  isShareModalOpen.value = true;
+}
+
 
 // 展开/收起分段的状态
 const showAllSegments = ref<Record<string, boolean>>({});
@@ -375,6 +439,21 @@ function getPodcastTotalDuration(podcast: Podcast): string {
     return `${h}:${m}:${s}`;
   }
   return `${m}:${s}`;
+}
+
+async function sharePodcast(podcastId: string | number) {
+  const shareUrl = `${window.location.origin}/share/podcast/${podcastId}`;
+  try {
+    if (navigator.clipboard && window.isSecureContext) {
+      await navigator.clipboard.writeText(shareUrl);
+      alert('Share link copied to clipboard!');
+    } else {
+      window.prompt('Copy this link to share:', shareUrl);
+    }
+  } catch (err) {
+    console.error('Failed to copy share link: ', err);
+    window.prompt('Could not copy to clipboard. Please copy this link manually:', shareUrl);
+  }
 }
 </script>
 
