@@ -2,7 +2,7 @@
   <div class="space-y-4">
     <!-- Top Control Bar -->
     <div class="flex items-center justify-between p-3 border rounded-md bg-muted/10">
-      <div class="flex-shrink-0 w-1/3">
+      <!-- <div class="flex-shrink-0 w-1/3">
         <Select :model-value="ttsProvider" @update:model-value="(newValue) => { if (typeof newValue === 'string') onProviderChange(newValue); }">
           <SelectTrigger id="ttsProvider" class="w-full">
             <SelectValue placeholder="Select TTS Provider" />
@@ -15,7 +15,7 @@
             </SelectGroup>
           </SelectContent>
         </Select>
-      </div>
+      </div> -->
       
       <div class="flex-1 flex items-center space-x-4 px-4">
         <div class="flex items-center gap-2 flex-1">
@@ -125,6 +125,20 @@ watch(ttsProvider, (newProvider) => {
   settingsStore.updateSelectedProvider(newProvider);
 });
 
+// Define the structure for what SegmentVoiceAssignmentItem expects, including state
+interface EnhancedSegmentForDisplay extends VoiceManParsedSegment {
+  assignedVoiceId: string;
+  assignedVoiceName: string;
+  assignedVoiceProvider: string;
+  personaLanguage: string;
+  roleType: 'host' | 'guest';
+  personaId?: number;
+  // Add other fields that SegmentVoiceAssignmentItem might use or display
+}
+
+interface SegmentState {
+  // Add fields for segment state
+}
 
 const parsedScriptSegments = computed<VoiceManParsedSegment[]>(() => {
   if (props.scriptContent) {
@@ -199,48 +213,47 @@ const getPersonaForSpeaker = (speakerTag: string): Persona | undefined => {
 };
 
 // This is the segment structure used by SegmentVoiceAssignmentItem.vue
-interface EnhancedSegmentForDisplay extends VoiceManParsedSegment {
-  persona?: Persona;
-  personaId?: number | string | null;
-  roleType: 'host' | 'guest';
-  personaDetails: {
-    id?: number;
-    name?: string;
-    avatar_url?: string | null;
-    voice_model_identifier?: string | null;
-    description?: string | null;
-  } | null;
-  validationVoiceId?: string | null;
-}
-
 const enhancedScriptSegments = computed<EnhancedSegmentForDisplay[]>(() => {
   return parsedScriptSegments.value.map(segment => {
     const persona = getPersonaForSpeaker(segment.speakerTag);
     const validationInfo = scriptStore.validationResult?.structuredData?.voiceMap?.[segment.speakerTag];
-    let roleType: 'host' | 'guest' = 'guest';
 
+    let effectiveVoiceId = speakerAssignments.value[segment.speakerTag];
+    let effectiveVoiceName = 'Assign Voice';
+    let assignedProvider = persona?.tts_provider || settingsStore.selectedProvider || 'elevenlabs';
+    let roleType: 'host' | 'guest' = 'guest';
     if (scriptStore.validationResult?.structuredData?.script) {
       const scriptEntry = scriptStore.validationResult.structuredData.script.find(
         entry => entry.name === segment.speakerTag
       );
-      if (scriptEntry) roleType = scriptEntry.role;
+      if (scriptEntry) roleType = scriptEntry.role as 'host' | 'guest';
     } else if (selectedHostPersona.value && selectedHostPersona.value.name === segment.speakerTag) {
       roleType = 'host';
     }
-    
+
+    if (effectiveVoiceId) {
+      const voice = availableVoices.value.find(v => v.id === effectiveVoiceId);
+      if (voice) {
+        effectiveVoiceName = voice.name;
+        assignedProvider = (voice as any)?.provider || persona?.tts_provider || settingsStore.selectedProvider || 'elevenlabs';
+      } else {
+        effectiveVoiceName = effectiveVoiceId;
+      }
+    } else if (persona) {
+      effectiveVoiceId = persona.voice_model_identifier || '';
+      effectiveVoiceName = persona.name ? `${persona.name} (Default)` : 'Assign Voice';
+      assignedProvider = persona.tts_provider || settingsStore.selectedProvider || 'elevenlabs';
+    }
+
     return {
-      ...segment,
-      persona,
-      personaId: persona?.persona_id || validationInfo?.personaId,
-      roleType,
-      personaDetails: persona ? {
-        id: persona.persona_id,
-        name: persona.name,
-        avatar_url: persona.avatar_url || null,
-        voice_model_identifier: persona.voice_model_identifier || null,
-        description: persona.description || null,
-      } : null,
-      validationVoiceId: validationInfo?.voice_model_identifier
+      speakerTag: segment.speakerTag,
+      text: segment.text,
+      assignedVoiceId: effectiveVoiceId,
+      assignedVoiceName: effectiveVoiceName,
+      assignedVoiceProvider: assignedProvider,
+      personaLanguage: persona?.language_support?.[0] || settingsStore.podcastSettings.language || 'en',
+      roleType: roleType,
+      personaId: persona?.persona_id,
     };
   });
 });
@@ -270,13 +283,13 @@ const {
 
 // Create previewableEnhancedSegments for useSegmentPreview
 const previewableEnhancedSegments = computed<PreviewableSegment[]>(() => {
-  return enhancedScriptSegments.value.map(segment => ({
-    speakerTag: segment.speakerTag,
-    text: segment.text,
-    voiceId: speakerAssignments.value[segment.speakerTag], // Add the currently assigned voiceId
-    // Include any other fields PreviewableSegment expects from EnhancedSegmentForDisplay
-    personaId: segment.personaId,
-    roleType: segment.roleType
+  return enhancedScriptSegments.value.map(seg => ({
+    speakerTag: seg.speakerTag,
+    text: seg.text,
+    voiceId: seg.assignedVoiceId,
+    ttsProvider: seg.assignedVoiceProvider,
+    roleType: seg.roleType,
+    personaId: seg.personaId,
   }));
 });
 

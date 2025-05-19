@@ -1,123 +1,117 @@
 <template>
-  <div class="podcast-page min-h-screen bg-gray-900 text-white flex flex-col items-center p-4 md:p-8">
+  <div class="min-h-screen bg-background flex flex-col items-center p-4 md:p-8">
     <div v-if="loading" class="flex-grow flex items-center justify-center">
       <p class="text-xl">Loading podcast...</p>
     </div>
-    <div v-else-if="error" class="flex-grow flex items-center justify-center text-red-400">
+    <div v-else-if="error" class="flex-grow flex items-center justify-center text-destructive">
       <p class="text-xl">Error loading podcast: {{ error.message }}</p>
     </div>
-    <div v-else-if="podcast" class="w-full max-w-4xl">
-      <!-- Podcast Info Section -->
-      <header class="podcast-header md:flex md:items-end md:space-x-8 mb-8">
-        <div class="podcast-cover mb-6 md:mb-0 md:w-1/3 lg:w-1/4 flex-shrink-0">
-          <img
-            v-if="podcastCoverUrl"
-            :src="podcastCoverUrl"
-            alt="Podcast Cover"
-            class="w-full h-auto object-cover rounded-lg shadow-2xl aspect-square cursor-pointer transition-transform hover:scale-105"
-            @click="togglePlayPause"
-          />
-          <div
-            v-else
-            class="w-full h-auto bg-gray-800 rounded-lg shadow-2xl aspect-square flex flex-col items-center justify-center text-gray-500 cursor-pointer transition-colors hover:bg-gray-700"
-            @click="togglePlayPause"
-          >
-            <svg xmlns="http://www.w3.org/2000/svg" class="h-16 w-16 mb-2 text-gray-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1">
-              <path stroke-linecap="round" stroke-linejoin="round" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
-            </svg>
-            <span>No Cover Available</span>
+    <div v-else-if="podcast" class="w-full max-w-3xl mx-auto">
+      <!-- Podcast Card -->
+      <Card class="relative bg-card text-card-foreground rounded-xl shadow-md border overflow-hidden mb-8">
+        <div class="relative">
+          <img v-if="podcastCoverUrl" :src="podcastCoverUrl" alt="Podcast Cover"
+            class="w-full aspect-square object-cover rounded-t-xl" />
+          <div v-else class="w-full aspect-square flex items-center justify-center bg-muted text-muted-foreground rounded-t-xl">
+            <Icon name="ph:image" class="h-16 w-16" />
+          </div>
+          <!-- 渐变蒙层 -->
+          <div class="absolute inset-0 bg-gradient-to-t from-black/60 via-black/10 to-transparent pointer-events-none rounded-t-xl" />
+        </div>
+        <div class="p-6">
+          <div class="flex items-center gap-2 mb-2">
+            <Badge v-if="podcast.topic" variant="secondary" class="rounded px-2 py-0.5 text-xs">{{ podcast.topic }}</Badge>
+          </div>
+          <h1 class="text-3xl md:text-4xl font-bold mb-2 leading-tight">{{ podcast.title }}</h1>
+          <p v-if="podcastArtist" class="text-base text-muted-foreground mb-4">{{ podcastArtist }}</p>
+          <p v-if="podcast.description" class="text-sm text-muted-foreground mb-4 line-clamp-3">{{ podcast.description }}</p>
+          <!-- 分享操作区 -->
+          <div class="flex flex-wrap gap-3 mt-4">
+            <Button variant="outline" @click="copyShareLink" aria-label="Copy share link" title="Copy share link">
+              <Icon name="ph:link" class="h-5 w-5 mr-2" />Copy Link
+            </Button>
+            <Button variant="outline" @click="showWeChatQr = true" aria-label="Share to WeChat" title="Share to WeChat">
+              <Icon name="ph:wechat-logo" class="h-5 w-5 mr-2 text-green-500" />WeChat
+            </Button>
+            <Button variant="outline" @click="shareToWeibo" aria-label="Share to Weibo" title="Share to Weibo">
+              <Icon name="ph:weibo-logo" class="h-5 w-5 mr-2 text-[#e6162d]" />Weibo
+            </Button>
+            <Button variant="outline" @click="shareToTwitter" aria-label="Share to Twitter" title="Share to Twitter">
+              <Icon name="ph:twitter-logo" class="h-5 w-5 mr-2 text-blue-400" />Twitter
+            </Button>
+          </div>
+          <!-- 微信二维码弹窗 -->
+          <Dialog v-model:open="showWeChatQr">
+            <DialogContent class="flex flex-col items-center p-6">
+              <DialogTitle>Scan QR to Share on WeChat</DialogTitle>
+              <div class="my-4">
+                <QRCodeVue :value="shareUrl" :size="180" class="rounded-lg shadow-md" />
+              </div>
+              <DialogClose as-child>
+                <Button variant="outline">Close</Button>
+              </DialogClose>
+            </DialogContent>
+          </Dialog>
+        </div>
+      </Card>
+
+      <!-- 播放器与分段列表 -->
+      <Card class="bg-card text-card-foreground rounded-xl shadow-md border overflow-hidden mb-8">
+        <div v-if="audioQueue.length > 0" class="p-6">
+          <div class="flex items-center gap-4 mb-4">
+            <Button variant="ghost" :disabled="currentSegmentIndex === 0" @click="playPreviousSegment" aria-label="Previous segment">
+              <Icon name="ph:skip-back" class="h-6 w-6" />
+            </Button>
+            <Button variant="default" @click="togglePlayPause" aria-label="Play/Pause">
+              <Icon :name="isPlaying ? 'ph:pause-fill' : 'ph:play-fill'" class="h-8 w-8" />
+            </Button>
+            <Button variant="ghost" :disabled="currentSegmentIndex === audioQueue.length - 1" @click="playNextSegment" aria-label="Next segment">
+              <Icon name="ph:skip-forward" class="h-6 w-6" />
+            </Button>
+            <span class="ml-4 text-sm text-muted-foreground">{{ formatTime(currentTime) }} / {{ formatTime(duration) }}</span>
+          </div>
+          <div class="w-full bg-muted rounded-full h-2 mb-4 cursor-pointer" @click="seek">
+            <div class="bg-primary h-2 rounded-full transition-all" :style="{ width: progressPercentage + '%' }"></div>
           </div>
         </div>
-        <div class="podcast-details md:w-2/3 lg:w-3/4">
-          <h1 class="text-4xl md:text-5xl font-bold mb-3 leading-tight">{{ podcast.title }}</h1>
-          <p v-if="podcastArtist" class="text-lg text-gray-400 mb-4">{{ podcastArtist }}</p>
-          <p v-if="podcast.topic" class="text-gray-300 text-sm leading-relaxed mb-6 line-clamp-3">
-            {{ podcast.topic }}
-          </p>
-          <button @click="playLatestOrFirstSegment" class="bg-pink-500 hover:bg-pink-600 text-white font-semibold py-3 px-6 rounded-full shadow-md transition duration-300">
-            {{ audioQueue.length > 0 ? (isPlaying && currentSegmentIndex === 0 ? 'Pause' : 'Play') : 'No Segments' }}
-          </button>
-        </div>
-      </header>
+        <div v-else class="p-6 text-muted-foreground text-center">No audio segments available for this podcast.</div>
 
-      <!-- Audio Player & Segments Section -->
-      <main class="podcast-main-content">
-        <div v-if="audioQueue.length > 0" class="player-section bg-gray-800 p-6 rounded-lg shadow-xl mb-8">
-          <h2 class="text-2xl font-semibold mb-4 border-b border-gray-700 pb-3">Now Playing</h2>
-          <div class="custom-player mb-4">
-            <div class="flex items-center justify-between mb-2">
-              <span class="text-lg font-medium truncate pr-2" :title="currentSegment?.title">{{ currentSegment?.title || 'No segment selected' }}</span>
-              <span class="text-sm text-gray-400 flex-shrink-0">{{ formatTime(currentTime) }} / {{ formatTime(duration) }}</span>
-            </div>
-            <div class="progress-bar-container bg-gray-700 rounded-full h-2 mb-4 cursor-pointer" @click="seek">
-              <div class="progress-bar bg-pink-500 h-2 rounded-full" :style="{ width: progressPercentage + '%' }"></div>
-            </div>
-            <div class="controls flex items-center justify-center space-x-6">
-              <button @click="playPreviousSegment" class="control-button text-gray-300 hover:text-white transition" :disabled="currentSegmentIndex === 0 && audioQueue.length <=1">
-                <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7" /></svg>
-              </button>
-              <button @click="togglePlayPause" class="play-pause-button bg-pink-500 hover:bg-pink-600 text-white rounded-full p-3 shadow-lg transition">
-                <svg v-if="!isPlaying" xmlns="http://www.w3.org/2000/svg" class="h-8 w-8" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z" /><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
-                <svg v-else xmlns="http://www.w3.org/2000/svg" class="h-8 w-8" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 9v6m4-6v6m7-3a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
-              </button>
-              <button @click="playNextSegment" class="control-button text-gray-300 hover:text-white transition" :disabled="currentSegmentIndex === audioQueue.length - 1 && audioQueue.length <=1">
-                <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" /></svg>
-              </button>
-            </div>
-          </div>
-          <audio ref="audioPlayer" @ended="handleSegmentEnd" @timeupdate="updateProgress" @loadedmetadata="updateDurationAndPlay" @error="handleAudioError" class="w-full hidden"></audio>
-        </div>
-        <div v-else class="mt-8 text-gray-500 text-center">
-          No audio segments available for this podcast.
-        </div>
-
-        <div v-if="audioQueue.length > 0" class="segments-list bg-gray-800 p-6 rounded-lg shadow-xl">
-          <h3 class="text-xl font-semibold mb-4 border-b border-gray-700 pb-3">Episodes / Segments</h3>
+        <div v-if="audioQueue.length > 0" class="p-6 pt-0">
+          <h3 class="text-lg font-semibold mb-4">Episodes / Segments</h3>
           <ul>
-            <li
-              v-for="(segment, index) in audioQueue"
-              :key="segment.url + '-' + index"
+            <li v-for="(segment, index) in audioQueue" :key="segment.url + '-' + index"
               @click="playSegment(index)"
-              :class="['segment-item flex justify-between items-center p-3 hover:bg-gray-700 rounded-md cursor-pointer transition duration-150', { 'bg-gray-700 text-pink-400': currentSegmentIndex === index }]"
+              :class="['flex justify-between items-center p-3 rounded-md cursor-pointer transition', { 'bg-muted text-primary': currentSegmentIndex === index, 'hover:bg-accent': currentSegmentIndex !== index }]
+              "
             >
               <div class="flex items-center min-w-0">
-                <span class="mr-3 text-sm text-gray-400 w-6 text-right flex-shrink-0">{{ index + 1 }}.</span>
-                <TooltipProvider :delay-duration="300">
-                  <Tooltip>
-                    <TooltipTrigger as-child>
-                      <span class="font-medium truncate h-6 leading-6 overflow-hidden">{{ segment.title }}</span>
-                    </TooltipTrigger>
-                    <TooltipContent side="top" class="bg-gray-700 text-white border-gray-600 max-w-xs shadow-lg">
-                      <p>{{ segment.fullTitle }}</p>
-                    </TooltipContent>
-                  </Tooltip>
-                </TooltipProvider>
+                <span class="mr-3 text-xs text-muted-foreground w-6 text-right flex-shrink-0">{{ index + 1 }}.</span>
+                <span class="font-medium truncate h-6 leading-6 overflow-hidden">{{ segment.title }}</span>
               </div>
-              <button class="ml-2 flex-shrink-0">
-                <svg v-if="currentSegmentIndex === index && isPlaying" xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-pink-400" viewBox="0 0 20 20" fill="currentColor">
-                  <path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zM7 8a1 1 0 012 0v4a1 1 0 11-2 0V8zm5-1a1 1 0 00-1 1v4a1 1 0 102 0V8a1 1 0 00-1-1z" clip-rule="evenodd" />
-                </svg>
-                <svg v-else xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-gray-400 hover:text-pink-400" viewBox="0 0 20 20" fill="currentColor">
-                  <path d="M6.3 2.841A1.5 1.5 0 004 4.11V15.89a1.5 1.5 0 002.3 1.269l9.344-5.89a1.5 1.5 0 000-2.538L6.3 2.84z" />
-                </svg>
-              </button>
+              <Icon v-if="currentSegmentIndex === index && isPlaying" name="ph:waveform" class="h-5 w-5 text-primary animate-pulse" />
+              <Icon v-else name="ph:play" class="h-5 w-5 text-muted-foreground" />
             </li>
           </ul>
         </div>
-      </main>
+      </Card>
     </div>
-    <div v-else class="flex-grow flex items-center justify-center text-gray-500">
+    <div v-else class="flex-grow flex items-center justify-center text-muted-foreground">
       <p class="text-xl">Podcast not found.</p>
     </div>
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, computed, watch } from 'vue';
-import { useRoute } from 'vue-router';
-import { usePodcastDatabase, type Podcast, type Segment as PodcastSegment, type SegmentAudio, type Persona } from '~/composables/usePodcastDatabase';
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
+import { ref, computed, onMounted, watch } from 'vue';
 
+import { useRoute } from 'vue-router';
+import { useAudioPlayer } from '~/composables/useAudioPlayer';
+import QRCodeVue from 'qrcode-vue';
+import { usePodcastDatabase, type Podcast } from '~/composables/usePodcastDatabase';
+
+const showWeChatQr = ref(false);
+const shareUrl = computed(() => window?.location?.href || '');
+const { toast } = useToast();
 const route = useRoute();
 const { fetchPodcastById, selectedPodcast } = usePodcastDatabase();
 
@@ -135,7 +129,7 @@ const isLoadingAudio = ref(false);
 
 const podcastCoverUrl = computed(() => {
   if (!podcast.value) return null;
-  return podcast.value.cover_image_url || podcast.value.host_persona?.avatar_url || podcast.value.creator_persona?.avatar_url || null; // Return null if no image, placeholder div will show
+  return podcast.value.cover_image_url || podcast.value.host_persona?.avatar_url || podcast.value.creator_persona?.avatar_url || null;
 });
 
 const podcastArtist = computed(() => {
@@ -151,6 +145,17 @@ const progressPercentage = computed(() => {
   return duration.value > 0 ? (currentTime.value / duration.value) * 100 : 0;
 });
 
+function copyShareLink() {
+  navigator.clipboard.writeText(shareUrl.value);
+  toast({ title: 'Link copied!', description: 'Share link copied to clipboard.', variant: 'success' });
+}
+function shareToWeibo() {
+  window.open(`https://service.weibo.com/share/share.php?url=${encodeURIComponent(shareUrl.value)}`, '_blank');
+}
+function shareToTwitter() {
+  window.open(`https://twitter.com/intent/tweet?url=${encodeURIComponent(shareUrl.value)}`, '_blank');
+}
+
 onMounted(async () => {
   const podcastId = route.params.id as string;
   if (podcastId) {
@@ -163,17 +168,14 @@ onMounted(async () => {
         podcast.value = selectedPodcast.value;
         const rawSegments: { idx: number; fullTitle: string; truncatedTitle: string; audioUrl?: string }[] = [];
         if (podcast.value && podcast.value.podcast_segments) {
-          podcast.value.podcast_segments.forEach((segment: any) => { // Use any for segment to avoid deep type instantiation
+          podcast.value.podcast_segments.forEach((segment: any) => {
             let audioUrlToPlay: string | undefined = undefined;
             if (segment.segment_audios && segment.segment_audios.length > 0) {
               const finalAudio = segment.segment_audios.find((audio: any) => audio.version_tag === 'final');
-              audioUrlToPlay = (finalAudio?.audio_url ?? undefined) ||
-                               (segment.segment_audios.find((audio: any) => audio.audio_url)?.audio_url ?? undefined);
+              audioUrlToPlay = (finalAudio?.audio_url ?? undefined) || (segment.segment_audios.find((audio: any) => audio.audio_url)?.audio_url ?? undefined);
             }
-            
             const fullText = (segment.text && String(segment.text).length > 0) ? String(segment.text) : `Segment ${segment.idx}`;
             const truncatedText = fullText.length > 50 ? fullText.substring(0, 50) + '...' : fullText;
-
             if (audioUrlToPlay) {
               rawSegments.push({
                 idx: segment.idx,
@@ -200,22 +202,21 @@ onMounted(async () => {
   }
 });
 
-const prepareAudioQueue = (segments: { idx: number; fullTitle: string; truncatedTitle: string; audioUrl?: string }[]) => {
+function prepareAudioQueue(segments: { idx: number; fullTitle: string; truncatedTitle: string; audioUrl?: string }[]) {
   audioQueue.value = segments
     .filter(segment => segment.audioUrl)
     .map(segment => ({
-      title: segment.truncatedTitle, // This will be displayed in the list
-      fullTitle: segment.fullTitle, // This will be used for the tooltip
+      title: segment.truncatedTitle,
+      fullTitle: segment.fullTitle,
       url: segment.audioUrl!,
     }));
-
   if (audioQueue.value.length > 0 && audioPlayer.value) {
     audioPlayer.value.src = audioQueue.value[0].url;
     currentSegmentIndex.value = 0;
   }
-};
+}
 
-const loadAndPlayAudio = (playWhenReady: boolean = true) => {
+function loadAndPlayAudio(playWhenReady: boolean = true) {
   if (audioPlayer.value && currentSegment.value) {
     isLoadingAudio.value = true;
     audioPlayer.value.src = currentSegment.value.url;
@@ -230,12 +231,12 @@ const loadAndPlayAudio = (playWhenReady: boolean = true) => {
       audioPlayer.value.addEventListener('canplay', canPlayHandler);
     }
   } else {
-     console.warn("Audio player or current segment not available for loading.");
-     isLoadingAudio.value = false;
+    console.warn("Audio player or current segment not available for loading.");
+    isLoadingAudio.value = false;
   }
-};
+}
 
-const playAudio = () => {
+function playAudio() {
   if (audioPlayer.value && audioPlayer.value.src && audioPlayer.value.readyState >= 2) {
     audioPlayer.value.play().then(() => {
       isPlaying.value = true;
@@ -249,134 +250,134 @@ const playAudio = () => {
   } else if (audioPlayer.value && currentSegment.value) {
     loadAndPlayAudio(true);
   }
-};
+}
 
-const pauseAudio = () => {
+function pauseAudio() {
   if (audioPlayer.value) {
     audioPlayer.value.pause();
     isPlaying.value = false;
   }
-};
+}
 
-const togglePlayPause = () => {
+function togglePlayPause() {
   if (isLoadingAudio.value) return;
   if (isPlaying.value) {
     pauseAudio();
   } else {
     playAudio();
   }
-};
+}
 
-const playSegment = (index: number) => {
+function playSegment(index: number) {
   if (isLoadingAudio.value) return;
   if (index >= 0 && index < audioQueue.value.length) {
     currentSegmentIndex.value = index;
     // isPlaying.value will determine if loadAndPlayAudio auto-plays
   }
-};
+}
 
-const playNextSegment = () => {
+function playNextSegment() {
   if (isLoadingAudio.value) return;
   const nextIndex = currentSegmentIndex.value + 1;
   if (nextIndex < audioQueue.value.length) {
     playSegment(nextIndex);
   }
-};
+}
 
-const playPreviousSegment = () => {
+function playPreviousSegment() {
   if (isLoadingAudio.value) return;
   const prevIndex = currentSegmentIndex.value - 1;
   if (prevIndex >= 0) {
     playSegment(prevIndex);
   }
-};
+}
 
-const playLatestOrFirstSegment = () => {
+function playLatestOrFirstSegment() {
   if (audioQueue.value.length > 0) {
     if (currentSegmentIndex.value === 0 && isPlaying.value) {
       pauseAudio();
     } else if (currentSegmentIndex.value === 0 && !isPlaying.value) {
-      playAudio(); // Play current (first) segment
+      playAudio();
     } else {
-      playSegment(0); // Select and potentially play first segment
+      playSegment(0);
     }
   }
-};
+}
 
-const updateProgress = () => {
+function updateProgress() {
   if (audioPlayer.value) {
     currentTime.value = audioPlayer.value.currentTime;
   }
-};
+}
 
-const updateDurationAndPlay = () => {
-   if (audioPlayer.value) {
+function updateDurationAndPlay() {
+  if (audioPlayer.value) {
     duration.value = audioPlayer.value.duration;
     isLoadingAudio.value = false;
     if (isPlaying.value) {
-        audioPlayer.value.play().catch(e => {
-            console.error('Error auto-playing after metadata load:', e);
-            isPlaying.value = false;
-        });
+      audioPlayer.value.play().catch(e => {
+        console.error('Error auto-playing after metadata load:', e);
+        isPlaying.value = false;
+      });
     }
   }
-};
+}
 
-const handleSegmentEnd = () => {
+function handleSegmentEnd() {
   isPlaying.value = false;
   const nextIndex = currentSegmentIndex.value + 1;
   if (nextIndex < audioQueue.value.length) {
     currentSegmentIndex.value = nextIndex;
-    isPlaying.value = true; // Auto-play next segment
+    isPlaying.value = true;
   } else {
     currentSegmentIndex.value = 0;
     if(audioPlayer.value) {
-        audioPlayer.value.src = audioQueue.value[0]?.url || '';
+      audioPlayer.value.src = audioQueue.value[0]?.url || '';
     }
     duration.value = 0;
     currentTime.value = 0;
   }
-};
+}
 
-const handleAudioError = (e: Event) => {
-    console.error('Audio player error:', e);
-    const audioEl = e.target as HTMLAudioElement;
-    let errorMsg = 'Unknown audio error.';
-    if (audioEl.error) {
-        switch (audioEl.error.code) {
-            case MediaError.MEDIA_ERR_ABORTED: errorMsg = 'Playback aborted.'; break;
-            case MediaError.MEDIA_ERR_NETWORK: errorMsg = 'Network error.'; break;
-            case MediaError.MEDIA_ERR_DECODE: errorMsg = 'Decoding error.'; break;
-            case MediaError.MEDIA_ERR_SRC_NOT_SUPPORTED: errorMsg = 'Audio format not supported.'; break;
-            default: errorMsg = `Unknown error. Code: ${audioEl.error.code}`;
-        }
+function handleAudioError(e: Event) {
+  console.error('Audio player error:', e);
+  const audioEl = e.target as HTMLAudioElement;
+  let errorMsg = 'Unknown audio error.';
+  if (audioEl.error) {
+    switch (audioEl.error.code) {
+      case MediaError.MEDIA_ERR_ABORTED: errorMsg = 'Playback aborted.'; break;
+      case MediaError.MEDIA_ERR_NETWORK: errorMsg = 'Network error.'; break;
+      case MediaError.MEDIA_ERR_DECODE: errorMsg = 'Decoding error.'; break;
+      case MediaError.MEDIA_ERR_SRC_NOT_SUPPORTED: errorMsg = 'Audio format not supported.'; break;
+      default: errorMsg = `Unknown error. Code: ${audioEl.error.code}`;
     }
-    error.value = new Error(errorMsg);
-    isPlaying.value = false;
-    isLoadingAudio.value = false;
-};
+  }
+  error.value = new Error(errorMsg);
+  isPlaying.value = false;
+  isLoadingAudio.value = false;
+}
 
-const seek = (event: MouseEvent) => {
+function seek(event: MouseEvent) {
   if (audioPlayer.value && duration.value > 0 && !isLoadingAudio.value) {
     const progressBar = (event.currentTarget as HTMLElement);
     const clickPosition = (event.offsetX / progressBar.offsetWidth) * duration.value;
     audioPlayer.value.currentTime = clickPosition;
     if (!isPlaying.value) {
-        currentTime.value = clickPosition;
+      currentTime.value = clickPosition;
     }
   }
-};
+}
 
-const formatTime = (time: number) => {
+function formatTime(time: number) {
   if (isNaN(time) || time === Infinity) return '0:00';
   const minutes = Math.floor(time / 60);
   const seconds = Math.floor(time % 60).toString().padStart(2, '0');
   return `${minutes}:${seconds}`;
-};
+}
 
 watch(currentSegmentIndex, (newIndex, oldIndex) => {
   if (newIndex !== oldIndex && audioQueue.value[newIndex]) {
-    loadAndPlayAudio(isPlaying.value); // Play if it was already playing or intended to play
+    loadAndPlayAudio(isPlaying.value);
   } else if (!audioQueue.value[newIndex] && audioPlayer.value) {
     audioPlayer.value.src = '';
     isPlaying.value = false;
@@ -407,16 +408,16 @@ definePageMeta({
   transition: height 0.2s ease-in-out;
 }
 .custom-player .progress-bar-container:hover {
-  height: 0.75rem; /* h-3 */
+  height: 0.75rem;
 }
 .custom-player .progress-bar-container:hover .progress-bar {
-  height: 0.75rem; /* h-3 */
+  height: 0.75rem;
 }
 .control-button:disabled {
   opacity: 0.5;
   cursor: not-allowed;
 }
 .segment-item:hover .text-gray-400:not(.w-6) {
-  color: #ec4899; /* pink-500 */
+  color: #ec4899;
 }
 </style>

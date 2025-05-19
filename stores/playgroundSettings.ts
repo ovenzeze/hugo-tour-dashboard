@@ -7,6 +7,20 @@ import { toast } from "vue-sonner";
 // If not directly needed, this import can be removed.
 // import type { Persona } from "./playgroundPersona"; // Or from a global types file
 
+// Define the list of supported languages
+export const SUPPORTED_LANGUAGES = [
+  { code: 'en', name: 'English' },
+  { code: 'es', name: 'Español (Spanish)' },
+  { code: 'zh-CN', name: '简体中文 (Chinese Simplified)' },
+  { code: 'fr', name: 'Français (French)' },
+  { code: 'de', name: 'Deutsch (German)' },
+  { code: 'ja', name: '日本語 (Japanese)' },
+  { code: 'pt', name: 'Português (Portuguese)' },
+  { code: 'ru', name: 'Русский (Russian)' },
+  { code: 'hi', name: 'हिन्दी (Hindi)' },
+  { code: 'ar', name: 'العربية (Arabic)' },
+];
+
 // Copied from playground.ts
 export interface FullPodcastSettings {
   title: string;
@@ -25,6 +39,10 @@ export interface FullPodcastSettings {
   ttsProvider?: 'elevenlabs' | 'volcengine'; // Added TTS Provider
 }
 
+// Define possible TTS/ASR providers explicitly for stronger typing
+export type TTSTechnologyProvider = 'elevenlabs' | 'volcengine';
+export type AIGenerateScriptProvider = 'elevenlabs' | 'openrouter' | 'groq'; // Assuming 'elevenlabs' can also generate scripts or it's a general provider key
+
 // Copied from playground.ts
 export const defaultPodcastSettings: FullPodcastSettings = {
   title: "",
@@ -36,7 +54,7 @@ export const defaultPodcastSettings: FullPodcastSettings = {
   guestPersonaIds: [],
   backgroundMusic: undefined,
   elevenLabsProjectId: undefined,
-  language: undefined,
+  language: 'en', // Default language set to English
   museumId: undefined,
   galleryId: undefined,
   objectId: undefined,
@@ -46,16 +64,18 @@ export const defaultPodcastSettings: FullPodcastSettings = {
 export interface PlaygroundSettingsState {
   podcastSettings: FullPodcastSettings;
   createPodcast: boolean; // true for AI script generation, false for manual/validated script
-  selectedProvider: string | undefined; // e.g., 'elevenlabs', 'openrouter'
+  selectedProvider: AIGenerateScriptProvider | undefined; // Use the defined union type
   aiModel: string | undefined; // e.g., 'mistralai/mistral-7b-instruct' for openrouter
 }
 
 export const usePlaygroundSettingsStore = defineStore("playgroundSettings", {
   state: (): PlaygroundSettingsState => {
     const config = useRuntimeConfig();
-    const initialProvider = "elevenlabs"; // Keeping default as elevenlabs as per original state
+    // Ensure initialProvider has the correct union type to allow valid comparisons
+    let initialProvider: AIGenerateScriptProvider | undefined = "elevenlabs"; 
     let initialAiModel: string | undefined = undefined;
 
+    // This logic now correctly compares against the possible types of initialProvider
     if (initialProvider === 'openrouter') {
       initialAiModel = config.public.openrouterDefaultModel as string | undefined;
     } else if (initialProvider === 'groq') {
@@ -66,12 +86,12 @@ export const usePlaygroundSettingsStore = defineStore("playgroundSettings", {
     return {
       podcastSettings: { ...defaultPodcastSettings },
       createPodcast: true, 
-      selectedProvider: initialProvider,
+      selectedProvider: initialProvider, // Correctly typed initialProvider is assigned
       aiModel: initialAiModel,
     };
   },
   actions: {
-    updateSelectedProvider(providerId: string | undefined) {
+    updateSelectedProvider(providerId: AIGenerateScriptProvider | undefined) {
       const config = useRuntimeConfig();
       this.selectedProvider = providerId;
       if (providerId === 'openrouter') {
@@ -99,45 +119,49 @@ export const usePlaygroundSettingsStore = defineStore("playgroundSettings", {
     },
 
     updateFullPodcastSettings(settings: Partial<FullPodcastSettings>) {
-      const processedSettings = { ...settings };
+      // Create a new object to avoid direct state mutation issues if any part is deeply reactive
+      const newSettings = { ...this.podcastSettings }; 
 
-      if (settings.hostPersonaId !== undefined) {
-        processedSettings.hostPersonaId = this._parsePersonaId(settings.hostPersonaId);
-      }
+      // Iterate over the keys of the incoming settings object
+      (Object.keys(settings) as Array<keyof FullPodcastSettings>).forEach(key => {
+        if (settings[key] !== undefined) {
+          if (key === 'hostPersonaId') {
+            newSettings.hostPersonaId = this._parsePersonaId(settings.hostPersonaId as string | number | undefined);
+          } else if (key === 'guestPersonaIds' && Array.isArray(settings.guestPersonaIds)) {
+            newSettings.guestPersonaIds = (settings.guestPersonaIds as (string | number | undefined)[]).map(id => this._parsePersonaId(id));
+          } else if (key === 'keywords') {
+            // Ensure keywords are handled as an array of strings
+            // If it's a string, split it. If it's an array, process it.
+            const rawKeywordsValue = settings[key]; // Access directly via settings[key] for type inference
+            if (typeof rawKeywordsValue === 'string') {
+              newSettings.keywords = rawKeywordsValue.split(',').map((k: string) => k.trim()).filter((k: string) => k !== '');
+            } else if (Array.isArray(rawKeywordsValue)) {
+              // Ensure all elements are strings before trimming, and filter out empty strings
+              newSettings.keywords = rawKeywordsValue
+                .map((k: any) => String(k).trim())
+                .filter((k: string) => k !== '');
+            } else if (rawKeywordsValue === undefined) {
+              newSettings.keywords = []; // Explicitly handle undefined as empty array
+            } else {
+              // If it's some other unexpected type, log a warning and default to empty array
+              console.warn(`Unexpected type for keywords: ${typeof rawKeywordsValue}. Defaulting to empty array.`);
+              newSettings.keywords = []; 
+            }
+          } else if (key === 'numberOfSegments'){
+            const numSegments = Number(settings.numberOfSegments);
+            newSettings.numberOfSegments = isNaN(numSegments) ? defaultPodcastSettings.numberOfSegments : numSegments;
+          } else {
+            // Directly assign other properties
+            // Need to handle type assertion carefully if settings[key] could be of a different type than newSettings[key]
+            (newSettings as any)[key] = settings[key];
+          }
+        }
+      });
 
-      if (settings.guestPersonaIds !== undefined) {
-        const guestIds = Array.isArray(settings.guestPersonaIds)
-          ? settings.guestPersonaIds
-          : [];
-        const parsedIds = guestIds
-          .map(id => this._parsePersonaId(id))
-          .filter(id => id !== undefined) as number[];
-        processedSettings.guestPersonaIds = parsedIds;
-      }
-      
-      // Handle keywords: if it's a string, split it; otherwise, expect it to be string[] or undefined
-      if (typeof settings.keywords === 'string') {
-        processedSettings.keywords = settings.keywords.split(',').map(k => k.trim()).filter(k => k);
-      } else if (settings.keywords === undefined) {
-        // If keywords is explicitly set to undefined in partial update, respect it or default to []
-        processedSettings.keywords = []; 
-      }
-      // If settings.keywords is already string[], it will be spread correctly by { ...settings }
-
-      this.podcastSettings = { ...this.podcastSettings, ...processedSettings };
-
-      // Ensure guestPersonaIds and keywords are arrays after update
-      if (!Array.isArray(this.podcastSettings.guestPersonaIds)) {
-        this.podcastSettings.guestPersonaIds = [];
-      }
-      if (!Array.isArray(this.podcastSettings.keywords)) {
-        // This case should ideally be handled by the logic above,
-        // but as a safeguard if it somehow ends up non-array (e.g. null)
-        this.podcastSettings.keywords = [];
-      }
+      this.podcastSettings = newSettings;
     },
 
-    updateTtsProvider(provider: 'elevenlabs' | 'volcengine') {
+    updateTtsProvider(provider: TTSTechnologyProvider) { // Use the defined union type
       this.podcastSettings.ttsProvider = provider;
     },
 

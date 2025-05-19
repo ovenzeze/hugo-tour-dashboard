@@ -29,29 +29,43 @@ Generate a complete podcast script containing dialogue between the host and gues
 The script should be about the chosen museum, telling its story with cultural depth and sophistication. The script can use ElevenLabs' <break time="x.xs" />
 for inserting pauses of specified duration (maximum 3 seconds). This is the most direct and recommended way to control pauses. However, please note that pause duration cannot exceed 3 seconds and should not be used too frequently.
 
-Please return the result in JSON format, structured as shown in the example below, including the generated podcast script segments and voice mapping:
+Please return the result in JSON format, structured as shown in the example below.
 
+**Crucial Instructions for Speaker Names and Voice Map:**
+*   For all `script.name` fields, you **MUST** use the exact speaker names provided in the 'Host: {{hostName}}' and 'Guests: {{guestNames}}' input fields from the top of this prompt.
+*   For the keys in the `voiceMap` object, you **MUST** also use these exact speaker names ({{hostName}} and {{guestNames}}).
+*   The `personaId` and `voice_model_identifier` for each speaker in the `voiceMap` **MUST** be taken directly from the input `Voice Map: {{voiceMapJson}}` provided above.
+*   **Do NOT invent new speaker names or alter the provided personaId/voice_model_identifier.** The `voiceMap` you return should accurately reflect which of the *provided* personas are used in the script, using their *original* names and voice details.
+
+Example JSON structure:
 {
 "podcastTitle": "Suggested podcast title",
-"language": "Suggested language code (e.g., en, zh)",
+"language": "Suggested language code (e.g., en, zh-CN, es). This MUST match the language used in the script.",
 "script": [
 {
-"name": "Speaker name (e.g., Alice, Bob)",
-"role": "Speaker role (e.g., host, guest)",
+"name": "{{hostName}}", // MUST be the exact host name from input
+"role": "host",
 "text": "Speaker's text content, can include ElevenLabs SSML <break> tags for pauses."
+},
+{
+"name": "AN_EXACT_GUEST_NAME_FROM_INPUT_guestNames", // MUST be one of the exact guest names from {{guestNames}} if a guest speaks
+"role": "guest",
+"text": "Speaker's text content..."
 }
-// ... more script segments
+// ... more script segments, always using exact names from {{hostName}} or {{guestNames}}
 ],
 "voiceMap": {
-"Speaker name (e.g., Alice)": {
-"personaId": 0, // Corresponding Persona ID
-"voice_model_identifier": "Corresponding voice model identifier"
+// The keys here MUST be the exact names from {{hostName}} and {{guestNames}} that are actually used in the script.
+// The personaId and voice_model_identifier MUST be copied from the input {{voiceMapJson}}.
+"{{hostName}}": {
+"personaId": "personaId for {{hostName}} from input {{voiceMapJson}}",
+"voice_model_identifier": "voice_model_identifier for {{hostName}} from input {{voiceMapJson}}"
 },
-"Speaker name (e.g., Bob)": {
-"personaId": 1, // Corresponding Persona ID
-"voice_model_identifier": "Corresponding voice model identifier"
+"AN_EXACT_GUEST_NAME_FROM_INPUT_guestNames_IF_USED": {
+"personaId": "personaId for this guest from input {{voiceMapJson}}",
+"voice_model_identifier": "voice_model_identifier for this guest from input {{voiceMapJson}}"
 }
-// ... more voice mappings
+// ... include mappings ONLY for speakers actually present in the generated script.
 },
 "topic": "Suggested podcast topic",
 "style": "Suggested podcast style",

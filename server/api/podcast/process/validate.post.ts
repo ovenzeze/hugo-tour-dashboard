@@ -1,6 +1,7 @@
 import { createError, defineEventHandler, readBody } from 'h3';
 // import { serverSupabaseClient } from '#supabase/server'; // Not used in this file after refactor
 // import type { Database } from '~/types/supabase'; // Not used in this file after refactor
+import { getPersonasByLanguage } from "~/server/utils/personaFetcher";
 import {
   generateLLMPrompt,
   validateStructuredData,
@@ -55,12 +56,41 @@ export default defineEventHandler(async (event): Promise<ValidatePostResponse> =
       });
     }
     
+    // 如果没有提供主持人信息，尝试自动选择主持人
     if (!body.personas || !body.personas.hostPersona) {
-      console.warn('[validate.post] Missing host persona information');
-      throw createError({
-        statusCode: 400,
-        statusMessage: 'Missing host persona information'
-      });
+      console.warn('[validate.post] Missing host persona information, attempting to auto-select');
+      try {
+        const language = body.language || 'en';
+        const availablePersonas = await getPersonasByLanguage(event, language, 10);
+        
+        if (availablePersonas.length > 0) {
+          // 取第一个作为主持人
+          const autoSelectedHost = availablePersonas[0];
+          console.log(`[validate.post] Auto-selected host: ${autoSelectedHost.name} for language ${language}`);
+          
+          // 确保 body.personas 存在
+          body.personas = body.personas || {};
+          
+          // 使用自动选择的主持人
+          body.personas.hostPersona = {
+            id: autoSelectedHost.persona_id,
+            name: autoSelectedHost.name,
+            voice_model_identifier: autoSelectedHost.voice_model_identifier || ""
+          };
+        } else {
+          console.warn(`[validate.post] No personas found for language ${language}. Cannot auto-select host.`);
+          throw createError({
+            statusCode: 400,
+            statusMessage: 'No suitable host personas available for the selected language'
+          });
+        }
+      } catch (error: any) {
+        console.error(`[validate.post] Error auto-selecting host persona: ${error.message}`);
+        throw createError({
+          statusCode: 400,
+          statusMessage: 'Error auto-selecting host persona: ' + (error.message || 'Unknown error')
+        });
+      }
     }
 
     // 2.1 Validate cover_image_url if provided

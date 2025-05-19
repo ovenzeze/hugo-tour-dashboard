@@ -4,6 +4,7 @@ import { defineStore } from "pinia";
 import { toast } from "vue-sonner";
 import type { ValidateScriptResponse } from "~/composables/useScriptValidator"; // For structured script data
 import type { FullPodcastSettings } from "./playgroundSettings";
+import { usePlaygroundPersonaStore } from "./playgroundPersona"; // Import persona store
 
 // Copied from playground.ts
 export interface SynthesisParams {
@@ -156,7 +157,27 @@ export const usePlaygroundAudioStore = defineStore("playgroundAudio", {
       const voiceMap = validationResult.structuredData.voiceMap;
       const totalSegments = segmentsToProcess.length;
 
-      toast.info(`Starting concurrent synthesis for ${totalSegments} segments...`);
+      // Determine TTS Provider
+      let ttsProviderForRequest: string | undefined = undefined;
+      const personaStore = usePlaygroundPersonaStore(); // Access persona store
+      if (segmentsToProcess.length > 0 && voiceMap) {
+        for (const segment of segmentsToProcess) {
+          const voiceInfo = segment.name && voiceMap[segment.name] ? voiceMap[segment.name] : undefined;
+          if (voiceInfo && voiceInfo.personaId) {
+            const persona = personaStore.getPersonaById(voiceInfo.personaId);
+            if (persona && persona.tts_provider) {
+              ttsProviderForRequest = persona.tts_provider;
+              break; // Use the provider of the first persona found
+            }
+          }
+        }
+      }
+      if (!ttsProviderForRequest) {
+        toast.warning("Could not determine TTS provider from personas. Defaulting on server might occur.");
+        // Server defaults to 'elevenlabs' if not provided
+      }
+
+      toast.info(`Starting concurrent synthesis for ${totalSegments} segments... (Provider: ${ttsProviderForRequest || 'server-default'})`);
 
       const CONCURRENCY_LIMIT = 4;
       // Explicitly type seg and index in the map function
@@ -196,7 +217,8 @@ export const usePlaygroundAudioStore = defineStore("playgroundAudio", {
               voiceSettings: {
                 stability: this.synthesisParams.temperature,
                 similarity_boost: this.synthesisParams.speed, // This was mapped to speed in original store
-              }
+              },
+              ttsProvider: ttsProviderForRequest, // Add ttsProvider to the request
             },
           });
 

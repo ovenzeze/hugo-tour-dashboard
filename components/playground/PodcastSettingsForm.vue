@@ -73,7 +73,25 @@
           placeholder="Comma-separated, e.g., AI, ML, Future Tech"
           class="mt-2" />
       </div>
-       <div>
+
+      <div>
+        <Label for="podcastLanguage" class="text-sm font-medium">Podcast Language</Label>
+        <Select v-model="podcastLanguageValue">
+          <SelectTrigger class="mt-2 w-full">
+            <SelectValue placeholder="Select language" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem
+              v-for="lang in SUPPORTED_LANGUAGES"
+              :key="lang.code"
+              :value="lang.code">
+              {{ lang.name }}
+            </SelectItem>
+          </SelectContent>
+        </Select>
+      </div>
+
+      <div>
         <Label for="backgroundMusic" class="text-sm font-medium">Background(Optional)</Label>
         <Input
           id="backgroundMusic"
@@ -82,8 +100,6 @@
           class="mt-2" />
       </div>
     </div>
-
-
   </div>
 </template>
 
@@ -91,10 +107,11 @@
 import { computed, watch } from 'vue';
 import { Skeleton } from '@/components/ui/skeleton';
 // import UnifiedPersonaSelector from '@/components/UnifiedPersonaSelector.vue'; // Commented out old selector
-
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Button } from '@/components/ui/button';
 import type { Persona } from '@/stores/playgroundPersona';
 import type { FullPodcastSettings } from '@/stores/playgroundSettings';
+import { SUPPORTED_LANGUAGES } from '@/stores/playgroundSettings';
 
 const props = defineProps<{
   modelValue: FullPodcastSettings;
@@ -119,6 +136,15 @@ const keywordsForInput = computed<string>({
   }
 });
 
+const podcastLanguageValue = computed({
+  get: () => props.modelValue.language,
+  set: (newValue) => {
+    if (newValue !== props.modelValue.language) {
+      emit('update:modelValue', { ...props.modelValue, language: newValue });
+    }
+  }
+});
+
 const editableSettings = computed({
   get: () => {
     return {
@@ -128,7 +154,6 @@ const editableSettings = computed({
   set: (value) => {
     const newSettings = { ...props.modelValue, ...value };
 
-    // Define an explicit helper function for keywords processing
     const getProcessedKeywords = (): string[] => {
       const keywordsValue = newSettings.keywords;
       if (Array.isArray(keywordsValue)) {

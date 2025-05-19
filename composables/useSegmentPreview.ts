@@ -20,6 +20,9 @@ export interface SegmentPreviewData {
 // This combines the parsed script segment with voice assignment and potentially persona details
 export interface PreviewableSegment extends ParsedScriptSegment {
     voiceId?: string; // Assigned voice ID for this segment's speaker
+    ttsProvider?: string; // TTS provider for this specific segment's voice
+    roleType?: 'host' | 'guest'; // Optional: Role of the speaker for this segment
+    personaId?: number;         // Optional: Persona ID assigned to this segment's speaker
     // Add other relevant details that might be needed for preview context or API calls
     // e.g. personaId, roleType, etc. if required by previewSegment API
 }
@@ -61,7 +64,7 @@ export function useSegmentPreview(
   }, { deep: true, immediate: true });
 
   async function previewSegment(segment: PreviewableSegment, index: number) {
-    const voiceId = speakerAssignments.value[segment.speakerTag];
+    const voiceId = speakerAssignments.value[segment.speakerTag] || segment.voiceId; // Ensure voiceId is resolved
     if (!segment.text || !voiceId) {
       toast.error('Missing text or voice assignment for segment preview.');
       segmentStates.value[index] = { status: 'error', message: 'Missing text or voice assignment.', error: 'No text or voice.' };
@@ -70,6 +73,11 @@ export function useSegmentPreview(
 
     segmentStates.value[index] = { status: 'loading', message: 'Generating preview...' };
     isPreviewingSegment.value = index;
+
+    // Determine the provider for this specific segment
+    // Prioritize segment's own ttsProvider, fallback to the global ttsProvider ref
+    const providerForThisSegment = segment.ttsProvider || ttsProvider.value;
+    console.info(`[useSegmentPreview] Previewing segment ${index} with provider: ${providerForThisSegment}, voiceId: ${voiceId}`);
 
     try {
         // Use the actual podcastId from the store if available, otherwise generate a temporary one for preview
@@ -84,7 +92,7 @@ export function useSegmentPreview(
               {
                 segmentIndex: index,
                 text: segment.text,
-                voiceId: voiceId,
+                voiceId: voiceId, // Use the resolved voiceId
                 speakerName: segment.speakerTag
               }
             ],
@@ -94,7 +102,8 @@ export function useSegmentPreview(
               similarity_boost: audioStore.synthesisParams.speed, // Use speed for similarity_boost
               // style: 0, // TODO: Make configurable or part of persona if API supports
               // use_speaker_boost: true // TODO: Make configurable or part of persona if API supports
-            }
+            },
+            ttsProvider: providerForThisSegment // Use the determined provider for this segment
           })
         });
       if (!response.ok) {
@@ -273,4 +282,4 @@ export function useSegmentPreview(
     setAudioRef,
     initializeSegmentStates // Expose if manual re-init is needed
   };
-} 
+}

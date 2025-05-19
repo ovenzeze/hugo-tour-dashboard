@@ -6,8 +6,11 @@ import {
 import { serverSupabaseClient } from '#supabase/server'; // For database interaction
 import type { Database } from '~/types/supabase'; // For database types
 import { createPodcastServer, addPodcastSegmentsServer } from '~/server/utils/podcastDatabaseServerUtils'; // Import server-side database utils
+import { getPersonasByLanguage, type AutoSelectedPersona } from "../../../utils/personaFetcher";
+import { consola } from 'consola';
 
-interface Persona { // This interface is for the `personas` object used by processPodcastScript
+interface Persona { 
+  id: number; 
   name: string;
   voice_model_identifier: string;
 }
@@ -20,19 +23,17 @@ interface ScriptSegment {
 interface RequestBody {
   podcastTitle: string;
   script: ScriptSegment[];
-  personas: { // Used by processPodcastScript for voice matching
-    hostPersona?: Persona; // Matches processPodcastScript's expectation
-    guestPersonas?: Persona[];
+  personas: { 
+    hostPersona?: Partial<Persona>; 
+    guestPersonas?: Partial<Persona>[];
   };
-  // Additional fields for podcast metadata
-  language: string;      // e.g., 'en', 'es'
-  topic?: string; // Optional topic for the podcast
-  host_persona_id?: number; // New field
-  guest_persona_id?: number; // New field
-  creator_persona_id?: number; // New field
-  total_duration_ms?: number; // New field
-  total_word_count?: number; // New field
-  // Optional context for linking the podcast
+  language: string;
+  topic?: string;
+  host_persona_id?: number; 
+  guest_persona_id?: number; 
+  creator_persona_id?: number; 
+  total_duration_ms?: number; 
+  total_word_count?: number; 
   museumId?: number;
   galleryId?: number;
   objectId?: number;
@@ -44,124 +45,147 @@ export default defineEventHandler(async (event) => {
     const {
       podcastTitle,
       script,
-      personas,
+      personas: clientPersonas, 
       language,
-      topic, // Include topic from body
-      host_persona_id, // Extract new field
-      guest_persona_id, // Extract new field
-      creator_persona_id, // Extract new field
-      total_duration_ms, // Extract new field
-      total_word_count, // Extract new field
+      topic, 
+      host_persona_id, 
+      guest_persona_id, 
+      creator_persona_id, 
+      total_duration_ms, 
+      total_word_count, 
       museumId,
       galleryId,
       objectId,
     } = body;
 
-    // Validation for all required fields
+    consola.info('[script.post.ts] Initial client personas received in body:', JSON.stringify(clientPersonas, null, 2)); 
+
     if (
       !podcastTitle ||
       !script ||
       !Array.isArray(script) ||
-      !personas ||
       !language
     ) {
       throw createError({
         statusCode: 400,
         statusMessage:
-          'Invalid request body. "podcastTitle", "script" array, "personas" object, and "language" are required.',
+          'Invalid request body. "podcastTitle", "script" array, and "language" are required.',
       });
     }
 
+    let resolvedHostPersona: AutoSelectedPersona | undefined = undefined;
+    let resolvedGuestPersonas: Persona[] = [];
+
+    const availablePersonas = await getPersonasByLanguage(event, language, 20); 
+
+    if (availablePersonas.length === 0) {
+      consola.warn(`[script.post.ts] No personas available for language ${language}. processPodcastScript might not find speakers.`);
+    } else {
+      if (clientPersonas?.hostPersona?.id) {
+        resolvedHostPersona = availablePersonas.find(p => p.persona_id === clientPersonas.hostPersona!.id);
+        if(resolvedHostPersona) consola.info(`[script.post.ts] Host persona identified by client ID: ${resolvedHostPersona.name}`);
+      } else if (clientPersonas?.hostPersona?.name) {
+        resolvedHostPersona = availablePersonas.find(p => p.name === clientPersonas.hostPersona!.name);
+        if(resolvedHostPersona) consola.info(`[script.post.ts] Host persona identified by client name: ${resolvedHostPersona.name}`);
+      }
+
+      if (!resolvedHostPersona) {
+        resolvedHostPersona = availablePersonas[0]; 
+        consola.info(`[script.post.ts] Auto-selected host persona: ${resolvedHostPersona.name}`);
+      }
+
+      resolvedGuestPersonas = availablePersonas
+        .filter(p => p.persona_id !== resolvedHostPersona!.persona_id)
+        .map(p => ({
+          id: p.persona_id,
+          name: p.name,
+          voice_model_identifier: p.voice_model_identifier || "", 
+        }));
+      consola.info(`[script.post.ts] Resolved guest personas count: ${resolvedGuestPersonas.length}`);
+    }
+
+    const finalPersonasForProcessing = {
+      hostPersona: resolvedHostPersona ? {
+        id: resolvedHostPersona.persona_id,
+        name: resolvedHostPersona.name,
+        voice_model_identifier: resolvedHostPersona.voice_model_identifier || "",
+      } : undefined,
+      guestPersonas: resolvedGuestPersonas,
+    };
+
+    consola.info('[script.post.ts] Final personas constructed for processPodcastScript:', JSON.stringify(finalPersonasForProcessing, null, 2));
+
     console.log(`API: Processing script for podcast: "${podcastTitle}"`);
 
-    // Use server-side database utils
     let podcastRecord = null;
-    let segmentRecords = null;
 
-    // ---- BEGIN DATABASE INSERT LOGIC ----
     if (script.length > 0) {
       try {
-        // 1. Create the podcast record using server-side util
         podcastRecord = await createPodcastServer(event, {
           title: podcastTitle,
           topic: topic,
-          host_persona_id: host_persona_id, // Include new field
-          guest_persona_id: guest_persona_id, // Include new field
-          creator_persona_id: creator_persona_id, // Include new field (will be null initially if not provided)
-          total_duration_ms: total_duration_ms, // Include new field (will be null initially if not provided)
-          total_word_count: total_word_count, // Include new field (will be null initially if not provided)
-          // Add other metadata fields here if needed, based on your table structure
-          // e.g., user_id, description, cover_url, status
+          host_persona_id: host_persona_id, 
+          guest_persona_id: guest_persona_id, 
+          creator_persona_id: creator_persona_id, 
+          total_duration_ms: total_duration_ms, 
+          total_word_count: total_word_count, 
         });
-        console.log(`DB: Podcast record CREATED successfully. ID: ${podcastRecord.podcast_id}, Title: "${podcastTitle}", Topic: "${topic || 'N/A'}"`);
+        consola.info(`DB: Podcast record CREATED successfully. ID: ${podcastRecord.podcast_id}, Title: "${podcastTitle}", Topic: "${topic || 'N/A'}"`);
 
-        // 2. Prepare segments for insertion
         const segmentsToInsert = script.map((segment, index) => ({
-          idx: index, // Use index as the order
+          idx: index, 
           speaker: segment.speaker,
           text: segment.text,
-          // podcast_id will be added by addPodcastSegmentsServer
         }));
 
-        // 3. Add segments to the podcast using server-side util
-        segmentRecords = await addPodcastSegmentsServer(event, podcastRecord.podcast_id, segmentsToInsert);
-        console.log(`DB: ${segmentRecords.length} Segments ADDED successfully to podcast ID: ${podcastRecord.podcast_id}.`);
-        if (segmentsToInsert.length > 0 && segmentRecords.length > 0) {
-          console.log(`DB: First segment info - ID: ${segmentRecords[0].segment_text_id}, IDX: ${segmentsToInsert[0].idx}, Speaker: "${segmentsToInsert[0].speaker}", Text snippet: "${segmentsToInsert[0].text.substring(0, 70)}..."`);
+        const insertedSegments = await addPodcastSegmentsServer(event, podcastRecord.podcast_id, segmentsToInsert);
+        consola.info(`DB: ${insertedSegments.length} Segments ADDED successfully to podcast ID: ${podcastRecord.podcast_id}.`);
+        if (segmentsToInsert.length > 0 && insertedSegments.length > 0) {
+          consola.info(`DB: First segment info - ID: ${insertedSegments[0].segment_text_id}, IDX: ${segmentsToInsert[0].idx}, Speaker: "${segmentsToInsert[0].speaker}", Text snippet: "${segmentsToInsert[0].text.substring(0, 70)}..."`);
         }
 
       } catch (dbError: any) {
-        console.error(
+        consola.error(
           `Database operation error for podcast "${podcastTitle}": ${dbError.message}`,
           dbError
         );
-        // Decide how to handle DB errors: fail the API or log and continue?
-        // For now, we'll log and still attempt script processing if possible,
-        // but the frontend might need to handle the case where podcastRecord is null.
       }
     } else {
-      console.log(`Input script for podcast "${podcastTitle}" was empty. Not creating database records.`);
+      consola.log(`Input script for podcast "${podcastTitle}" was empty. Not creating database records.`);
     }
-    // ---- END DATABASE INSERT LOGIC ----
 
-    // Continue with script processing regardless of DB insert success for now
-    // You might want to adjust this logic based on whether DB insertion is critical
-    const stringPodcastId = podcastTitle // Keep generating string ID for processPodcastScript if it needs it
+    const stringPodcastId = podcastTitle 
       .toLowerCase()
       .replace(/[^a-z0-9_]+/g, "_")
       .replace(/^_|_$/g, "");
 
     const preparedSegments: PreparedSegmentForSynthesis[] =
-      await processPodcastScript(stringPodcastId, script, personas);
+      await processPodcastScript(stringPodcastId, script, finalPersonasForProcessing, language); 
 
-    // Check if script processing had errors
     const isScriptProcessingSuccessful = preparedSegments.every(
       (segment) => !segment.error
     );
 
     if (!isScriptProcessingSuccessful) {
-       console.log(
+       consola.warn( 
         `Script processing for podcast "${podcastTitle}" had errors in one or more segments.`
       );
-      // You might want to return a different status or message here
     }
 
 
     return {
       success: true,
-      // Return the actual database generated podcast ID (UUID)
       podcastId: podcastRecord?.podcast_id || null,
       preparedSegments: preparedSegments,
       message: `Script processed and segments prepared for podcast "${podcastTitle}". Database records created: ${!!podcastRecord}. Next step: synthesize segments.`,
     };
   } catch (error: any) {
-    console.error(
-      `Error in /api/podcast/process/script.post.ts:`,
-      error.message || error
+    consola.error(
+      `Error in /api/podcast/process/script.post.ts:`, error.stack || error.message || error
     );
     throw createError({
       statusCode: error.statusCode || 500,
-      statusMessage: `Failed to process script: ${
+      statusMessage: `Failed to process script: ${ 
         error.statusMessage || error.message
       }`,
       data: error.data || error,

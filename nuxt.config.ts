@@ -112,9 +112,9 @@ export default defineNuxtConfig({
     families: {
       Inter: [400, 700],
       "Crimson Text": [400, 600, 700],
-      "Noto Sans SC": [400, 600],
+      "Noto Serif SC": [400, 600, 700],
     },
-    subsets: ["latin"],
+    subsets: ["latin", "chinese-simplified"],
     download: true,
     preload: true,
     useStylesheet: true,

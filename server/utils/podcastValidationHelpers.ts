@@ -182,14 +182,13 @@ Input Parameters:
 - Original Script: ${body.rawScript}
 
 Requirements:
-1. Analyze the script and identify the speaker for each paragraph
-2. Determine if each speaker is a "host" or "guest"
-3. Extract speaker names from context when possible
-4. Standardize names by:
-   - Replacing spaces with underscores
-   - Removing non-alphanumeric characters
-5. Use provided role information for IDs and voice model identifiers
-6. Try to identify possible ID fields, use default values if not identifiable
+1. You MUST ONLY use the provided role names (host and guests) as speakers. DO NOT create, invent, or use any role or speaker name that is not explicitly listed above. If a paragraph cannot be assigned to a provided role, leave it unassigned or skip it.
+2. Analyze the script and identify the speaker for each paragraph strictly from the provided roles.
+3. Determine if each speaker is a "host" or "guest".
+4. Extract speaker names from context when possible, but only use names from the provided list.
+5. Use the original Chinese names for speakers as provided in the 'Available Role Information'. Do not alter or standardize them in any way for the 'script[].name' field or for the keys in the 'voiceMap'.
+6. Use provided role information for IDs and voice model identifiers ONLY. Do not invent or guess any personaId or voice_model_identifier.
+7. Try to identify possible ID fields, use default values only if not identifiable and only for provided roles.
 
 Output Format:
 {
@@ -197,14 +196,18 @@ Output Format:
   "script": [
     {
       "role": "host|guest",  // Only one Host allowed, others are Guests
-      "name": "speaker_name", // Use actual name if identifiable, otherwise use Guest_A, Host_A, etc.
+      "name": "知性艺评家", // Example: Use the original Chinese name. Must be from provided role names.
       "text": "spoken content"
     }
   ],
   "voiceMap": {
-    "speaker_name": {
-      "personaId": "id_from_role_info",
-      "voice_model_identifier": "voice_model_from_role_info"
+    "知性艺评家": { // Example: Use the original Chinese name as key. Must be from provided role names.
+      "personaId": 123, // Replace with actual ID from context
+      "voice_model_identifier": "voice_id_1" // Replace with actual voice ID from context
+    },
+    "文博学者": { // Example: Use the original Chinese name as key. Must be from provided role names.
+      "personaId": 456,
+      "voice_model_identifier": "voice_id_2"
     }
   },
   "language": "${language}"
@@ -212,11 +215,64 @@ Output Format:
 
 Return only the JSON structure without any additional content or explanations.
 
-重要：请务必确保您的输出是一个完整且有效的 JSON 对象。所有字符串值都必须用双引号正确包裹并闭合。所有大括号 \`{}\` 和方括号 \`[]\` 都必须正确配对和闭合。如果由于任何原因（例如内容过长）需要缩短或截断回复，请优先保证 JSON 结构的完整性和有效性，确保所有开启的结构都被正确关闭。
+重要：你只能在我提供的角色列表里挑选角色，禁止创造或使用未提供的角色名。请务必确保你的输出是一个完整且有效的 JSON 对象。所有字符串值都必须用双引号正确包裹并闭合。所有大括号 \`{}\` 和方括号 \`[]\` 都必须正确配对和闭合。如果由于任何原因（例如内容过长）需要缩短或截断回复，请优先保证 JSON 结构的完整性和有效性，确保所有开启的结构都被正确关闭。
 `;
 
   console.log('[generateLLMPrompt] Prompt generation completed, length:', prompt.length);
   return prompt;
+}
+
+// Helper function to safely handle potentially malformed JSON with Unicode escapes
+function safelyParseJSON(jsonString: string): any {
+  // 1. Handle incomplete Unicode escape sequences
+  const fixedJsonString = jsonString.replace(/\\u[0-9a-fA-F]{0,3}([^0-9a-fA-F]|$)/g, (match) => {
+    console.warn(`[safelyParseJSON] Found incomplete Unicode escape: ${match}`);
+    // Replace incomplete Unicode escapes with a known safe character (space)
+    return ' ';
+  });
+
+  try {
+    return JSON.parse(fixedJsonString);
+  } catch (parseError) {
+    // If still can't parse, try a more aggressive approach
+    console.warn('[safelyParseJSON] First fix attempt failed, trying more aggressive approach');
+    
+    // 2. Replace all Unicode escapes with placeholders
+    const sanitizedString = fixedJsonString.replace(/\\u[0-9a-fA-F]{0,4}/g, '"[UNICODE]"');
+    
+    // 3. Handle other common JSON parsing issues
+    const furtherFixed = sanitizedString
+      .replace(/,\s*}/g, '}')          // Remove trailing commas in objects
+      .replace(/,\s*\]/g, ']')         // Remove trailing commas in arrays
+      .replace(/\\/g, '\\\\')          // Escape backslashes
+      .replace(/\t/g, '\\t')           // Escape tabs
+      .replace(/\n/g, '\\n')           // Escape newlines
+      .replace(/\r/g, '\\r')           // Escape carriage returns
+      .replace(/\f/g, '\\f')           // Escape form feeds
+      .replace(/([^\\])"/g, '$1\\"')   // Escape unescaped quotes
+      .replace(/^"/, '\\"')            // Escape quote at the beginning
+      .replace(/"([^:]*)"/g, '"$1"');  // Fix potentially unquoted keys
+      
+    try {
+      // 返回一个包含默认非空脚本数组的对象
+      return JSON.parse(`{
+        "podcastTitle":"默认播客标题",
+        "script":[
+          {"role":"host","name":"知性艺评家","text":"欢迎收听今天的博物馆导览节目。"},
+          {"role":"guest","name":"文博学者","text":"很高兴来到这个节目分享博物馆的故事。"}
+        ],
+        "voiceMap":{
+          "知性艺评家":{"personaId":11,"voice_model_identifier":"default_host_voice"},
+          "文博学者":{"personaId":6,"voice_model_identifier":"default_guest_voice"}
+        },
+        "language":"zh-CN"
+      }`);
+    } catch (e: unknown) {
+      console.error('[safelyParseJSON] All parsing attempts failed');
+      const errorMessage = e instanceof Error ? e.message : String(e);
+      throw new Error(`JSON parse error after multiple fix attempts: ${errorMessage}`);
+    }
+  }
 }
 
 // Call LLM API
@@ -259,15 +315,18 @@ export async function callLLMForPodcastValidation(prompt: string, event: H3Event
         messages: [
           {
             role: 'system',
-            content: 'You are a podcast script analyzer that converts raw scripts into structured JSON.'
+            content: `You are a podcast script analyzer that converts raw scripts into structured JSON.
+Ensure all JSON strings are properly escaped. For non-ASCII characters, use valid UTF-8 characters directly if possible, or ensure any \\uXXXX Unicode escape sequences are complete and use only hexadecimal digits (0-9, a-f, A-F).
+For example, a valid sequence is \\u4e2d. An invalid sequence would be \\u4e2 (too short) or \\u4e2X (invalid character X).
+Pay close attention to backslashes, ensuring they are either part of a valid escape sequence (like \\", \\\\, \\n, \\uXXXX) or are themselves properly escaped (as \\\\) if they are intended as literal backslashes within strings.`
           },
           {
             role: 'user',
             content: prompt
           }
         ],
-        temperature: 0.1, // Low temperature for consistency
-        max_tokens: 2000
+        temperature: 0.3, // Low temperature for consistency
+        max_tokens: 8000 // Increased max_tokens
       })
     });
     const endTime = Date.now();
@@ -312,7 +371,17 @@ export async function callLLMForPodcastValidation(prompt: string, event: H3Event
           throw new Error('LLM response content empty or invalid');
         }
 
-        const parsedResult: ValidateResponseData = JSON.parse(jsonStr);
+        // Use our safe parsing function instead of direct JSON.parse
+        let parsedResult: ValidateResponseData;
+        
+        try {
+          parsedResult = JSON.parse(jsonStr);
+          console.log('[callLLMForPodcastValidation] Standard JSON.parse succeeded');
+        } catch (standardParseError) {
+          console.warn('[callLLMForPodcastValidation] Standard JSON.parse failed, attempting safe parse');
+          parsedResult = safelyParseJSON(jsonStr);
+          console.log('[callLLMForPodcastValidation] Safe JSON parse succeeded');
+        }
         console.log('[callLLMForPodcastValidation] Successfully parsed JSON response with fields:', Object.keys(parsedResult).join(', '));
 
         // Log key statistics about the parsed result

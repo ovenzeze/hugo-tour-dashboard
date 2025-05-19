@@ -9,7 +9,7 @@
       :toastOptions="{
         duration: 4000
       }"
-      class="toaster-safe-area opacity-90 hover:opacity-100 transition-opacity duration-300"
+      class="toaster-safe-area opacity-80 hover:opacity-100 transition-opacity duration-300"
     />
   </div>
 </template>

@@ -1,5 +1,5 @@
 <template>
-  <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-x-10 md:gap-y-20 mt-4 md:px-6">
+  <div class="grid grid-cols-[repeat(auto-fit,minmax(320px,1fr))] gap-x-10 md:gap-y-20 mt-4 md:px-6">
     <!-- Skeleton loading state -->
     <Card v-if="loading" v-for="n in 3" :key="`skeleton-${n}`"
       class="border rounded-xl overflow-hidden shadow-md min-w-[320px] h-[400px] animate-pulse bg-muted/50">
@@ -322,31 +322,103 @@
 
   <!-- Share Preview Modal -->
   <Dialog :open="isShareModalOpen" @update:open="isShareModalOpen = $event">
-    <DialogContent class="sm:max-w-[90vw] md:max-w-[80vw] lg:max-w-[700px] h-[80vh] p-0">
-      <DialogHeader class="p-6 pb-0">
-        <DialogTitle>Share Podcast Preview</DialogTitle>
-        <DialogDescription>
-          This is a preview of how your podcast will look when shared.
-        </DialogDescription>
-      </DialogHeader>
-      <div class="p-6 pt-2 h-[calc(100%-100px)]">
-        <iframe
-          v-if="shareIframeSrc"
-          :src="shareIframeSrc"
-          class="w-full h-full border-0 rounded-md"
-          title="Podcast Share Preview"
-          allow="autoplay; encrypted-media"
-          allowfullscreen
-        ></iframe>
-        <div v-else class="flex items-center justify-center h-full text-muted-foreground">
-          Loading preview...
+  <DialogContent class="sm:max-w-[90vw] md:max-w-[80vw] lg:max-w-[700px] h-[80vh] p-0 flex flex-col">
+    <DialogHeader class="p-6 pb-0">
+      <DialogTitle>Share Podcast Preview</DialogTitle>
+      <DialogDescription>
+        This is a preview of how your podcast will look when shared.
+      </DialogDescription>
+    </DialogHeader>
+    <div class="px-6 pt-4 pb-2">
+      <!-- Podcast Card Preview -->
+      <div v-if="currentPodcastForModal" class="relative border rounded-xl shadow-md flex flex-col min-w-[320px] bg-card text-card-foreground mb-4 overflow-hidden">
+        <div v-if="currentPodcastForModal.cover_image_url" class="absolute inset-0 bg-cover bg-center rounded-xl" :style="{ backgroundImage: `url(${currentPodcastForModal.cover_image_url})`, opacity: 0.6, zIndex: 0 }"></div>
+        <div v-if="currentPodcastForModal.cover_image_url" class="absolute inset-0 bg-gradient-to-b from-black/85 via-black/50 to-black/80 rounded-xl" style="z-index:1"></div>
+        <div class="relative z-10 p-6 flex flex-col gap-2">
+          <div class="flex flex-row items-center justify-between">
+            <h2 class="text-lg font-bold leading-tight line-clamp-2 break-words">{{ currentPodcastForModal.title || `Podcast #${currentPodcastForModal.podcast_id}` }}</h2>
+            <span v-if="currentPodcastForModal.topic" class="px-3 py-1 rounded-full text-xs font-semibold ml-2" :class="currentPodcastForModal.cover_image_url ? 'bg-white/30 text-white' : 'bg-primary/10 text-primary'">{{ currentPodcastForModal.topic }}</span>
+          </div>
+          <p v-if="currentPodcastForModal.description" class="text-sm line-clamp-2 text-left mb-2" :class="currentPodcastForModal.cover_image_url ? 'text-white/90' : 'text-muted-foreground'">{{ currentPodcastForModal.description }}</p>
         </div>
       </div>
-      <DialogFooter class="p-6 pt-0">
-        <Button variant="outline" @click="isShareModalOpen = false">Close</Button>
-      </DialogFooter>
-    </DialogContent>
-  </Dialog>
+    </div>
+    <div class="flex-1 px-6 pb-2" style="min-height:200px;">
+      <iframe
+        v-if="shareIframeSrc && !iframeError"
+        :src="shareIframeSrc"
+        class="w-full h-full border-0 rounded-md bg-muted"
+        title="Podcast Share Preview"
+        allow="autoplay; encrypted-media"
+        allowfullscreen
+        @error="onIframeError"
+      ></iframe>
+      <div v-else-if="iframeError" class="flex flex-col items-center justify-center h-full text-destructive">
+        Failed to load preview.
+        <Button variant="outline" class="mt-2" @click="retryIframe">Retry</Button>
+      </div>
+      <div v-else class="flex items-center justify-center h-full text-muted-foreground">
+        Loading preview...
+      </div>
+    </div>
+    <DialogFooter class="p-6 pt-0 flex flex-row flex-wrap gap-3 items-center">
+      <Button 
+        variant="outline" 
+        @click="isShareModalOpen = false" 
+        class="rounded-lg h-10 px-4 shadow-sm transition-all" 
+        aria-label="Close share dialog" 
+        title="Close share dialog"
+      >
+        <Icon name="ph:x" class="h-5 w-5 mr-2 text-muted-foreground"/>Close
+      </Button>
+      <Button 
+        variant="default" 
+        @click="copyShareLink" 
+        class="rounded-lg h-10 px-4 flex items-center gap-2 shadow-md transition-all focus:ring-2 focus:ring-primary/60"
+        aria-label="Copy share link" 
+        title="Copy share link"
+      >
+        <Icon name="ph:link" class="h-5 w-5 text-primary-foreground"/>Copy Link
+      </Button>
+      <Button 
+        variant="outline" 
+        @click="showWeChatQr = true" 
+        class="rounded-lg h-10 px-4 flex items-center gap-2 shadow-sm transition-all focus:ring-2 focus:ring-primary/30"
+        aria-label="Share to WeChat" 
+        title="Share to WeChat"
+      >
+        <Icon name="ph:wechat-logo" class="h-5 w-5 text-green-500"/>WeChat
+      </Button>
+      <Button 
+        variant="outline" 
+        @click="shareToWeibo" 
+        class="rounded-lg h-10 px-4 flex items-center gap-2 shadow-sm transition-all focus:ring-2 focus:ring-primary/30"
+        aria-label="Share to Weibo" 
+        title="Share to Weibo"
+      >
+        <Icon name="ph:weibo-logo" class="h-5 w-5 text-[#e6162d]"/>Weibo
+      </Button>
+      <Button 
+        variant="outline" 
+        @click="shareToTwitter" 
+        class="rounded-lg h-10 px-4 flex items-center gap-2 shadow-sm transition-all focus:ring-2 focus:ring-primary/30"
+        aria-label="Share to Twitter" 
+        title="Share to Twitter"
+      >
+        <Icon name="ph:twitter-logo" class="h-5 w-5 text-sky-500"/>Twitter
+      </Button>
+      <!-- 微信二维码弹窗 -->
+      <Dialog v-model:open="showWeChatQr">
+        <DialogContent class="flex flex-col items-center justify-center gap-4 py-8">
+          <div class="text-lg font-medium">Scan with WeChat to share</div>
+          <qrcode-vue :value="window.location.origin + shareIframeSrc" :size="160" class="rounded-lg shadow"/>
+          <Button variant="outline" @click="showWeChatQr = false" class="mt-2">Close</Button>
+        </DialogContent>
+      </Dialog>
+    </DialogFooter>
+  </DialogContent>
+</Dialog>
+
 </template>
 
 <script setup lang="ts">
@@ -372,6 +444,8 @@ const loadingCovers = ref<Record<string, boolean>>({});
 // Share Modal State
 const isShareModalOpen = ref(false);
 const currentPodcastIdForModal = ref<string | null>(null);
+const iframeError = ref(false);
+const showWeChatQr = ref(false);
 
 const shareIframeSrc = computed(() => {
   if (currentPodcastIdForModal.value) {
@@ -379,6 +453,37 @@ const shareIframeSrc = computed(() => {
   }
   return '';
 });
+
+const currentPodcastForModal = computed(() => {
+  if (!currentPodcastIdForModal.value) return null;
+  return props.podcasts.find(p => String(p.podcast_id) === String(currentPodcastIdForModal.value)) || null;
+});
+
+function onIframeError() {
+  iframeError.value = true;
+}
+function retryIframe() {
+  iframeError.value = false;
+}
+async function copyShareLink() {
+  if (!shareIframeSrc.value) return;
+  try {
+    await navigator.clipboard.writeText(window.location.origin + shareIframeSrc.value);
+    toast.success('Link copied!');
+  } catch (e) {
+    toast.error('Failed to copy link');
+  }
+}
+// 微信二维码弹窗已在按钮点击时显示
+
+function shareToWeibo() {
+  const url = `https://service.weibo.com/share/share.php?url=${encodeURIComponent(window.location.origin + shareIframeSrc.value)}`;
+  window.open(url, '_blank');
+}
+function shareToTwitter() {
+  const url = `https://twitter.com/intent/tweet?url=${encodeURIComponent(window.location.origin + shareIframeSrc.value)}`;
+  window.open(url, '_blank');
+}
 
 function openSharePreviewModal(podcastId: string) {
   currentPodcastIdForModal.value = podcastId;

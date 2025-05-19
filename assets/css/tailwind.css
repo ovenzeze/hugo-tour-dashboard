@@ -125,6 +125,7 @@
 
   body {
     @apply bg-background text-foreground;
+    font-family: "Crimson Text", "Noto Serif SC", theme('fontFamily.sans');
   }
 
   /* 安全区域适配 - 在PWA模式下生效 */
