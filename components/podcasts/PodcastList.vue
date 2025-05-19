@@ -105,11 +105,24 @@
             <div
               v-for="(segment, index) in visibleSegments(podcast)"
               :key="index"
-                  {{ segment.speaker || 'Unknown Speaker' }}
-                </span>
-                <span class="text-xs text-muted-foreground ml-2 truncate" :title="segment.text ?? undefined">
+              class="flex gap-2 group hover:bg-muted/80 p-2 rounded-md transition-colors"
+            >
+              <div 
+                class="flex-shrink-0 w-8 h-8 rounded-full flex items-center justify-center"
+                :class="getSpeakerColorClass(segment.speaker)"
+              >
+                <span class="text-xs font-bold">{{ getSpeakerInitial(segment.speaker) }}</span>
+              </div>
+              <div class="flex-1 min-w-0">
+                <div class="flex items-center justify-between">
+                  <span class="text-xs font-medium">{{ segment.speaker || 'Unknown' }}</span>
+                  <span class="text-xs text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity">
+                    {{ formatDuration(getSegmentDuration(segment)) }}
+                  </span>
+                </div>
+                <p class="text-xs text-muted-foreground truncate group-hover:whitespace-normal group-hover:line-clamp-3">
                   {{ segment.text || 'No text available' }}
-                </span>
+                </p>
               </div>
             </div>
           </div>
@@ -169,10 +182,10 @@
 </template>
 
 <script setup lang="ts">
-import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
-import { ref } from 'vue';
+import { Badge } from '@/components/ui/badge';
+import { ref, computed } from 'vue';
 import { useDateFormatter } from '~/composables/useDateFormatter';
 import type { Database } from '~/types/supabase';
 // Icon component is globally available or auto-imported
@@ -255,12 +268,12 @@ function getSegmentDuration(segment: Segment): number | null {
 }
 
 // 获取合成状态变体
-function getSynthesisStatusVariant(podcast: Podcast): string {
+function getSynthesisStatusVariant(podcast: Podcast): "default" | "destructive" | "outline" | "secondary" | null | undefined {
   const status = getSynthesisStatusText(podcast);
-  if (status === 'All Synced') return 'success';
-  if (status === 'Partially Synced') return 'warning';
+  if (status === 'All Synced') return 'outline'; // 使用outline代替success
+  if (status === 'Partially Synced') return 'secondary'; // 使用secondary代替warning
   if (status === 'Not Synced') return 'destructive';
-  return 'secondary'; // For "No Segments"
+  return 'default'; // For "No Segments"
 }
 
 // Define types with nested relationships based on Supabase types
