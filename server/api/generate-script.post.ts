@@ -1,8 +1,7 @@
 // server/api/generate-script.post.ts
 import { consola } from "consola"; // For logging
 import { createError, defineEventHandler, readBody } from "h3";
-import fs from "node:fs"; // Import Node.js file system module
-import path from "node:path"; // Import Node.js path module
+import { useStorage } from '#imports'; // Import Nitro's useStorage
 
 // Interface for the expected request body from the frontend
 interface GenerateScriptRequestBody {
@@ -48,24 +47,28 @@ export default defineEventHandler(async (event) => {
   }
 
   // --- Construct the prompt for Open Router ---
-  const rootDir = process.env.LAMBDA_TASK_ROOT || process.cwd();
-  const promptFilePath = path.resolve(
-    rootDir,
-    "public/prompts",
-    "podcast_script_generation.md"
-  );
+  const storage = useStorage('assets:server');
+  const promptFilePath = "prompts/podcast_script_generation.md"; // Relative to server/assets/
 
   consola.info(
-    `Prompt file debug: LAMBDA_TASK_ROOT='${process.env.LAMBDA_TASK_ROOT}', CWD='${process.cwd()}', rootDir='${rootDir}', resolvedPath='${promptFilePath}'`
+    `Attempting to read prompt file from Nitro storage: assets:server:${promptFilePath}`
   );
 
-  let promptTemplate = "";
+  let promptTemplate: string | null = "";
 
   try {
-    // Read the prompt template file content
-    promptTemplate = fs.readFileSync(promptFilePath, "utf-8");
+    // Read the prompt template file content using Nitro storage
+    promptTemplate = await storage.getItem(promptFilePath);
+    if (promptTemplate === null) {
+      consola.error(`Prompt file not found in storage at ${promptFilePath}`);
+      throw createError({
+        statusCode: 500,
+        statusMessage: "Failed to read prompt template file (not found) on the server.",
+      });
+    }
+    consola.success(`Successfully read prompt file from storage: ${promptFilePath}`);
   } catch (error) {
-    consola.error(`Error reading prompt file from ${promptFilePath}:`, error);
+    consola.error(`Error reading prompt file from storage ${promptFilePath}:`, error);
     throw createError({
       statusCode: 500,
       statusMessage: "Failed to read prompt template file on the server.",
@@ -131,9 +134,7 @@ export default defineEventHandler(async (event) => {
   const config = useRuntimeConfig();
   const llmModel = config.openrouter.model || "mistralai/mistral-7b-instruct"; // Access model via runtimeConfig
   consola.info(
-    `Sending request to OpenRouter using template: ${path.basename(
-      promptFilePath
-    )} with model: ${llmModel}`
+    `Sending request to OpenRouter using template from: ${promptFilePath} with model: ${llmModel}`
   );
   const startTime = Date.now();
 
@@ -150,7 +151,6 @@ export default defineEventHandler(async (event) => {
     // @ts-ignore: Ignoring all TypeScript errors for this $fetch call
     const response = await $fetch<OpenRouterResponse>(
       "https://openrouter.ai/api/v1/chat/completions",
-      // @ts-ignore: Nuxt's $fetch type definitions may not include all options we need
       {
         method: "POST",
         headers: {
@@ -163,7 +163,7 @@ export default defineEventHandler(async (event) => {
           temperature: 0.7,
           response_format: { type: "json_object" },
         },
-      }
+      } as any
     );
 
     if (
@@ -304,4 +304,3 @@ export default defineEventHandler(async (event) => {
     });
   }
 });
-
