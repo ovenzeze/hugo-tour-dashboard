@@ -5,12 +5,12 @@
       <Input
         id="podcastTitle"
         v-model="editableSettings.title"
-        placeholder="e.g., The Future of AI"
+        placeholder="e.g., The Future of AI Podcast"
         class="mt-2" />
     </div>
 
     <div>
-      <Label for="podcastTopic" class="text-base font-semibold">Topic / Instructions</Label>
+      <Label for="podcastTopic" class="text-base font-semibold">User Instructions</Label>
       <Textarea
         id="podcastTopic"
         v-model="editableSettings.topic"
@@ -20,39 +20,14 @@
 
     <div class="space-y-8 pt-4">
       <div>
-        <Label for="hostPersonaUnified" class="text-base font-semibold">Host Character (New Combobox Test)</Label>
-        <!-- <UnifiedPersonaSelector
+        <Label for="hostPersonaUnified" class="text-base font-semibold">Host Character</Label>
+        <UnifiedPersonaSelector
           id="hostPersonaUnified"
           v-model="editableSettings.hostPersonaId"
           :personas="props.personas"
           :selection-mode="'single'"
           class="mt-3"
-        ></UnifiedPersonaSelector> -->
-        <ComboboxRoot v-model="editableSettings.hostPersonaId" class="mt-3">
-          <ComboboxAnchor class="w-full">
-            <Button variant="outline" role="combobox" class="w-full justify-between">
-              <span>{{ editableSettings.hostPersonaId ? props.personas.find(p => p.persona_id === editableSettings.hostPersonaId)?.name : 'Select host...' }}</span>
-              <ChevronsUpDownIcon class="ml-2 h-4 w-4 shrink-0 opacity-50" />
-            </Button>
-          </ComboboxAnchor>
-          <ComboboxPortal>
-            <ComboboxContent class="w-[--radix-popover-trigger-width] p-0 border-border">
-              <ComboboxViewport class="max-h-[300px] overflow-y-auto overflow-x-hidden">
-                <ComboboxEmpty>No results</ComboboxEmpty>
-                <ComboboxGroup>
-                  <ComboboxItem
-                    v-for="persona in props.personas"
-                    :key="persona.persona_id"
-                    :value="persona.persona_id"
-                    class="flex items-center gap-2.5 p-2 cursor-pointer"
-                  >
-                    {{ persona.name }}
-                  </ComboboxItem>
-                </ComboboxGroup>
-              </ComboboxViewport>
-            </ComboboxContent>
-          </ComboboxPortal>
-        </ComboboxRoot>
+        />
       </div>
 
       <div>
@@ -116,24 +91,8 @@
 import { computed, watch } from 'vue';
 import { Skeleton } from '@/components/ui/skeleton';
 // import UnifiedPersonaSelector from '@/components/UnifiedPersonaSelector.vue'; // Commented out old selector
-import {
-  Combobox,
-  ComboboxAnchor,
-  ComboboxInput,
-  ComboboxContent,
-  ComboboxEmpty,
-  ComboboxGroup,
-  ComboboxItem,
-  ComboboxItemIndicator,
-  ComboboxLabel,
-  ComboboxPortal,
-  ComboboxRoot,
-  ComboboxSeparator,
-  ComboboxTrigger,
-  ComboboxViewport,
-} from '@/components/ui/combobox';
-import { Button } from '@/components/ui/button'; // For trigger
-import { ChevronsUpDownIcon } from 'lucide-vue-next'; // For trigger icon
+
+import { Button } from '@/components/ui/button';
 import type { Persona } from '@/stores/playgroundPersona';
 import type { FullPodcastSettings } from '@/stores/playgroundSettings';
 

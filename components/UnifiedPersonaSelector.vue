@@ -1,37 +1,40 @@
 <template>
   <div class="unified-persona-selector">
-    <Popover v-model:open="open">
-      <PopoverTrigger as-child>
-        <Button
-          variant="outline"
-          role="combobox"
-          :aria-expanded="open"
-          class="w-full justify-between h-10"
+    <div class="relative w-full unified-persona-selector">
+      <Button
+        variant="outline"
+        role="combobox"
+        :aria-expanded="open"
+        class="w-full justify-between h-10 transition-all group"
+        @click="toggleDropdown"
+      >
+        <span class="truncate">{{ selectedDisplayValue }}</span>
+        <ChevronsUpDownIcon
+          class="ml-2 h-4 w-4 shrink-0 transition-transform duration-200 group-hover:rotate-180"
+          :class="open ? 'rotate-180' : ''"
+        />
+      </Button>
+      <transition name="dropdown-scale-fade">
+        <div
+          v-if="open"
+          ref="dropdown"
+          class="absolute left-0 z-50 mt-2 w-full max-h-72 overflow-auto unified-selector-dropdown"
+          style="background: var(--color-popover, #fff) !important;"
+          @click.stop
         >
-          <span class="truncate">{{ selectedDisplayValue }}</span>
-          <ChevronsUpDownIcon class="ml-2 h-4 w-4 shrink-0 opacity-50" />
-        </Button>
-      </PopoverTrigger>
-      <PopoverContent class="w-[--radix-popover-trigger-width] p-0 border-border">
-        <Command
-          v-model="commandValue"
-        >
-          <!-- <CommandInput placeholder="Search persona..." /> REMOVED AS PER REQUIREMENT -->
-          <!-- <CommandInput placeholder="Search persona..." /> REMOVED AS PER REQUIREMENT -->
-          <CommandEmpty>
-            <div class="px-3 py-2 text-sm text-muted-foreground">No personas found.</div>
-          </CommandEmpty>
-          <CommandList class="max-h-[300px] overflow-y-auto overflow-x-hidden">
-            <CommandGroup>
-              <CommandItem
-                v-for="persona in listPersonas"
-                :key="persona.persona_id"
-                :value="persona.persona_id"
-                :disabled="isItemDisabled(persona.persona_id)"
-                class="flex items-center gap-2.5 p-2 cursor-pointer"
-                @select="(event: CustomEvent<{ value: number }>) => { handleSelectCommandItem(event.detail.value); if (props.selectionMode === 'single') open = false; }"
-              >
-                <Avatar class="h-9 w-9 border border-border">
+          <div v-if="!props.personas.length" class="px-3 py-2 text-sm text-muted-foreground">No personas found.</div>
+          <div v-else>
+            <div
+              v-for="persona in props.personas"
+              :key="persona.persona_id"
+              class="flex items-center gap-2.5 p-2 cursor-pointer"
+              :class="{
+                'opacity-50 pointer-events-none': isItemDisabled(persona.persona_id),
+                'bg-accent text-accent-foreground': isSelected(persona.persona_id),
+              }"
+              @click="onSelect(persona.persona_id)"
+            >
+              <Avatar class="h-9 w-9 border border-border">
                 <AvatarImage :src="persona.avatar_url || ''" :alt="persona.name || 'Persona Avatar'" />
                 <AvatarFallback>
                   <UserCircle2Icon class="h-5 w-5 text-muted-foreground" />
@@ -42,28 +45,34 @@
                 <p v-if="persona.description || persona.voice_description" class="text-xs text-muted-foreground truncate leading-tight">
                   {{ persona.description || persona.voice_description }}
                 </p>
-                <p v-if="persona.language_support && persona.language_support.length > 0" class="text-xs text-muted-foreground/80 leading-tight">
-                  Languages: {{ persona.language_support.join(', ') }}
-                </p>
+                <div v-if="persona.language_support && persona.language_support.length > 0" class="flex flex-wrap gap-1 mt-0.5">
+                  <Badge
+                    v-for="lang in persona.language_support"
+                    :key="lang"
+                    variant="secondary"
+                    class="px-1.5 py-0.5 text-xs font-medium border border-border bg-muted/70 text-muted-foreground"
+                  >
+                    {{ lang }}
+                  </Badge>
+                </div>
               </div>
               <CheckIcon
                 v-if="isSelected(persona.persona_id)"
                 class="h-4 w-4 text-primary ml-auto shrink-0"
               />
-              </CommandItem>
-            </CommandGroup>
-          </CommandList>
-        </Command>
-      </PopoverContent>
-    </Popover>
-    <p v-if="props.selectionMode === 'multiple' && props.maxSelection && selectedInternal.length >= props.maxSelection && !isFullySelectedAndDisabled()" class="mt-1.5 text-xs text-destructive text-center px-2">
-      Maximum {{ props.maxSelection }} Personas can be selected.
-    </p>
+            </div>
+          </div>
+        </div>
+      </transition>
+      <p v-if="props.selectionMode === 'multiple' && props.maxSelection && selectedInternal.length >= props.maxSelection && !isFullySelectedAndDisabled()" class="mt-1.5 text-xs text-destructive text-center px-2">
+        Maximum {{ props.maxSelection }} Personas can be selected.
+      </p>
+    </div>
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref, computed, watch, onMounted } from 'vue';
+import { ref, computed, watch, onMounted, onBeforeUnmount } from 'vue';
 import { CheckIcon, UserCircle2Icon, ChevronsUpDownIcon } from 'lucide-vue-next';
 // Shadcn/Vue UI components like Button, Popover, Command, Avatar are auto-imported by Nuxt.
 import type { Database } from '@/types/supabase';
@@ -97,15 +106,45 @@ const props = defineProps({
 const emit = defineEmits(['update:value', 'change']);
 
 const open = ref(false);
-console.log('UnifiedPersonaSelector: initial open state in script setup:', open.value);
+const dropdown = ref<HTMLElement | null>(null);
+
+function toggleDropdown() {
+  open.value = !open.value;
+}
+
+function closeDropdown() {
+  open.value = false;
+}
+
+function onSelect(personaId: number) {
+  handleSelectCommandItem(personaId);
+  if (props.selectionMode === 'single') closeDropdown();
+}
+
+// 点击外部关闭弹窗
+function onClickOutside(e: MouseEvent) {
+  if (!open.value) return;
+  const target = e.target as Node;
+  if (dropdown.value && !dropdown.value.contains(target)) {
+    closeDropdown();
+  }
+}
 
 onMounted(() => {
-  console.log('UnifiedPersonaSelector: open state onMounted:', open.value);
+  document.addEventListener('mousedown', onClickOutside);
+});
+onBeforeUnmount(() => {
+  document.removeEventListener('mousedown', onClickOutside);
 });
 
-watch(open, (newValue, oldValue) => {
-  console.log(`UnifiedPersonaSelector: open state changed from ${oldValue} to ${newValue}. Stack:`, new Error().stack);
-}, { immediate: false }); // Set immediate to false to only log actual changes after setup
+// 保留调试日志（可选）
+// console.log('UnifiedPersonaSelector: initial open state in script setup:', open.value);
+// onMounted(() => {
+//   console.log('UnifiedPersonaSelector: open state onMounted:', open.value);
+// });
+// watch(open, (newValue, oldValue) => {
+//   console.log(`UnifiedPersonaSelector: open state changed from ${oldValue} to ${newValue}. Stack:`, new Error().stack);
+// }, { immediate: false }); // Set immediate to false to only log actual changes after setup
 
 const selectedInternal = ref<number[]>([]); // Internal state for selected IDs, mirrors props.value
 const commandValue = ref<number | number[] | undefined>(); // Internal state for Command v-model

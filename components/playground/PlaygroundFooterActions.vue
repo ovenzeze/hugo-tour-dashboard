@@ -36,15 +36,15 @@
                     <Icon 
                       v-if="isScriptGenerating" 
                       name="ph:sparkle" 
-                      class="w-4 h-4 mr-2 animate-pulse text-primary" 
+                      class="w-5 h-5 animate-pulse text-primary" 
                     />
                     <Icon 
                       v-else 
                       name="ph:magic-wand" 
-                      class="w-4 h-4 mr-2 group-hover:rotate-12 transition-transform duration-300" 
+                      class="w-5 h-5 mr-2 group-hover:rotate-12 transition-transform duration-300" 
                     />
                     <span v-if="isScriptGenerating">AI Creating...</span>
-                    <span v-else>AI Create Script</span>
+                    <span v-else>AI Script</span>
                   </div>
                 </div>
               </Button>
@@ -65,9 +65,9 @@
               >
                 <Icon 
                   name="ph:book-open-text" 
-                  class="w-4 h-4 mr-2 group-hover:scale-110 transition-transform duration-300" 
+                  class="w-4 h-4 group-hover:scale-110 transition-transform duration-300" 
                 />
-                <span>Use Preset Script</span>
+                <span>Use Preset</span>
               </Button>
             </TooltipTrigger>
             <TooltipContent>

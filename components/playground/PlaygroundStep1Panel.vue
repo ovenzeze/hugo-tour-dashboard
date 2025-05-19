@@ -1,7 +1,7 @@
 <template>
   <div class="flex flex-col md:flex-row gap-4 flex-1 p-4 bg-background h-full">
     <!-- Left Form Area, Scrolls Independently -->
-    <Card class="md:w-1/3 w-full p-4 flex-shrink-0 bg-muted/60 border-none shadow-md overflow-y-auto h-full">
+    <Card class="flex-1 min-h-0 h-full p-4 bg-muted/60 border-none shadow-md overflow-y-auto">
       <PodcastSettingsForm
         :model-value="podcastSettings"
         :personas="personasForForm"
@@ -11,7 +11,7 @@
     </Card>
     <!-- Right Script Editing Area, Scrolls Independently -->
     <!-- Right Script Editing Area, Scrolls Independently -->
-    <Card class="flex-1 min-h-[240px] flex flex-col bg-background border-none shadow-md overflow-y-auto h-full p-4">
+    <Card class="flex-1 min-h-0 h-full flex flex-col bg-background border-none shadow-md overflow-y-auto p-4">
       <template v-if="isScriptGenerating || isValidating">
         <div class="flex flex-col items-center justify-center h-full space-y-4">
           <!-- Skeleton Loader -->
@@ -44,6 +44,18 @@
           <p class="text-center text-sm text-muted-foreground max-w-md">
             {{ aiScriptStepText || 'Please wait, this may take a moment...' }}
           </p>
+
+          <!-- 新增：部分内容生成时淡入显示 -->
+          <Transition name="fade">
+            <div v-if="mainEditorContent" class="w-full mt-6">
+              <Textarea
+                :model-value="mainEditorContent"
+                placeholder="Script is being generated..."
+                class="flex-1 w-full h-full resize-none min-h-[120px] rounded-lg border border-input bg-background p-4 text-base focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 transition placeholder:text-muted-foreground opacity-80"
+                readonly
+              />
+            </div>
+          </Transition>
         </div>
       </template>
       <template v-else-if="scriptError">

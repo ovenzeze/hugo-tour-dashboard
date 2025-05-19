@@ -1,5 +1,5 @@
 <template>
-  <div class="h-[100vh] w-full flex flex-col overflow-hidden">
+  <div class="h-[100svh] w-full flex flex-col overflow-hidden">
     <!-- Top Section: Stepper -->
     <div class="px-4 py-4 border-b bg-background">
       <PlaygroundStepper v-model="currentStepIndex" :steps="[...podcastSteps]" />

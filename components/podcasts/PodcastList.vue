@@ -1,26 +1,73 @@
 <template>
   <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-x-10 md:gap-y-20 mt-4 md:px-6">
-    <Card
+    <!-- Skeleton loading state -->
+    <Card v-if="loading" v-for="n in 3" :key="`skeleton-${n}`"
+      class="border rounded-xl overflow-hidden shadow-md min-w-[320px] h-[400px] animate-pulse bg-muted/50">
+      <div class="h-48 bg-muted/30"></div>
+      <div class="p-4 space-y-4">
+        <div class="h-6 bg-muted/30 rounded w-3/4"></div>
+        <div class="h-4 bg-muted/30 rounded w-1/2"></div>
+        <div class="space-y-2">
+          <div class="h-3 bg-muted/30 rounded w-full"></div>
+          <div class="h-3 bg-muted/30 rounded w-5/6"></div>
+        </div>
+      </div>
+    </Card>
+
+    <!-- Podcast cards -->
+    <Card v-else
       v-for="podcast in filteredPodcasts"
       :key="podcast.podcast_id"
       @mouseenter="hoveredPodcastId = podcast.podcast_id"
       @mouseleave="hoveredPodcastId = null"
-      :style="podcast.cover_image_url ? { backgroundImage: `url(${podcast.cover_image_url})`, backgroundSize: 'cover', backgroundPosition: 'center' } : {}"
+      :style="{
+        ...(podcast.cover_image_url ? { 
+          '--bg-image': `url(${podcast.cover_image_url})`,
+          'background-image': 'var(--bg-image)'
+        } : {}),
+        'background-size': 'cover',
+        'background-position': 'center',
+        'background-repeat': 'no-repeat',
+        'transition': 'all 0.3s ease-in-out',
+        'transform': hoveredPodcastId === podcast.podcast_id ? 'translateY(-4px)' : 'translateY(0)'
+      }"
       :class="[
-        'border rounded-xl overflow-hidden shadow-md flex flex-col relative min-w-[320px]',
+        'border rounded-xl shadow-md flex flex-col min-w-[320px]',
+        'group hover:shadow-xl transition-all duration-300 ease-in-out',
+        !podcast.cover_image_url ? 'bg-card text-card-foreground' : 'text-white',
+        podcast.cover_image_url && 'bg-cover bg-center',
         currentPreviewingId === podcast.podcast_id ? 'ring-2 ring-primary shadow-xl' : 'cursor-pointer',
-        podcast.cover_image_url ? 'text-white' : 'bg-card text-card-foreground',
-        hoveredPodcastId === podcast.podcast_id ? 'shadow-lg' : ''
+        hoveredPodcastId === podcast.podcast_id && 'shadow-lg',
+        hoveredPodcastId === podcast.podcast_id ? 'scale-[1.02]' : 'scale-100'
       ]"
       @click="currentPreviewingId === podcast.podcast_id ? null : emit('select-podcast', podcast.podcast_id)"
     >
+      <!-- Background image with loading state -->
+      <div 
+        v-if="podcast.cover_image_url" 
+        class="absolute inset-0 bg-cover bg-center transition-opacity duration-500 ease-in-out rounded-md"
+        :style="{
+          backgroundImage: `url(${podcast.cover_image_url})`,
+          opacity: imageLoaded[podcast.podcast_id] ? 1 : 0,
+          transition: 'opacity 0.5s ease-in-out',
+          zIndex: 0
+        }"
+      >
+        <img 
+          :src="podcast.cover_image_url" 
+          @load="() => handleImageLoad(podcast.podcast_id)" 
+          class="hidden" 
+          alt=""
+        />
+      </div>
+      
       <!-- Enhanced overlay for better text readability when there's a background image -->
       <div 
         v-if="podcast.cover_image_url" 
-        class="absolute inset-0 bg-gradient-to-b from-black/85 via-black/50 to-black/80"
+        class="absolute inset-0 bg-gradient-to-b from-black/85 via-black/50 to-black/80 transition-opacity duration-300 ease-in-out"
         :style="{
           opacity: hoveredPodcastId === podcast.podcast_id ? '0.85' : '0.7',
-          transition: 'opacity 300ms ease'
+          zIndex: 1
         }"
       ></div>
       
@@ -451,11 +498,29 @@ type Podcast = Database['public']['Tables']['podcasts']['Row'] & {
   // total_duration_ms?: number; // Potentially for total duration
 };
 
+// Track loaded images
+const imageLoaded = ref<Record<string, boolean>>({});
+
+// Handle image load
+const handleImageLoad = (podcastId: string) => {
+  imageLoaded.value = {
+    ...imageLoaded.value,
+    [podcastId]: true
+  };
+};
+
 const props = defineProps<{
   podcasts: Podcast[];
   currentPreviewingId: string | null;
   isAudioPlaying: boolean;
-  hideEmptyPodcastsToggle?: boolean; // Added for filtering empty podcasts
+  loading: {
+    type: Boolean,
+    default: false
+  },
+  hideEmptyPodcastsToggle: {
+    type: Boolean,
+    default: false
+  }, // Added for filtering empty podcasts
 }>();
 
 const emit = defineEmits(['select-podcast', 'edit-podcast', 'delete-podcast', 'download-podcast', 'preview-podcast', 'stop-preview', 'generate-cover']);
