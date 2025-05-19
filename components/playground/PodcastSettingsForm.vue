@@ -20,18 +20,43 @@
 
     <div class="space-y-8 pt-4">
       <div>
-        <Label for="hostPersonaUnified" class="text-base font-semibold">Host Character</Label>
-        <UnifiedPersonaSelector
+        <Label for="hostPersonaUnified" class="text-base font-semibold">Host Character (New Combobox Test)</Label>
+        <!-- <UnifiedPersonaSelector
           id="hostPersonaUnified"
           v-model="editableSettings.hostPersonaId"
           :personas="props.personas"
           :selection-mode="'single'"
           class="mt-3"
-        ></UnifiedPersonaSelector>
+        ></UnifiedPersonaSelector> -->
+        <ComboboxRoot v-model="editableSettings.hostPersonaId" class="mt-3">
+          <ComboboxAnchor class="w-full">
+            <Button variant="outline" role="combobox" class="w-full justify-between">
+              <span>{{ editableSettings.hostPersonaId ? props.personas.find(p => p.persona_id === editableSettings.hostPersonaId)?.name : 'Select host...' }}</span>
+              <ChevronsUpDownIcon class="ml-2 h-4 w-4 shrink-0 opacity-50" />
+            </Button>
+          </ComboboxAnchor>
+          <ComboboxPortal>
+            <ComboboxContent class="w-[--radix-popover-trigger-width] p-0 border-border">
+              <ComboboxViewport class="max-h-[300px] overflow-y-auto overflow-x-hidden">
+                <ComboboxEmpty>No results</ComboboxEmpty>
+                <ComboboxGroup>
+                  <ComboboxItem
+                    v-for="persona in props.personas"
+                    :key="persona.persona_id"
+                    :value="persona.persona_id"
+                    class="flex items-center gap-2.5 p-2 cursor-pointer"
+                  >
+                    {{ persona.name }}
+                  </ComboboxItem>
+                </ComboboxGroup>
+              </ComboboxViewport>
+            </ComboboxContent>
+          </ComboboxPortal>
+        </ComboboxRoot>
       </div>
 
       <div>
-        <Label for="guestPersonasUnified" class="text-base font-semibold">Guest Characters</Label>
+        <Label for="guestPersonasUnified" class="text-base font-semibold">Guest Characters (Old Selector - For Reference)</Label>
         <UnifiedPersonaSelector
           id="guestPersonasUnified"
           v-model="editableSettings.guestPersonaIds"
@@ -90,7 +115,25 @@
 <script setup lang="ts">
 import { computed, watch } from 'vue';
 import { Skeleton } from '@/components/ui/skeleton';
-import UnifiedPersonaSelector from '@/components/UnifiedPersonaSelector.vue';
+// import UnifiedPersonaSelector from '@/components/UnifiedPersonaSelector.vue'; // Commented out old selector
+import {
+  Combobox,
+  ComboboxAnchor,
+  ComboboxInput,
+  ComboboxContent,
+  ComboboxEmpty,
+  ComboboxGroup,
+  ComboboxItem,
+  ComboboxItemIndicator,
+  ComboboxLabel,
+  ComboboxPortal,
+  ComboboxRoot,
+  ComboboxSeparator,
+  ComboboxTrigger,
+  ComboboxViewport,
+} from '@/components/ui/combobox';
+import { Button } from '@/components/ui/button'; // For trigger
+import { ChevronsUpDownIcon } from 'lucide-vue-next'; // For trigger icon
 import type { Persona } from '@/stores/playgroundPersona';
 import type { FullPodcastSettings } from '@/stores/playgroundSettings';
 
@@ -126,6 +169,18 @@ const editableSettings = computed({
   set: (value) => {
     const newSettings = { ...props.modelValue, ...value };
 
+    // Define an explicit helper function for keywords processing
+    const getProcessedKeywords = (): string[] => {
+      const keywordsValue = newSettings.keywords;
+      if (Array.isArray(keywordsValue)) {
+        return keywordsValue;
+      } 
+      if (typeof keywordsValue === 'string') {
+        return keywordsValue.split(',').map((k: string) => k.trim()).filter(Boolean);
+      }
+      return [];
+    };
+
     const processedValue = {
       ...newSettings,
       numberOfSegments: Number(newSettings.numberOfSegments) || 1,
@@ -135,11 +190,7 @@ const editableSettings = computed({
           .map((id: string | number | undefined) => Number(id))
           .filter((id: number) => !isNaN(id) && id > 0)
         : [],
-      keywords: Array.isArray(newSettings.keywords)
-                ? newSettings.keywords
-                : (typeof newSettings.keywords === 'string'
-                    ? newSettings.keywords.split(',').map(k => k.trim()).filter(k => k)
-                    : [])
+      keywords: getProcessedKeywords(),
     };
     
     emit('update:modelValue', processedValue);

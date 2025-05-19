@@ -27,6 +27,8 @@ export default defineNuxtConfig({
       model: process.env.OPENROUTER_MODEL,
       referer: process.env.NUXT_PUBLIC_SITE_URL || "http://localhost:3000",
     },
+    supabaseUrl: process.env.SUPABASE_URL,
+    supabaseKey: process.env.SUPABASE_KEY,
     public: {
       openrouterDefaultModel: process.env.OPENROUTER_MODEL,
       groqDefaultModel: process.env.GROQ_MODEL,

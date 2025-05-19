@@ -170,7 +170,13 @@
 </template>
 
 <script setup lang="ts">
+import { ref } from 'vue';
+import PersonaSelector from '@/components/PersonaSelector.vue'; // 确保路径正确
+
+const selectedPersonaId = ref(null);
+
 definePageMeta({
   title: 'Component Library'
 });
 </script>
+
