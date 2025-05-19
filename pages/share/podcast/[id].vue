@@ -102,16 +102,11 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted, watch } from 'vue';
-
-import { useRoute } from 'vue-router';
-import { useAudioPlayer } from '~/composables/useAudioPlayer';
-import QRCodeVue from 'qrcode-vue';
+import { toast } from 'vue-sonner';
 import { usePodcastDatabase, type Podcast } from '~/composables/usePodcastDatabase';
 
 const showWeChatQr = ref(false);
 const shareUrl = computed(() => window?.location?.href || '');
-const { toast } = useToast();
 const route = useRoute();
 const { fetchPodcastById, selectedPodcast } = usePodcastDatabase();
 
