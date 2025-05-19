@@ -48,18 +48,24 @@ export default defineEventHandler(async (event) => {
   }
 
   // --- Construct the prompt for Open Router ---
+  const rootDir = process.env.LAMBDA_TASK_ROOT || process.cwd();
   const promptFilePath = path.resolve(
-    process.cwd(),
+    rootDir,
     "public/prompts",
     "podcast_script_generation.md"
   );
+
+  consola.info(
+    `Prompt file debug: LAMBDA_TASK_ROOT='${process.env.LAMBDA_TASK_ROOT}', CWD='${process.cwd()}', rootDir='${rootDir}', resolvedPath='${promptFilePath}'`
+  );
+
   let promptTemplate = "";
 
   try {
     // Read the prompt template file content
     promptTemplate = fs.readFileSync(promptFilePath, "utf-8");
   } catch (error) {
-    consola.error("Error reading prompt file:", error);
+    consola.error(`Error reading prompt file from ${promptFilePath}:`, error);
     throw createError({
       statusCode: 500,
       statusMessage: "Failed to read prompt template file on the server.",
@@ -298,3 +304,4 @@ export default defineEventHandler(async (event) => {
     });
   }
 });
+
