@@ -72,7 +72,7 @@
               </ul>
             </template>
             <template v-else>
-              {{ isScriptGenerating ? 'Processing and saving script...' : 'Checking script format and content...' }}
+              {{ isScriptGenerating ? 'Processing and saving script...' : '验证脚本格式和内容，准备进入下一步...' }}
             </template>
           </div>
           

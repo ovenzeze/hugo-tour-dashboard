@@ -2,6 +2,7 @@
 import { consola } from "consola"; // For logging
 import { createError, defineEventHandler, readBody } from "h3";
 import { useStorage } from '#imports'; // Import Nitro's useStorage
+import { callLLM, cleanAndParseJson } from "../utils/llmService"; // Import the new LLM service
 
 // Interface for the expected request body from the frontend
 interface GenerateScriptRequestBody {
@@ -37,16 +38,9 @@ interface GenerateScriptRequestBody {
 export default defineEventHandler(async (event) => {
   const body = await readBody<GenerateScriptRequestBody>(event);
 
-  const openRouterApiKey = process.env.OPENROUTER_API_KEY;
-  if (!openRouterApiKey) {
-    consola.error("OPENROUTER_API_KEY environment variable is not set.");
-    throw createError({
-      statusCode: 500,
-      statusMessage: "OpenRouter API key is not configured on the server.",
-    });
-  }
+  // API key check is now handled by llmService
 
-  // --- Construct the prompt for Open Router ---
+  // --- Construct the prompt ---
   const storage = useStorage('assets:server');
   const promptFilePath = "prompts/podcast_script_generation.md"; // Relative to server/assets/
 
@@ -131,176 +125,59 @@ export default defineEventHandler(async (event) => {
   // Remove any remaining double curly braces if a placeholder was missed or value was empty
   promptContent = promptContent.replace(/\{\{.*?\}\}/g, "").trim();
 
-  const config = useRuntimeConfig();
-  const llmModel = config.openrouter.model || "mistralai/mistral-7b-instruct"; // Access model via runtimeConfig
+  // For Groq, the model is now determined within llmService.
+  const llmProvider = 'groq'; // Specify Groq as the provider
+
   consola.info(
-    `Sending request to OpenRouter using template from: ${promptFilePath} with model: ${llmModel}`
+    `Using LLM service with provider: '${llmProvider}' (model determined by llmService), and template from: ${promptFilePath}`
   );
-  const startTime = Date.now();
 
   try {
-    // Define the expected response type
-    interface OpenRouterResponse {
-      choices: Array<{
-        message: {
-          content: string;
-        };
-      }>;
-    }
+    const rawGeneratedContent = await callLLM({
+      prompt: promptContent,
+      // No model property passed for Groq, llmService will handle it
+      provider: llmProvider,
+      responseFormat: { type: "json_object" } // Ensure JSON output for Groq as well
+    });
 
-    // @ts-ignore: Ignoring all TypeScript errors for this $fetch call
-    const response = await $fetch<OpenRouterResponse>(
-      "https://openrouter.ai/api/v1/chat/completions",
-      {
-        method: "POST",
-        headers: {
-          Authorization: `Bearer ${openRouterApiKey}`,
-          "Content-Type": "application/json",
-        },
-        body: {
-          model: llmModel,
-          messages: [{ role: "user", content: promptContent }],
-          temperature: 0.7,
-          response_format: { type: "json_object" },
-        },
-      } as any
-    );
+    // JSON parsing and cleaning is now handled by a utility function
+    const parsedResponse = cleanAndParseJson(rawGeneratedContent);
 
     if (
-      response.choices &&
-      response.choices.length > 0 &&
-      response.choices[0].message &&
-      response.choices[0].message.content
+      !parsedResponse ||
+      !Array.isArray(parsedResponse.script) ||
+      !parsedResponse.voiceMap ||
+      typeof parsedResponse.podcastTitle !== "string" ||
+      typeof parsedResponse.language !== "string"
     ) {
-      // @ts-ignore
-      const rawGeneratedContent = response.choices[0].message.content.trim();
-      const endTime = Date.now();
-      const timeTaken = endTime - startTime;
-      consola.success(
-        `Received response from OpenRouter. Content length: ${rawGeneratedContent.length} characters. Time taken: ${timeTaken}ms.`
-      );
-      // Optionally, log a snippet for debugging if needed, perhaps under a specific log level or condition
-      // consola.debug('Raw content snippet:', rawGeneratedContent.substring(0, 200) + "...");
-
-      let parsedResponse;
-      let cleanedContent = rawGeneratedContent;
-
-      try {
-        try {
-          parsedResponse = JSON.parse(rawGeneratedContent);
-          consola.success("Successfully parsed raw AI response as JSON.");
-        } catch (jsonError: any) {
-          consola.warn(
-            "Failed to parse raw AI response as JSON, attempting cleaning:",
-            jsonError.message
-          );
-          consola.debug("Raw AI response:", rawGeneratedContent);
-          
-          // Basic cleaning
-          cleanedContent = rawGeneratedContent
-            .replace(/\\" +/g, '\\"')
-            .replace(/\\ +/g, "\\");
-
-          // Attempt to remove Markdown JSON code block fences
-          const markdownJsonMatch = cleanedContent.match(
-            /```json\s*([\s\S]*?)\s*```/
-          );
-          if (markdownJsonMatch && markdownJsonMatch[1]) {
-            consola.info("Markdown JSON fences detected, extracting content.");
-            cleanedContent = markdownJsonMatch[1];
-          }
-          
-          // Enhanced cleaning for common JSON formatting issues
-          
-          // Fix missing commas between array elements (specifically targeting the issue at line 10)
-          cleanedContent = cleanedContent.replace(/}\s*\n\s*{/g, '},\n{');
-          
-          // Fix missing commas between object properties
-          cleanedContent = cleanedContent.replace(/"\s*\n\s*"/g, '",\n"');
-          
-          // Fix trailing commas in arrays and objects
-          cleanedContent = cleanedContent.replace(/,\s*]/g, ']');
-          cleanedContent = cleanedContent.replace(/,\s*}/g, '}');
-          
-          // Fix unquoted property names
-          cleanedContent = cleanedContent.replace(/(\w+):/g, '"$1":');
-          
-          // Fix single quotes used instead of double quotes
-          cleanedContent = cleanedContent.replace(/'/g, '"');
-          
-          consola.info("Applied enhanced JSON cleaning techniques");
-
-          parsedResponse = JSON.parse(cleanedContent);
-          consola.success("Successfully parsed cleaned AI response as JSON.");
-          consola.debug("Cleaned AI response:", cleanedContent);
-        }
-
-        if (
-          !parsedResponse ||
-          !Array.isArray(parsedResponse.script) ||
-          !parsedResponse.voiceMap ||
-          typeof parsedResponse.podcastTitle !== "string" ||
-          typeof parsedResponse.language !== "string"
-        ) {
-          consola.error(
-            "Parsed JSON does not match the expected structuredData format:",
-            parsedResponse
-          );
-          throw createError({
-            statusCode: 500,
-            statusMessage:
-              "AI response format is incorrect: does not match expected structuredData structure.",
-            data: { rawResponse: rawGeneratedContent, parsedResponse },
-          });
-        }
-
-        consola.success(
-          "Script and settings generated successfully by OpenRouter."
-        );
-        return parsedResponse;
-      } catch (finalJsonError: any) {
-        consola.error(
-          "Failed to parse AI response as JSON even after cleaning:",
-          finalJsonError.message
-        );
-        consola.debug(
-          "Content that failed parsing (after cleaning):",
-          cleanedContent
-        ); // Log the content that failed
-        throw createError({
-          statusCode: 500,
-          statusMessage: `Failed to parse AI response as JSON: ${finalJsonError.message}`,
-          data: {
-            rawResponse: rawGeneratedContent,
-            cleanedResponse: cleanedContent,
-            errorDetails: finalJsonError.toString(),
-          },
-        });
-      }
-    } else {
       consola.error(
-        "OpenRouter response did not contain expected content:",
-        response
+        "Parsed JSON does not match the expected structuredData format:",
+        parsedResponse
       );
       throw createError({
         statusCode: 500,
-        statusMessage: "Failed to get content from OpenRouter response.",
-        data: response,
+        statusMessage:
+          "AI response format is incorrect: does not match expected structuredData structure.",
+        data: { rawResponse: rawGeneratedContent, parsedResponse },
       });
     }
-  } catch (error: any) {
-    consola.error(
-      "Error calling OpenRouter API:",
-      error.response?.data || error.message || error
+
+    consola.success(
+      `Script and settings generated successfully by LLM provider: ${llmProvider}.`
     );
-    const errorMessage =
-      error.response?.data?.error?.message ||
-      error.message ||
-      "Unknown error generating script via OpenRouter.";
+    return parsedResponse;
+
+  } catch (error: any) {
+    // Errors from callLLM or cleanAndParseJson will be H3Errors
+    // If it's not an H3Error, wrap it
+    if (error.statusCode && error.statusMessage) {
+      throw error; // Re-throw H3 errors directly
+    }
+    consola.error("Unhandled error during LLM processing:", error);
     throw createError({
-      statusCode: error.response?.status || 500,
-      statusMessage: `OpenRouter API Error: ${errorMessage}`,
-      data: error.response?.data,
+      statusCode: 500,
+      statusMessage: "An unexpected error occurred while generating the script.",
+      data: error.message,
     });
   }
 });

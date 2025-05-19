@@ -80,14 +80,34 @@
     <!-- Right Main Action Button Group -->
     <div class="flex flex-col md:flex-row items-stretch md:items-center gap-2 md:gap-2 w-full md:w-auto justify-end">
       <template v-if="currentStepIndex === 1">
-        <Button
-          variant="default"
-          :disabled="!textToSynthesize || isGeneratingOverall || isValidating"
-          @click="emit('proceed-without-validation')"
-          class="w-full md:w-auto"
-        >
-          Next <Icon name="ph:arrow-right" class="w-4 h-4 ml-2" />
-        </Button>
+        <TooltipProvider>
+          <Tooltip :delay-duration="200">
+            <TooltipTrigger as-child>
+              <Button
+                variant="default"
+                :disabled="!textToSynthesize || isGeneratingOverall || isValidating"
+                @click="emit('proceed-without-validation')"
+                class="w-full md:w-auto relative overflow-hidden group"
+              >
+                <div class="flex items-center justify-center">
+                  <div v-if="isValidating" class="absolute inset-0 bg-primary/10 animate-pulse"></div>
+                  <div class="flex items-center justify-center relative z-10">
+                    <Icon 
+                      v-if="isValidating" 
+                      name="ph:spinner" 
+                      class="w-4 h-4 mr-2 animate-spin text-primary" 
+                    />
+                    <span>Next</span>
+                    <Icon name="ph:arrow-right" class="w-4 h-4 ml-2" />
+                  </div>
+                </div>
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent v-if="isValidating">
+              <p>正在验证脚本并准备下一步...</p>
+            </TooltipContent>
+          </Tooltip>
+        </TooltipProvider>
       </template>
       <template v-if="currentStepIndex === 2">
         <Button

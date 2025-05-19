@@ -10,32 +10,17 @@
       @click="currentPreviewingId === podcast.podcast_id ? null : emit('select-podcast', podcast.podcast_id)"
     >
 <CardHeader class="pb-3 relative group">
-  <div class="flex justify-between items-start gap-2">
-    <div class="flex-1 min-w-0">
-      <CardTitle class="text-lg font-bold leading-tight flex items-center min-w-0">
+  <div class="flex flex-col items-start">
+    <div class="flex justify-between items-start w-full mb-2">
+      <CardTitle class="text-lg font-bold leading-tight text-left">
         <span
-          class="line-clamp-2 break-words text-center text-xs"
+          class="line-clamp-2 break-words"
           :title="podcast.title"
         >{{ podcast.title || `Podcast #${podcast.podcast_id}` }}</span>
       </CardTitle>
-      <CardDescription class="text-xs text-muted-foreground mt-1 truncate text-center">
-        <span v-if="podcast.host_name" class="font-medium text-foreground mr-2">Host: {{ podcast.host_name }}</span>
-        <span v-if="podcast.guest_name" class="font-medium text-foreground">Guest: {{ podcast.guest_name }}</span>
-      </CardDescription>
-    </div>
-    <!-- Right part: Topic and Buttons -->
-  </div>
-      <div class=" w-full flex flex-col items-center justify-center gap-y-1.5 flex-shrink-0">
-      <span
-        v-if="podcast.topic"
-        class="px-4 py-1 rounded-full bg-primary/10 text-primary text-xs font-semibold line-clamp-1"
-        :title="podcast.topic"
-        style="max-width: 200px;"
-      >
-        {{ podcast.topic }}
-      </span>
+      
       <div class="flex flex-row gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-         <Button
+        <Button
           v-if="!(currentPreviewingId === podcast.podcast_id)"
           variant="ghost"
           size="icon"
@@ -56,55 +41,70 @@
         </Button>
       </div>
     </div>
+    
+    <CardDescription v-if="podcast.description" class="text-sm text-muted-foreground line-clamp-2 text-left hover:line-clamp-none transition-all cursor-pointer">
+      {{ podcast.description }}
+    </CardDescription>
+    
+    <div class="flex items-center mt-2 w-full">
+      <span
+        v-if="podcast.topic"
+        class="px-3 py-1 rounded-full bg-primary/10 text-primary text-xs font-semibold line-clamp-1"
+        :title="podcast.topic"
+      >
+        {{ podcast.topic }}
+      </span>
+    </div>
+  </div>
 </CardHeader>
       <CardContent class="py-3 text-sm flex-grow">
-        <!-- 主信息区 -->
-        <div class="flex flex-col gap-2 mb-2">
-          <div class="flex items-center justify-between">
-            <span class="text-muted-foreground">Status:</span>
-            <span :class="getSynthesisStatusClass(podcast)">{{ getSynthesisStatusText(podcast) }}</span>
+        <!-- 状态信息区域 -->
+        <div class="mb-4">
+          <div class="flex items-center justify-between mb-3">
+            <Badge :variant="getSynthesisStatusVariant(podcast)" class="mr-2">
+              {{ getSynthesisStatusText(podcast) }}
+            </Badge>
+            <span class="text-xs flex items-center">
+              <Icon name="ph:clock" class="h-4 w-4 mr-1 text-muted-foreground" />
+              {{ getPodcastTotalDuration(podcast) }}
+            </span>
           </div>
-          <div class="flex items-center justify-between">
-            <span class="text-muted-foreground">Duration:</span>
-            <span>{{ getPodcastTotalDuration(podcast) }}</span>
-          </div>
-          <div class="flex items-center justify-between">
-            <span class="text-muted-foreground">Host:</span>
-            <span>{{ podcast.host_name || 'N/A' }}</span>
-          </div>
-          <div class="flex items-center justify-between">
-            <span class="text-muted-foreground">Guest:</span>
-            <span>{{ podcast.guest_name || 'N/A' }}</span>
-          </div>
-          <div class="flex items-center justify-between">
-            <span class="text-muted-foreground">Created:</span>
-            <span>{{ formatRelativeTime(podcast.created_at) }}</span>
+          
+          <div class="grid grid-cols-2 gap-x-4 gap-y-2">
+            <div v-if="podcast.host_name" class="flex items-center">
+              <Icon name="ph:microphone" class="h-4 w-4 mr-2 text-muted-foreground" />
+              <span class="text-sm truncate" :title="podcast.host_name">{{ podcast.host_name }}</span>
+            </div>
+            <div v-if="podcast.guest_name" class="flex items-center">
+              <Icon name="ph:user" class="h-4 w-4 mr-2 text-muted-foreground" />
+              <span class="text-sm truncate" :title="podcast.guest_name">{{ podcast.guest_name }}</span>
+            </div>
+            <div class="flex items-center col-span-2">
+              <Icon name="ph:calendar" class="h-4 w-4 mr-2 text-muted-foreground" />
+              <span class="text-xs">{{ formatRelativeTime(podcast.created_at) }}</span>
+            </div>
           </div>
         </div>
-        <!-- 分段信息（仅展示前2条，可展开） -->
-        <div v-if="podcast.podcast_segments && podcast.podcast_segments.length > 0" class="border-t pt-2 mt-2">
-          <div class="flex items-center justify-between mb-1">
-            <span class="text-xs font-semibold text-muted-foreground">Segments</span>
-            <button
-              v-if="podcast.podcast_segments.length > 2"
-              class="text-xs text-primary hover:underline"
-              @click="toggleSegments(String(podcast.podcast_id))"
-              type="button"
+        
+        <!-- 分段信息展示优化 -->
+        <div v-if="podcast.podcast_segments && podcast.podcast_segments.length > 0" class="border-t pt-3">
+          <div class="flex items-center justify-between mb-2">
+            <span class="text-sm font-medium">Segments</span>
+            <Button 
+              v-if="podcast.podcast_segments.length > 2" 
+              variant="ghost" 
+              size="sm" 
+              class="h-6 text-xs"
+              @click.stop="toggleSegments(String(podcast.podcast_id))"
             >
               {{ showAllSegments[String(podcast.podcast_id)] ? 'Collapse' : 'Show All' }}
-            </button>
+            </Button>
           </div>
-          <div class="space-y-1 max-h-32 overflow-y-auto pr-1">
+          
+          <div class="space-y-2 max-h-40 overflow-y-auto pr-1">
             <div
-              v-for="(segment, index) in showAllSegments[String(podcast.podcast_id)] ? podcast.podcast_segments : podcast.podcast_segments.slice(0, 2)"
+              v-for="(segment, index) in visibleSegments(podcast)"
               :key="index"
-              class="px-2 py-1 rounded bg-muted/50 flex items-start gap-2"
-            >
-              <span class="inline-flex items-center justify-center h-5 w-5 rounded-full bg-primary/20 text-primary font-bold text-xs mt-0.5">
-                {{ (segment.speaker && segment.speaker[0]) ? segment.speaker[0].toUpperCase() : '?' }}
-              </span>
-              <div class="flex-1 min-w-0">
-                <span class="text-xs font-medium text-foreground" :title="segment.speaker ?? undefined">
                   {{ segment.speaker || 'Unknown Speaker' }}
                 </span>
                 <span class="text-xs text-muted-foreground ml-2 truncate" :title="segment.text ?? undefined">
@@ -115,37 +115,49 @@
           </div>
         </div>
       </CardContent>
-      <CardFooter class="pt-3 pb-4 grid grid-cols-2 gap-2">
-        <Button
-          v-if="currentPreviewingId === podcast.podcast_id"
-          variant="destructive"
-          size="sm"
-          class="w-full"
-          @click.stop="emit('stop-preview')"
-        >
-          <Icon name="ph:stop-fill" class="mr-2 h-4 w-4" />
-          Stop Preview
-        </Button>
-        <Button
-          v-else
-          variant="default"
-          size="sm"
-          class="w-full font-semibold"
-          @click.stop="emit('preview-podcast', podcast.podcast_id)"
-        >
-          <Icon name="ph:play-fill" class="mr-2 h-4 w-4" />
-          Preview
-        </Button>
-        <Button
-          variant="outline"
-          size="sm"
-          class="w-full"
-          @click.stop="emit('download-podcast', podcast.podcast_id)"
-          :disabled="currentPreviewingId === podcast.podcast_id"
-        >
-          <Icon name="ph:download-simple" class="mr-2 h-4 w-4" />
-          Download
-        </Button>
+      <CardFooter class="pt-3 pb-4 flex gap-2 justify-between">
+        <div class="flex-1">
+          <Button
+            v-if="currentPreviewingId === podcast.podcast_id"
+            variant="destructive"
+            class="w-full flex items-center justify-center"
+            @click.stop="emit('stop-preview')"
+          >
+            <Icon name="ph:stop-fill" class="mr-2 h-4 w-4" />
+            Stop
+          </Button>
+          <Button
+            v-else
+            variant="default"
+            class="w-full flex items-center justify-center"
+            @click.stop="emit('preview-podcast', podcast.podcast_id)"
+          >
+            <Icon name="ph:play-fill" class="mr-2 h-4 w-4" />
+            Preview
+          </Button>
+        </div>
+        
+        <div class="flex gap-2">
+          <Button 
+            variant="outline" 
+            size="icon" 
+            class="h-9 w-9" 
+            title="Download"
+            @click.stop="emit('download-podcast', podcast.podcast_id)"
+            :disabled="currentPreviewingId === podcast.podcast_id"
+          >
+            <Icon name="ph:download-simple" class="h-4 w-4" />
+          </Button>
+          <Button 
+            variant="outline" 
+            size="icon" 
+            class="h-9 w-9" 
+            title="Edit"
+            @click.stop="emit('edit-podcast', podcast.podcast_id)"
+          >
+            <Icon name="ph:pencil-simple" class="h-4 w-4" />
+          </Button>
+        </div>
       </CardFooter>
     </Card>
     <div v-if="!podcasts || podcasts.length === 0" class="col-span-full text-center py-8 text-muted-foreground">
@@ -157,6 +169,7 @@
 </template>
 
 <script setup lang="ts">
+import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { ref } from 'vue';
@@ -173,6 +186,83 @@ function toggleSegments(podcastId: string) {
   showAllSegments.value[podcastId] = !showAllSegments.value[podcastId];
 }
 
+// 获取可见的分段
+function visibleSegments(podcast: Podcast) {
+  if (!podcast.podcast_segments) return [];
+  return showAllSegments.value[String(podcast.podcast_id)] 
+    ? podcast.podcast_segments 
+    : podcast.podcast_segments.slice(0, 2);
+}
+
+// 获取说话者首字母
+function getSpeakerInitial(speaker: string | null): string {
+  if (!speaker) return '?';
+  return speaker[0].toUpperCase();
+}
+
+// 获取说话者颜色类
+function getSpeakerColorClass(speaker: string | null): string {
+  if (!speaker) return 'bg-gray-200 text-gray-700';
+  
+  // 根据说话者名称的首字母分配不同的颜色
+  const initial = speaker[0].toLowerCase();
+  const colorMap: Record<string, string> = {
+    'a': 'bg-blue-100 text-blue-700',
+    'b': 'bg-green-100 text-green-700',
+    'c': 'bg-purple-100 text-purple-700',
+    'd': 'bg-yellow-100 text-yellow-700',
+    'e': 'bg-pink-100 text-pink-700',
+    'f': 'bg-indigo-100 text-indigo-700',
+    'g': 'bg-red-100 text-red-700',
+    'h': 'bg-orange-100 text-orange-700',
+    'i': 'bg-teal-100 text-teal-700',
+    'j': 'bg-cyan-100 text-cyan-700',
+  };
+  
+  return colorMap[initial] || 'bg-primary/20 text-primary';
+}
+
+// 格式化时长
+function formatDuration(ms: number | null): string {
+  if (!ms) return '00:00';
+  
+  const seconds = Math.floor((ms / 1000) % 60);
+  const minutes = Math.floor((ms / (1000 * 60)) % 60);
+  
+  const s = seconds < 10 ? `0${seconds}` : seconds;
+  const m = minutes < 10 ? `0${minutes}` : minutes;
+  
+  return `${m}:${s}`;
+}
+
+// 获取分段时长
+function getSegmentDuration(segment: Segment): number | null {
+  if (!segment.segment_audios || segment.segment_audios.length === 0) {
+    return null;
+  }
+  
+  const finalAudio = segment.segment_audios.find(sa => sa.version_tag === 'final');
+  if (finalAudio) {
+    if (typeof finalAudio.duration_ms === 'number') {
+      return finalAudio.duration_ms;
+    }
+    if (finalAudio.params && typeof finalAudio.params.duration_ms === 'number') {
+      return finalAudio.params.duration_ms;
+    }
+  }
+  
+  return null;
+}
+
+// 获取合成状态变体
+function getSynthesisStatusVariant(podcast: Podcast): string {
+  const status = getSynthesisStatusText(podcast);
+  if (status === 'All Synced') return 'success';
+  if (status === 'Partially Synced') return 'warning';
+  if (status === 'Not Synced') return 'destructive';
+  return 'secondary'; // For "No Segments"
+}
+
 // Define types with nested relationships based on Supabase types
 type SegmentAudio = Database['public']['Tables']['segment_audios']['Row'] & {
   duration_ms?: number | null; // Allow null to match database type
@@ -185,6 +275,7 @@ type Podcast = Database['public']['Tables']['podcasts']['Row'] & {
   podcast_segments?: Segment[];
   host_name?: string; // Added for Host
   guest_name?: string; // Added for Guest
+  description?: string; // Added for description
   // total_duration_ms?: number; // Potentially for total duration
 };
 
