@@ -1,13 +1,12 @@
 <template>
-  <div class="space-y-5 p-1">
+  <div class="space-y-6 p-4"> <!-- Increased padding and overall vertical spacing -->
     <div>
       <Label for="podcastTitle" class="text-base font-semibold">Title</Label>
       <Input
         id="podcastTitle"
         v-model="editableSettings.title"
         placeholder="e.g., The Future of AI"
-        class="mt-1.5"
-      />
+        class="mt-2" /> <!-- Adjusted margin-top -->
     </div>
 
     <div>
@@ -16,16 +15,16 @@
         id="podcastTopic"
         v-model="editableSettings.topic"
         placeholder="Describe in detail what you want the podcast to cover..."
-        class="mt-1.5 min-h-[120px]"
-      />
+        class="mt-2 min-h-[120px]" /> <!-- Adjusted margin-top -->
     </div>
 
-    <div class="grid grid-cols-1 gap-x-4 gap-y-5">
+    <!-- Character Selection Group -->
+    <div class="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-5 pt-4"> <!-- Changed to 2 columns on md+, increased gap and padding-top -->
       <!-- Host Character -->
       <div>
-        <Label class="text-sm font-medium">Host Character</Label>
+        <Label for="hostPersona" class="text-sm font-medium">Host Character</Label> <!-- Added for attribute -->
         <Select v-model="editableSettings.hostPersonaId">
-          <SelectTrigger id="hostPersona" class="w-full">
+          <SelectTrigger id="hostPersona" class="w-full mt-2"> <!-- Adjusted margin-top -->
             <SelectValue placeholder="Select Host Character" />
           </SelectTrigger>
           <SelectContent>
@@ -58,9 +57,9 @@
 
       <!-- Guest Characters -->
       <div>
-        <Label class="text-sm font-medium">Guest Characters</Label>
+        <Label for="guestPersonas" class="text-sm font-medium">Guest Characters</Label> <!-- Added for attribute -->
         <Select v-model="editableSettings.guestPersonaIds" multiple>
-          <SelectTrigger id="guestPersonas" class="w-full">
+          <SelectTrigger id="guestPersonas" class="w-full mt-2"> <!-- Adjusted margin-top -->
             <SelectValue placeholder="Select Guest Characters" />
           </SelectTrigger>
           <SelectContent>
@@ -94,7 +93,8 @@
       </div>
     </div>
     
-    <div class="grid grid-cols-1 md:grid-cols-2 gap-x-4 gap-y-5 pt-2">
+    <!-- Podcast Details Group -->
+    <div class="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-5 pt-6"> <!-- Increased gap and padding-top -->
       <div>
         <Label for="podcastSegments" class="text-sm font-medium">Number of Segments</Label>
         <Input
@@ -102,11 +102,10 @@
           type="number"
           v-model.number="editableSettings.numberOfSegments"
           placeholder="e.g., 3"
-          class="mt-1.5 appearance-none hide-spin"
+          class="mt-2 appearance-none hide-spin" 
           min="1"
           max="10"
-          inputmode="numeric"
-        />
+          inputmode="numeric" />
       </div>
 
       <div>
@@ -115,8 +114,7 @@
           id="podcastStyle"
           v-model="editableSettings.style"
           placeholder="e.g., Casual, Educational, Storytelling"
-          class="mt-1.5"
-        />
+          class="mt-2" /> <!-- Adjusted margin-top -->
       </div>
 
       <div>
@@ -125,8 +123,7 @@
           id="podcastKeywords"
           v-model="editableSettings.keywords"
           placeholder="Comma-separated, e.g., AI, ML, Future Tech"
-          class="mt-1.5"
-        />
+          class="mt-2" /> <!-- Adjusted margin-top -->
       </div>
        <div>
         <Label for="backgroundMusic" class="text-sm font-medium">Background Music (Optional)</Label>
@@ -134,8 +131,7 @@
           id="backgroundMusic"
           v-model="editableSettings.backgroundMusic"
           placeholder="Theme or style, e.g., Upbeat, Chill Tech"
-          class="mt-1.5"
-        />
+          class="mt-2" /> <!-- Adjusted margin-top -->
       </div>
     </div>
 

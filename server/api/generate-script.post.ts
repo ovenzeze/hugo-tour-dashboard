@@ -94,14 +94,14 @@ export default defineEventHandler(async (event) => {
 
   // Get current date and time for time-based museum selection
   const now = new Date();
-  const currentTimeString = now.toLocaleString('en-US', { 
-    hour: 'numeric', 
-    minute: 'numeric',
+  const currentTimeString = now.toLocaleString("en-US", {
+    hour: "numeric",
+    minute: "numeric",
     hour12: true,
-    day: 'numeric',
-    month: 'long',
-    year: 'numeric',
-    weekday: 'long'
+    day: "numeric",
+    month: "long",
+    year: "numeric",
+    weekday: "long",
   });
 
   let promptContent = promptTemplate
@@ -189,6 +189,8 @@ export default defineEventHandler(async (event) => {
             jsonError.message
           );
           consola.debug("Raw AI response:", rawGeneratedContent);
+          
+          // Basic cleaning
           cleanedContent = rawGeneratedContent
             .replace(/\\" +/g, '\\"')
             .replace(/\\ +/g, "\\");
@@ -201,6 +203,26 @@ export default defineEventHandler(async (event) => {
             consola.info("Markdown JSON fences detected, extracting content.");
             cleanedContent = markdownJsonMatch[1];
           }
+          
+          // Enhanced cleaning for common JSON formatting issues
+          
+          // Fix missing commas between array elements (specifically targeting the issue at line 10)
+          cleanedContent = cleanedContent.replace(/}\s*\n\s*{/g, '},\n{');
+          
+          // Fix missing commas between object properties
+          cleanedContent = cleanedContent.replace(/"\s*\n\s*"/g, '",\n"');
+          
+          // Fix trailing commas in arrays and objects
+          cleanedContent = cleanedContent.replace(/,\s*]/g, ']');
+          cleanedContent = cleanedContent.replace(/,\s*}/g, '}');
+          
+          // Fix unquoted property names
+          cleanedContent = cleanedContent.replace(/(\w+):/g, '"$1":');
+          
+          // Fix single quotes used instead of double quotes
+          cleanedContent = cleanedContent.replace(/'/g, '"');
+          
+          consola.info("Applied enhanced JSON cleaning techniques");
 
           parsedResponse = JSON.parse(cleanedContent);
           consola.success("Successfully parsed cleaned AI response as JSON.");

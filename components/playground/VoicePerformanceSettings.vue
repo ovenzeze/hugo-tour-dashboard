@@ -384,9 +384,10 @@ const areAllSegmentsPreviewed = computed(() => {
   if (!parsedScriptSegments.value || parsedScriptSegments.value.length === 0) {
     return false;
   }
-  // New logic: check if at least 3 segments are successfully previewed
-  const successfulSegmentsCount = Object.values(segmentStates.value).filter(state => state?.status === 'success').length;
-  return successfulSegmentsCount >= 3;
+  // Check if all segments have been generated (not necessarily previewed)
+  // We consider a segment as generated if it has any status (success, error, loading)
+  const generatedSegmentsCount = Object.values(segmentStates.value).filter(state => state !== undefined).length;
+  return generatedSegmentsCount === parsedScriptSegments.value.length;
 });
 
 defineExpose({

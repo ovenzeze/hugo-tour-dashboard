@@ -181,9 +181,8 @@ const canProceedFromStep2 = computed(() => {
 });
 
 const canGeneratePodcast = computed(() => {
-  if (!voicePerformanceSettingsRef.value) return false;
-  // This method will be added to VoicePerformanceSettings.vue
-  return !!voicePerformanceSettingsRef.value.areAllSegmentsPreviewed?.();
+  // Always return true to keep the "Synthesize Podcast" button enabled
+  return true;
 });
 
 const {
@@ -369,14 +368,10 @@ const handleModalConfirmSynthesis = async () => {
 
     // Simulate success
     synthesisStatusForModal.value = 'success';
-    // --- MODIFICATION START: Add podcastId to successDataForModal ---
-    const newPodcastId = `podcast_${Date.now()}`; // Simulate a new podcast ID
     successDataForModal.value = {
       podcastDuration: '5min 30s',
-      fileSize: '12.5 MB',
-      podcastId: newPodcastId // Pass the new ID
+      fileSize: '12.5 MB'
     };
-    // --- MODIFICATION END ---
     toast.success(`Podcast "${podcastNameForModal.value}" synthesized successfully!`);
     // Potentially update audioStore.audioUrl if the synthesis returns a new URL
     // audioStore.updateFinalAudioUrl(newAudioUrl);
