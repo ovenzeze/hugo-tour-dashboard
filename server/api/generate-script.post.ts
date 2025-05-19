@@ -50,7 +50,7 @@ export default defineEventHandler(async (event) => {
   // --- Construct the prompt for Open Router ---
   const promptFilePath = path.resolve(
     process.cwd(),
-    "prompts",
+    "public/prompts",
     "podcast_script_generation.md"
   );
   let promptTemplate = "";
