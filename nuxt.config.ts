@@ -9,6 +9,8 @@ export default defineNuxtConfig({
   },
   runtimeConfig: {
     postgresUrl: process.env.POSTGRES_URL,
+    geminiApiKey: process.env.GEMINI_API_KEY,
+    geminiImageModel: process.env.GEMINI_IMAGE_MODEL,
     elevenlabs: {
       apiKey: process.env.ELEVENLABS_API_KEY,
       baseUrl:
@@ -20,6 +22,8 @@ export default defineNuxtConfig({
       referer: process.env.NUXT_PUBLIC_SITE_URL || "http://localhost:3000",
     },
     public: {
+      openrouterDefaultModel: process.env.OPENROUTER_MODEL,
+      groqDefaultModel: process.env.GROQ_MODEL,
       elevenlabsDefaultVoiceId:
         process.env.ELEVENLABS_DEFAULT_VOICE_ID || "pNInz6obpgDQGcFmaJgB",
       elevenlabsDefaultModelId:

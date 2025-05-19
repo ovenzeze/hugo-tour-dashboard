@@ -1,10 +1,12 @@
 // composables/usePodcastDatabase.ts
-
-import { useSupabaseClient } from '#imports';
+import { ref } from 'vue';
 import type { Database } from '~/types/supabase';
+import type { Persona } from '~/stores/playgroundPersona'; // Import Persona from the store
+import type { SupabaseClient } from '@supabase/supabase-js';
+import { useSupabaseClient } from '#imports'; // Ensure this is correctly imported for client-side
 
 // Define types with nested relationships based on Supabase types for composable use
-export type Persona = Database['public']['Tables']['personas']['Row'];
+// export type Persona = Database['public']['Tables']['personas']['Row']; // Removed local definition, using store's
 export type SegmentAudio = Database['public']['Tables']['segment_audios']['Row'];
 export type Segment = Database['public']['Tables']['podcast_segments']['Row'] & {
   segment_audios?: SegmentAudio[];
@@ -13,33 +15,34 @@ export type Podcast = Database['public']['Tables']['podcasts']['Row'] & {
   podcast_segments?: Segment[];
   host_persona?: Persona | null;
   creator_persona?: Persona | null;
+  cover_image_url?: string | null;
+  guest_persona?: Persona | null;
   // guest_persona?: Persona | null; // Example if needed later
 };
 
 export const usePodcastDatabase = () => {
-  const supabase = useSupabaseClient<Database>();
-
   const podcasts = ref<Podcast[]>([]);
   const selectedPodcast = ref<Podcast | null>(null);
   const loading = ref(false);
   const error = ref<string | null>(null);
+
+  const commonSelectQuery = '*, cover_image_url, podcast_segments(*, segment_audios(*)), host_persona:personas!podcasts_host_persona_id_fkey(*), creator_persona:personas!podcasts_creator_persona_id_fkey(*), guest_persona:personas!podcasts_guest_persona_id_fkey(*)';
 
   // Fetch all podcasts with nested segments and segment audios
   const fetchPodcasts = async () => {
     loading.value = true;
     error.value = null;
     try {
-      // Fetch podcasts and nested relationships
-      const { data, error: dbError } = await supabase
+      const client = useSupabaseClient<Database>();
+      const { data, error: dbError } = await client
         .from('podcasts')
-        .select('*, podcast_segments(*, segment_audios(*)), host_persona:personas!podcasts_host_persona_id_fkey(*), creator_persona:personas!podcasts_creator_persona_id_fkey(*)') // Select nested data
-        .order('created_at', { ascending: false }); // Order by creation date, newest first
+        .select(commonSelectQuery)
+        .order('created_at', { ascending: false });
 
       if (dbError) {
         throw dbError;
       }
-
-      podcasts.value = data as Podcast[]; // Cast to our defined type
+      podcasts.value = data as Podcast[];
     } catch (e: any) {
       error.value = e.message;
       console.error('Error fetching podcasts:', e);
@@ -53,17 +56,17 @@ export const usePodcastDatabase = () => {
     loading.value = true;
     error.value = null;
     try {
-      const { data, error: dbError } = await supabase
+      const client = useSupabaseClient<Database>();
+      const { data, error: dbError } = await client
         .from('podcasts')
-        .select('*, podcast_segments(*, segment_audios(*)), host_persona:personas!podcasts_host_persona_id_fkey(*), creator_persona:personas!podcasts_creator_persona_id_fkey(*)')
+        .select(commonSelectQuery)
         .eq('podcast_id', podcastId)
-        .single(); // Expect a single result
+        .single();
 
       if (dbError) {
         throw dbError;
       }
-
-      selectedPodcast.value = data as Podcast; // Cast to our defined type
+      selectedPodcast.value = data as Podcast;
     } catch (e: any) {
       error.value = e.message;
       console.error(`Error fetching podcast with ID ${podcastId}:`, e);
@@ -72,15 +75,15 @@ export const usePodcastDatabase = () => {
     }
   };
 
-  // Placeholder functions for actions (to be implemented)
-  const createPodcast = async (newPodcastData: { title: string; topic?: string; host_persona_id?: number; creator_persona_id?: number }) => {
+  const createPodcast = async (newPodcastData: { title: string; topic?: string; host_persona_id?: number; creator_persona_id?: number; cover_image_url?: string | null }) => {
     loading.value = true;
     error.value = null;
     try {
-      const { data, error: dbError } = await supabase
+      const client = useSupabaseClient<Database>();
+      const { data, error: dbError } = await client
         .from('podcasts')
         .insert([newPodcastData])
-        .select('*, podcast_segments(*, segment_audios(*)), host_persona:personas!podcasts_host_persona_id_fkey(*), creator_persona:personas!podcasts_creator_persona_id_fkey(*)')
+        .select(commonSelectQuery)
         .single();
 
       if (dbError) {
@@ -88,7 +91,7 @@ export const usePodcastDatabase = () => {
       }
 
       if (data) {
-        // Construct the object as before
+        // Preserve existing DTO construction and update logic
         const newPodcastEntryDto = {
           podcast_id: data.podcast_id,
           created_at: data.created_at,
@@ -99,22 +102,53 @@ export const usePodcastDatabase = () => {
           guest_persona_id: data.guest_persona_id,
           total_duration_ms: data.total_duration_ms,
           total_word_count: data.total_word_count,
+          cover_image_url: data.cover_image_url,
           host_persona: data.host_persona ? { ...data.host_persona } : null,
           creator_persona: data.creator_persona ? { ...data.creator_persona } : null,
+          guest_persona: data.guest_persona ? { ...data.guest_persona } : null,
           podcast_segments: data.podcast_segments || [],
         };
-
-        // Use 'any' strategically to bypass the deep type instantiation issue
-        const newEntryForArray: any = newPodcastEntryDto;
-        const currentPodcasts: any[] = podcasts.value;
-
-        podcasts.value = [newEntryForArray, ...currentPodcasts] as Podcast[];
+        podcasts.value = [newPodcastEntryDto as any, ...podcasts.value as any[]] as Podcast[];
         selectedPodcast.value = newPodcastEntryDto as Podcast;
       }
-
     } catch (e: any) {
       error.value = e.message;
       console.error('Error creating podcast:', e);
+    } finally {
+      loading.value = false;
+    }
+  };
+
+  const updatePodcast = async (podcastId: string, updates: Partial<Podcast>) => {
+    loading.value = true;
+    error.value = null;
+    try {
+      const client = useSupabaseClient<Database>();
+      const { data, error: dbError } = await client
+        .from('podcasts')
+        .update(updates)
+        .eq('podcast_id', podcastId)
+        .select(commonSelectQuery)
+        .single();
+
+      if (dbError) {
+        throw dbError;
+      }
+
+      if (data) {
+        const index = podcasts.value.findIndex(p => p.podcast_id === podcastId);
+        if (index !== -1) {
+          podcasts.value[index] = { ...podcasts.value[index], ...data } as any; // Avoid deep type instantiation
+        }
+        if (selectedPodcast.value?.podcast_id === podcastId) {
+          selectedPodcast.value = { ...selectedPodcast.value, ...data } as any; // Avoid deep type instantiation
+        }
+      }
+      return data as Podcast;
+    } catch (e: any) {
+      error.value = e.message;
+      console.error(`Error updating podcast ${podcastId}:`, e);
+      throw e; // Re-throw to allow caller to handle
     } finally {
       loading.value = false;
     }
@@ -124,7 +158,8 @@ export const usePodcastDatabase = () => {
     loading.value = true;
     error.value = null;
     try {
-      const { error: dbError } = await supabase
+      const client = useSupabaseClient<Database>();
+      const { error: dbError } = await client
         .from('podcasts')
         .delete()
         .eq('podcast_id', podcastId);
@@ -133,14 +168,13 @@ export const usePodcastDatabase = () => {
         throw dbError;
       }
 
-      const indexToDelete = podcasts.value.findIndex((p: any) => p.podcast_id === podcastId); // Use any for p
+      const indexToDelete = podcasts.value.findIndex((p: any) => p.podcast_id === podcastId);
       if (indexToDelete !== -1) {
         podcasts.value.splice(indexToDelete, 1);
       }
       if (selectedPodcast.value?.podcast_id === podcastId) {
         selectedPodcast.value = null;
       }
-
     } catch (e: any) {
       error.value = e.message;
       console.error(`Error deleting podcast with ID ${podcastId}:`, e);
@@ -159,8 +193,13 @@ export const usePodcastDatabase = () => {
     error.value = null;
     console.log(`Requesting resynthesis for all segments of podcast: ${podcastId}`);
     try {
+      // Simulate API call
       await new Promise(resolve => setTimeout(resolve, 2000));
-      await fetchPodcastById(podcastId);
+      // Refresh data after operation
+      const podcastToRefresh = podcasts.value.find((p: any) => p.podcast_id === podcastId);
+      if (podcastToRefresh) {
+        await fetchPodcastById(podcastToRefresh.podcast_id); // Use existing fetch function
+      }
       console.log(`Resynthesis for all segments of podcast ${podcastId} (simulated) complete.`);
     } catch (e: any) {
       error.value = e.message;
@@ -175,11 +214,12 @@ export const usePodcastDatabase = () => {
     error.value = null;
     console.log(`Requesting resynthesis for segment: ${segmentId}`);
     try {
+      // Simulate API call
       await new Promise(resolve => setTimeout(resolve, 1500));
-      // Use any for p in findIndex as well if this causes issues later
+      // Refresh data after operation
       const podcastToRefresh = podcasts.value.find((p: any) => p.podcast_segments?.some((s: any) => s.segment_text_id === segmentId));
       if (podcastToRefresh) {
-        await fetchPodcastById(podcastToRefresh.podcast_id);
+        await fetchPodcastById(podcastToRefresh.podcast_id); // Use existing fetch function
       }
       console.log(`Resynthesis for segment ${segmentId} (simulated) complete.`);
     } catch (e: any) {
@@ -198,6 +238,7 @@ export const usePodcastDatabase = () => {
     fetchPodcasts,
     fetchPodcastById,
     createPodcast,
+    updatePodcast, // Added
     deletePodcast,
     downloadPodcast,
     resynthesizeAllSegments,

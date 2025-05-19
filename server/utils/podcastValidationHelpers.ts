@@ -25,6 +25,7 @@ export interface RequestBody {
     backgroundMusic?: string;
   };
   language?: string; // For backward compatibility
+  cover_image_url?: string | null; // Add cover_image_url for validation
 }
 
 // Define structured script segment interface
@@ -210,6 +211,8 @@ Output Format:
 }
 
 Return only the JSON structure without any additional content or explanations.
+
+重要：请务必确保您的输出是一个完整且有效的 JSON 对象。所有字符串值都必须用双引号正确包裹并闭合。所有大括号 \`{}\` 和方括号 \`[]\` 都必须正确配对和闭合。如果由于任何原因（例如内容过长）需要缩短或截断回复，请优先保证 JSON 结构的完整性和有效性，确保所有开启的结构都被正确关闭。
 `;
 
   console.log('[generateLLMPrompt] Prompt generation completed, length:', prompt.length);
@@ -217,8 +220,8 @@ Return only the JSON structure without any additional content or explanations.
 }
 
 // Call LLM API
-export async function callLLM(prompt: string, event: H3Event): Promise<ValidateResponseData> { // Added H3Event type for event
-  console.log('[callLLM] Starting LLM API call');
+export async function callLLMForPodcastValidation(prompt: string, event: H3Event): Promise<ValidateResponseData> { // Added H3Event type for event
+  console.log('[callLLMForPodcastValidation] Starting LLM API call');
   
   // Get runtime configuration
   const config = useRuntimeConfig(event); // Pass event to useRuntimeConfig
@@ -229,20 +232,20 @@ export async function callLLM(prompt: string, event: H3Event): Promise<ValidateR
     const model = config.openrouter.model || 'openai/gpt-4-turbo-preview';
     const referer = config.openrouter.referer || 'http://localhost:3000';
     
-    console.log('[callLLM] Configuration:', { 
-      model, 
-      referer, 
+    console.log('[callLLMForPodcastValidation] Configuration:', {
+      model,
+      referer,
       hasApiKey: !!apiKey,
       apiKeyLength: apiKey ? apiKey.length : 0
     });
     
     if (!apiKey) {
-      console.error('[callLLM] OpenRouter API key not configured');
+      console.error('[callLLMForPodcastValidation] OpenRouter API key not configured');
       throw new Error('OpenRouter API key not configured');
     }
     
     // Call OpenRouter API
-    console.log('[callLLM] Sending request to OpenRouter API');
+    console.log('[callLLMForPodcastValidation] Sending request to OpenRouter API');
     const startTime = Date.now();
     const response = await fetch('https://openrouter.ai/api/v1/chat/completions', {
       method: 'POST',
@@ -268,72 +271,79 @@ export async function callLLM(prompt: string, event: H3Event): Promise<ValidateR
       })
     });
     const endTime = Date.now();
-    console.log('[callLLM] API request completed in', (endTime - startTime), 'ms');
-    
+    console.log('[callLLMForPodcastValidation] API request completed in', (endTime - startTime), 'ms');
+
     if (!response.ok) {
       const errorText = await response.text();
-      console.error('[callLLM] API response error:', { 
-        status: response.status, 
+      console.error('[callLLMForPodcastValidation] API response error:', {
+        status: response.status,
         statusText: response.statusText,
-        error: errorText 
+        error: errorText
       });
       throw new Error(`OpenRouter API error: ${response.status} ${errorText}`);
     }
-    
-    console.log('[callLLM] Received successful response');
+
+    console.log('[callLLMForPodcastValidation] Received successful response');
     const result = await response.json();
-    console.log('[callLLM] Response JSON parsed successfully');
-    
+    console.log('[callLLMForPodcastValidation] Response JSON parsed successfully');
+
     // Parse the returned JSON string
     try {
-      // Add stricter checks to ensure result.choices exists and has a value
-      if (!result || !result.choices || !Array.isArray(result.choices) || result.choices.length === 0) {
-        console.error('[callLLM] API result format incorrect:', JSON.stringify(result));
-        throw new Error('API result format incorrect, choices array missing or empty');
-      }
-      
-      // Check if message and content exist
-      if (!result.choices[0].message || !result.choices[0].message.content) {
-        console.error('[callLLM] Missing message or content in API result:', JSON.stringify(result.choices[0]));
-        throw new Error('Missing message or content in API result');
-      }
-      
-      const content = result.choices[0].message.content;
-      console.log('[callLLM] Parsing LLM response content, length:', content.length);
-      
-      // Extract JSON part (remove possible markdown code block markers)
-      const jsonStr = content.replace(/```json|```/g, '').trim();
-      console.log('[callLLM] Extracted JSON string, length:', jsonStr.length);
-      
-      if (!jsonStr) {
-        throw new Error('LLM response content empty or invalid');
-      }
-      
-      const parsedResult: ValidateResponseData = JSON.parse(jsonStr);
-      console.log('[callLLM] Successfully parsed JSON response with fields:', Object.keys(parsedResult).join(', '));
-      
-      // Log key statistics about the parsed result
-      console.log('[callLLM] Parsed result statistics:', {
-        podcastTitle: parsedResult.podcastTitle?.substring(0, 30) + '...',
-        scriptSegmentsCount: parsedResult.script?.length || 0,
-        voiceMapKeysCount: Object.keys(parsedResult.voiceMap || {}).length,
-        language: parsedResult.language
-      });
-      
-      return parsedResult;
+        // Add stricter checks to ensure result.choices exists and has a value
+        if (!result || !result.choices || !Array.isArray(result.choices) || result.choices.length === 0) {
+          console.error('[callLLMForPodcastValidation] API result format incorrect:', JSON.stringify(result));
+          throw new Error('API result format incorrect, choices array missing or empty');
+        }
+
+        // Check if message and content exist
+        if (!result.choices[0].message || !result.choices[0].message.content) {
+          console.error('[callLLMForPodcastValidation] Missing message or content in API result:', JSON.stringify(result.choices[0]));
+          throw new Error('Missing message or content in API result');
+        }
+
+        const content = result.choices[0].message.content;
+        console.log('[callLLMForPodcastValidation] Parsing LLM response content, length:', content.length);
+
+        // Extract JSON part (remove possible markdown code block markers)
+        const jsonStr = content.replace(/```json|```/g, '').trim();
+        console.log('[callLLMForPodcastValidation] Extracted JSON string, length:', jsonStr.length);
+
+        if (!jsonStr) {
+          throw new Error('LLM response content empty or invalid');
+        }
+
+        const parsedResult: ValidateResponseData = JSON.parse(jsonStr);
+        console.log('[callLLMForPodcastValidation] Successfully parsed JSON response with fields:', Object.keys(parsedResult).join(', '));
+
+        // Log key statistics about the parsed result
+        console.log('[callLLMForPodcastValidation] Parsed result statistics:', {
+          podcastTitle: parsedResult.podcastTitle?.substring(0, 30) + '...',
+          scriptSegmentsCount: parsedResult.script?.length || 0,
+          voiceMapKeysCount: Object.keys(parsedResult.voiceMap || {}).length,
+          language: parsedResult.language
+        });
+
+        return parsedResult;
     } catch (parseError: any) {
-      console.error('[callLLM] JSON parsing error:', parseError.message);
-      console.error('[callLLM] Raw content preview:', result?.choices?.[0]?.message?.content?.substring(0, 100) + '...');
+      console.error('[callLLMForPodcastValidation] JSON parsing error:', parseError.message);
+      console.error('[callLLMForPodcastValidation] Raw content preview:', result?.choices?.[0]?.message?.content?.substring(0, 100) + '...');
+      console.log('Raw LLM API Response:', result?.choices?.[0]?.message?.content);
       throw new Error(`Cannot parse LLM response as JSON: ${parseError.message}`);
     }
-    
+
   } catch (error: any) {
-    console.error('[callLLM] API call error:', error.message);
-    console.error('[callLLM] Error stack:', error.stack);
-    throw error;
+    console.error('[callLLMForPodcastValidation] API call error:', error.message);
+    console.error('[callLLMForPodcastValidation] Error stack:', error.stack);
+    // Ensure the function still returns or throws as per its signature, even in catch.
+    // If the intention is to re-throw, ensure it's an Error object.
+    if (error instanceof Error) {
+      throw error;
+    } else {
+      // If it's not an error object, wrap it or handle appropriately
+      throw new Error(String(error));
+    }
   }
 }
-
 // Validate LLM-generated structured data - simplified version, and attempt to auto-fix missing fields
 export function validateStructuredData(data: any): { valid: boolean; error?: string } { // data is 'any' as it's from LLM
   console.log('[validateStructuredData] Starting data validation');

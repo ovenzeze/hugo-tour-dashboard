@@ -16,7 +16,7 @@ export interface IStorageService {
   writeFile(
     filePath: string,
     data: string | Buffer,
-    encoding?: BufferEncoding
+    options?: { encoding?: BufferEncoding; contentType?: string }
   ): Promise<void>;
   ensureDir(dirPath: string): Promise<void>;
   listFiles(dirPath: string): Promise<string[]>; // Returns basenames of files
@@ -76,14 +76,15 @@ export class LocalStorageService implements IStorageService {
   async writeFile(
     filePath: string,
     data: string | Buffer,
-    encoding?: BufferEncoding
+    options?: { encoding?: BufferEncoding; contentType?: string }
   ): Promise<void> {
-    console.log(`[LocalStorageService.writeFile] Received filePath: ${filePath}`);
+    console.log(`[LocalStorageService.writeFile] Received filePath: ${filePath} with options:`, options);
     const absPath = this.getAbsolutePath(filePath);
     console.log(`[LocalStorageService.writeFile] Resolved absolute path for write: ${absPath}`);
     // Ensure directory exists before writing
     await this.ensureDir(dirname(filePath)); // Pass original relative filePath to ensureDir
-    writeFileSync(absPath, data, { encoding });
+    // Use encoding from options if provided, otherwise undefined (which is fine for writeFileSync)
+    writeFileSync(absPath, data, { encoding: options?.encoding });
   }
 
   async ensureDir(dirPath: string): Promise<void> {

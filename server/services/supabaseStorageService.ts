@@ -56,20 +56,14 @@ export class SupabaseStorageService implements IStorageService {
     return Buffer.from(arrayBuffer);
   }
 
-  async writeFile(filePath: string, data: string | Buffer, encoding?: BufferEncoding): Promise<void> {
+  async writeFile(filePath: string, data: string | Buffer, options?: { encoding?: BufferEncoding; contentType?: string }): Promise<void> {
     const storagePath = this.getStoragePath(filePath);
-    console.log(`SupabaseStorage: Writing file ${storagePath} to bucket ${this.bucketName}`);
+    console.log(`SupabaseStorage: Writing file ${storagePath} to bucket ${this.bucketName} with options:`, JSON.stringify(options, null, 2));
     
     let fileBody: Blob | ArrayBuffer | Buffer | string = data;
     if (Buffer.isBuffer(data)) {
-        // Supabase client might prefer ArrayBuffer or Blob
-        // Ensure we have an ArrayBuffer, not SharedArrayBuffer
         const buffer = data.buffer.slice(data.byteOffset, data.byteOffset + data.byteLength);
         if (buffer instanceof SharedArrayBuffer) {
-          // Convert SharedArrayBuffer to ArrayBuffer if necessary
-          // This might depend on the specific use case and how SharedArrayBuffer is generated
-          // For simplicity, let's assume it needs conversion or throw an error if unexpected.
-          // A simple conversion can be done by creating a new ArrayBuffer and copying data.
           const regularBuffer = new ArrayBuffer(buffer.byteLength);
           new Uint8Array(regularBuffer).set(new Uint8Array(buffer));
           fileBody = regularBuffer;
@@ -78,11 +72,31 @@ export class SupabaseStorageService implements IStorageService {
         }
     }
 
+    // Determine contentType
+    let determinedContentType = options?.contentType;
+    if (!determinedContentType) {
+      // Fallback to existing logic if not provided, now with more image types
+      if (filePath.endsWith('.json')) {
+        determinedContentType = 'application/json'; // Changed from text/plain to application/json
+      } else if (filePath.endsWith('.mp3')) {
+        determinedContentType = 'audio/mpeg';
+      } else if (filePath.endsWith('.png')) {
+        determinedContentType = 'image/png';
+      } else if (filePath.endsWith('.jpg') || filePath.endsWith('.jpeg')) {
+        determinedContentType = 'image/jpeg';
+      } else if (filePath.endsWith('.webp')) {
+        determinedContentType = 'image/webp';
+      } else {
+        determinedContentType = 'application/octet-stream';
+      }
+    }
+    console.log(`SupabaseStorage: Using contentType: ${determinedContentType} for file ${storagePath}`);
+
     const { error } = await this.supabase.storage
       .from(this.bucketName)
       .upload(storagePath, fileBody, { 
           upsert: true, // Overwrite if exists
-          contentType: filePath.endsWith('.json') ? 'text/plain' : (filePath.endsWith('.mp3') ? 'audio/mpeg' : 'application/octet-stream') // Changed application/json to text/plain for testing
+          contentType: determinedContentType
         });
 
     if (error) {

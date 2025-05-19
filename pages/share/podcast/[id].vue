@@ -14,13 +14,18 @@
             v-if="podcastCoverUrl"
             :src="podcastCoverUrl"
             alt="Podcast Cover"
-            class="w-full h-auto object-cover rounded-lg shadow-2xl aspect-square"
+            class="w-full h-auto object-cover rounded-lg shadow-2xl aspect-square cursor-pointer transition-transform hover:scale-105"
+            @click="togglePlayPause"
           />
           <div
             v-else
-            class="w-full h-auto bg-gray-800 rounded-lg shadow-2xl aspect-square flex items-center justify-center text-gray-500"
+            class="w-full h-auto bg-gray-800 rounded-lg shadow-2xl aspect-square flex flex-col items-center justify-center text-gray-500 cursor-pointer transition-colors hover:bg-gray-700"
+            @click="togglePlayPause"
           >
-            No Cover
+            <svg xmlns="http://www.w3.org/2000/svg" class="h-16 w-16 mb-2 text-gray-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+            </svg>
+            <span>No Cover Available</span>
           </div>
         </div>
         <div class="podcast-details md:w-2/3 lg:w-3/4">
@@ -130,7 +135,7 @@ const isLoadingAudio = ref(false);
 
 const podcastCoverUrl = computed(() => {
   if (!podcast.value) return null;
-  return podcast.value.host_persona?.avatar_url || podcast.value.creator_persona?.avatar_url || `https://picsum.photos/seed/${podcast.value.podcast_id}/600/600`;
+  return podcast.value.cover_image_url || podcast.value.host_persona?.avatar_url || podcast.value.creator_persona?.avatar_url || null; // Return null if no image, placeholder div will show
 });
 
 const podcastArtist = computed(() => {

@@ -29,27 +29,35 @@
           </SelectTrigger>
           <SelectContent>
             <SelectGroup>
-              <SelectLabel v-if="personasLoading">Loading...</SelectLabel>
-              <SelectLabel v-else-if="!personas || personas.length === 0">No characters available</SelectLabel>
-              <SelectItem
-                v-for="persona in personas"
-                :key="persona.id"
-                :value="String(persona.id)"
-              >
-                <div>
-                  <div class="font-medium flex items-center gap-1">
-                    {{ persona.name }}
-                    <span class="text-xs bg-primary/10 text-primary px-1.5 py-0.5 rounded-full">Host</span>
-                  </div>
-                  <div class="text-xs text-muted-foreground mt-0.5">
-                    {{ persona.description || 'No description available' }}
-                  </div>
-                  <div v-if="persona.voice_id" class="text-xs text-muted-foreground mt-0.5 flex items-center gap-1">
-                    <Icon name="ph:microphone-stage" class="h-3 w-3" />
-                    Voice ID: {{ persona.voice_id }}
-                  </div>
+              <template v-if="personasLoading">
+                <div class="p-2 space-y-2">
+                  <Skeleton class="h-8 w-full" />
+                  <Skeleton class="h-8 w-full" />
+                  <Skeleton class="h-8 w-2/3" />
                 </div>
-              </SelectItem>
+              </template>
+              <template v-else>
+                <SelectLabel v-if="!personas || personas.length === 0">No characters available</SelectLabel>
+                <SelectItem
+                  v-for="persona in personas"
+                  :key="persona.id"
+                  :value="String(persona.id)"
+                >
+                  <div>
+                    <div class="font-medium flex items-center gap-1">
+                      {{ persona.name }}
+                      <span class="text-xs bg-primary/10 text-primary px-1.5 py-0.5 rounded-full">Host</span>
+                    </div>
+                    <div class="text-xs text-muted-foreground mt-0.5">
+                      {{ persona.description || 'No description available' }}
+                    </div>
+                    <div v-if="persona.voice_id" class="text-xs text-muted-foreground mt-0.5 flex items-center gap-1">
+                      <Icon name="ph:microphone-stage" class="h-3 w-3" />
+                      Voice ID: {{ persona.voice_id }}
+                    </div>
+                  </div>
+                </SelectItem>
+              </template>
             </SelectGroup>
           </SelectContent>
         </Select>
@@ -64,29 +72,37 @@
           </SelectTrigger>
           <SelectContent>
             <SelectGroup>
-              <SelectLabel v-if="personasLoading">Loading...</SelectLabel>
-              <SelectLabel v-else-if="!personas || personas.length === 0 || availableGuestPersonas.length === 0">
-                {{ !personas || personas.length === 0 ? 'No characters' : 'No other guests' }}
-              </SelectLabel>
-              <SelectItem
-                v-for="persona in availableGuestPersonas"
-                :key="persona.id"
-                :value="String(persona.id)"
-              >
-                <div>
-                  <div class="font-medium flex items-center gap-1">
-                    {{ persona.name }}
-                    <span class="text-xs bg-secondary/20 text-secondary px-1.5 py-0.5 rounded-full">Guest</span>
-                  </div>
-                  <div class="text-xs text-muted-foreground mt-0.5">
-                    {{ persona.description || 'No description available' }}
-                  </div>
-                  <div v-if="persona.voice_id" class="text-xs text-muted-foreground mt-0.5 flex items-center gap-1">
-                    <Icon name="ph:microphone-stage" class="h-3 w-3" />
-                    Voice ID: {{ persona.voice_id }}
-                  </div>
+              <template v-if="personasLoading">
+                <div class="p-2 space-y-2">
+                  <Skeleton class="h-8 w-full" />
+                  <Skeleton class="h-8 w-full" />
+                  <Skeleton class="h-8 w-2/3" />
                 </div>
-              </SelectItem>
+              </template>
+              <template v-else>
+                <SelectLabel v-if="!personas || personas.length === 0 || availableGuestPersonas.length === 0">
+                  {{ !personas || personas.length === 0 ? 'No characters' : 'No other guests' }}
+                </SelectLabel>
+                <SelectItem
+                  v-for="persona in availableGuestPersonas"
+                  :key="persona.id"
+                  :value="String(persona.id)"
+                >
+                  <div>
+                    <div class="font-medium flex items-center gap-1">
+                      {{ persona.name }}
+                      <span class="text-xs bg-secondary/20 text-secondary px-1.5 py-0.5 rounded-full">Guest</span>
+                    </div>
+                    <div class="text-xs text-muted-foreground mt-0.5">
+                      {{ persona.description || 'No description available' }}
+                    </div>
+                    <div v-if="persona.voice_id" class="text-xs text-muted-foreground mt-0.5 flex items-center gap-1">
+                      <Icon name="ph:microphone-stage" class="h-3 w-3" />
+                      Voice ID: {{ persona.voice_id }}
+                    </div>
+                  </div>
+                </SelectItem>
+              </template>
             </SelectGroup>
           </SelectContent>
         </Select>
@@ -121,7 +137,7 @@
         <Label for="podcastKeywords" class="text-sm font-medium">Keywords</Label>
         <Input
           id="podcastKeywords"
-          v-model="editableSettings.keywords"
+          v-model="keywordsForInput"
           placeholder="Comma-separated, e.g., AI, ML, Future Tech"
           class="mt-2" /> <!-- Adjusted margin-top -->
       </div>
@@ -141,6 +157,7 @@
 
 <script setup lang="ts">
 import { computed, watch } from 'vue';
+import { Skeleton } from '@/components/ui/skeleton';
 // Ignore linter errors for type imports
 // @ts-ignore
 import type { FullPodcastSettings, Persona } from '~/types/playground';
@@ -155,28 +172,63 @@ const emit = defineEmits<{
   (e: 'update:modelValue', value: FullPodcastSettings): void;
 }>();
 
+// Computed property for keywords specifically for the Input component
+const keywordsForInput = computed<string>({
+  get: () => {
+    if (Array.isArray(props.modelValue.keywords)) {
+      return props.modelValue.keywords.join(', ');
+    }
+    return props.modelValue.keywords || '';
+  },
+  set: (newValue) => {
+    const newKeywordsArray = newValue.split(',').map(k => k.trim()).filter(k => k);
+    emit('update:modelValue', { ...props.modelValue, keywords: newKeywordsArray });
+  }
+});
+
 const editableSettings = computed({
-  get: () => props.modelValue,
-  set: (value) => {
-    // Ensure correct handling of numeric types
-    const processedValue = {
-      ...value,
-      numberOfSegments: Number(value.numberOfSegments) || 1, 
-      hostPersonaId: value.hostPersonaId ? Number(value.hostPersonaId) : undefined,
-      // Ensure guestPersonaIds is an array and each element is a number
-      guestPersonaIds: Array.isArray(value.guestPersonaIds) ? 
-                      value.guestPersonaIds
-                        .map((id: string | number | undefined) => Number(id))
-                        .filter((id: number) => !isNaN(id) && id > 0) : 
-                      []
+  get: () => {
+    // For all other properties, directly use props.modelValue
+    // Keywords will be handled by keywordsForInput for its specific Input
+    return {
+      ...props.modelValue,
+      // Ensure keywords is not directly bound here if it causes issues elsewhere, 
+      // or ensure it's in the expected format if other parts of the form use it.
+      // For now, the main issue is the Input, which is now separate.
     };
-    console.log('Edit form - Sending update:', {
-      originalValue: value,
-      processedValue: processedValue,
-      guestPersonaIdsType: Array.isArray(processedValue.guestPersonaIds) ?
-                         processedValue.guestPersonaIds.map((id: number) => typeof id) : 
-                         'not an array'
-    });
+  },
+  set: (value) => {
+    // This setter is now primarily for non-keyword fields if they are edited directly
+    // or if the whole form object is somehow set (less likely with v-model on individual fields).
+    // The keywords update is handled by keywordsForInput's setter.
+
+    // Create a new object to avoid direct mutation if 'value' is props.modelValue
+    const newSettings = { ...props.modelValue, ...value };
+
+    // Ensure correct handling of numeric types from other inputs
+    const processedValue = {
+      ...newSettings,
+      numberOfSegments: Number(newSettings.numberOfSegments) || 1,
+      hostPersonaId: newSettings.hostPersonaId ? Number(newSettings.hostPersonaId) : undefined,
+      guestPersonaIds: Array.isArray(newSettings.guestPersonaIds)
+        ? newSettings.guestPersonaIds
+          .map((id: string | number | undefined) => Number(id))
+          .filter((id: number) => !isNaN(id) && id > 0)
+        : [],
+      // Keywords will be an array here if updated via keywordsForInput
+      // If 'value' came from somewhere else and had string keywords, it would need splitting.
+      // However, the primary update path for keywords is now through keywordsForInput.
+      keywords: Array.isArray(newSettings.keywords) 
+                ? newSettings.keywords 
+                : (typeof newSettings.keywords === 'string' 
+                    ? newSettings.keywords.split(',').map(k => k.trim()).filter(k => k) 
+                    : [])
+    };
+    
+    // console.log('Edit form - Sending update (editableSettings setter):', {
+    //   originalValue: value,
+    //   processedValue: processedValue,
+    // });
     emit('update:modelValue', processedValue);
   }
 });

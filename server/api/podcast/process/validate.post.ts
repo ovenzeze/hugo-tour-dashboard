@@ -3,8 +3,8 @@ import { createError, defineEventHandler, readBody } from 'h3';
 // import type { Database } from '~/types/supabase'; // Not used in this file after refactor
 import {
   generateLLMPrompt,
-  callLLM,
   validateStructuredData,
+  callLLMForPodcastValidation,
   // generateMockResponse, // Not used in production flow, can be kept out or imported if needed for debugging
 } from '~/server/utils/podcastValidationHelpers';
 import type {
@@ -12,6 +12,16 @@ import type {
   // ScriptSegment, // Used within ValidateResponseData
   ValidateResponseData
 } from '~/server/utils/podcastValidationHelpers';
+
+// Helper function to validate URL format
+const isValidUrl = (urlString: string): boolean => {
+  try {
+    new URL(urlString);
+    return true;
+  } catch (e) {
+    return false;
+  }
+};
 
 // Define the main response structure for this endpoint
 interface ValidatePostResponse {
@@ -53,6 +63,15 @@ export default defineEventHandler(async (event): Promise<ValidatePostResponse> =
       });
     }
 
+    // 2.1 Validate cover_image_url if provided
+    if (body.cover_image_url && !isValidUrl(body.cover_image_url)) {
+      console.warn('[validate.post] Invalid cover_image_url format');
+      throw createError({
+        statusCode: 400,
+        statusMessage: 'Invalid cover_image_url format. Please provide a valid URL.'
+      });
+    }
+
     // Log host and guest details
     console.log('[validate.post] Host persona details:', {
       id: body.personas.hostPersona.id,
@@ -79,7 +98,7 @@ export default defineEventHandler(async (event): Promise<ValidatePostResponse> =
     console.log('[validate.post] Calling LLM service');
     
     // Actual call to LLM API
-    const structuredData: ValidateResponseData = await callLLM(prompt, event);
+    const structuredData: ValidateResponseData = await callLLMForPodcastValidation(prompt, event);
     
     console.log('[validate.post] Received LLM response:', JSON.stringify(structuredData).substring(0, 200) + '...');
     

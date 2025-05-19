@@ -13,6 +13,7 @@ import type { ValidateScriptResponse } from "~/composables/useScriptValidator";
 
 import type { Persona } from "./playgroundPersona"; // Assuming Persona type is needed
 import type { FullPodcastSettings } from "./playgroundSettings"; // Assuming settings are needed for context
+import { usePlaygroundSettingsStore } from './playgroundSettings'; // Import settings store
 
 // Copied from playground.ts
 export interface AIScriptSegment {
@@ -107,9 +108,10 @@ Host: Couldn't agree more. Thanks for joining us, Elliot, and thank you to our l
       if (this.isGeneratingScript) return null;
       this.isGeneratingScript = true;
       this.scriptGenerationError = null;
+      const settingsStore = usePlaygroundSettingsStore(); // Get settings store instance
 
       try {
-        const requestBody = {
+        const requestBody: any = {
           podcastSettings: {
             ...podcastSettings,
             hostPersonaId: podcastSettings.hostPersonaId ? Number(podcastSettings.hostPersonaId) : undefined,
@@ -117,8 +119,20 @@ Host: Couldn't agree more. Thanks for joining us, Elliot, and thank you to our l
           },
           hostPersona: hostPersona ? { persona_id: hostPersona.persona_id, name: hostPersona.name, voice_model_identifier: hostPersona.voice_model_identifier || '' } : undefined,
           guestPersonas: guestPersonas.map(p => p ? { persona_id: p.persona_id, name: p.name, voice_model_identifier: p.voice_model_identifier || '' } : null).filter(p => p !== null) as any[],
-          generationStep: 'meta_info_only', // Indicate only meta info is needed
+          generationStep: 'meta_info_only', 
         };
+
+        // Add provider and model if they are set in settingsStore
+        if (settingsStore.selectedProvider) {
+          requestBody.provider = settingsStore.selectedProvider;
+          if ((settingsStore.selectedProvider === 'openrouter' || settingsStore.selectedProvider === 'groq') && !settingsStore.aiModel) {
+            toast.error(`${settingsStore.selectedProvider} model is not selected. Please select a model or check default configuration.`);
+            throw new Error(`${settingsStore.selectedProvider} model is required but not selected/configured.`);
+          }
+          if (settingsStore.aiModel) { // Pass model if available, relevant for openrouter, groq, etc.
+            requestBody.model = settingsStore.aiModel;
+          }
+        }
 
         // @ts-ignore - Nuxt auto-imported $fetch.
         const response = await $fetch<GenerateScriptApiResponse>("/api/generate-script", {
@@ -152,10 +166,11 @@ Host: Couldn't agree more. Thanks for joining us, Elliot, and thank you to our l
       if (this.isGeneratingScript) return null;
       this.isGeneratingScript = true;
       this.scriptGenerationError = null;
+      const settingsStore = usePlaygroundSettingsStore(); // Get settings store instance
 
       try {
-        const requestBody = {
-          podcastSettings: { // Pass relevant settings from metaInfo or original settings
+        const requestBody: any = {
+          podcastSettings: { 
             title: metaInfo.podcastTitle,
             topic: metaInfo.topic,
             style: metaInfo.style,
@@ -167,9 +182,21 @@ Host: Couldn't agree more. Thanks for joining us, Elliot, and thank you to our l
           },
           hostPersona: hostPersona ? { persona_id: hostPersona.persona_id, name: hostPersona.name, voice_model_identifier: hostPersona.voice_model_identifier || '' } : undefined,
           guestPersonas: guestPersonas.map(p => p ? { persona_id: p.persona_id, name: p.name, voice_model_identifier: p.voice_model_identifier || '' } : null).filter(p => p !== null) as any[],
-          generationStep: 'full_script_from_meta', // Indicate full script generation from meta
-          metaInfo, // Pass the previously generated meta info
+          generationStep: 'full_script_from_meta',
+          metaInfo, 
         };
+
+        // Add provider and model if they are set in settingsStore
+        if (settingsStore.selectedProvider) {
+          requestBody.provider = settingsStore.selectedProvider;
+          if ((settingsStore.selectedProvider === 'openrouter' || settingsStore.selectedProvider === 'groq') && !settingsStore.aiModel) {
+            toast.error(`${settingsStore.selectedProvider} model is not selected. Please select a model or check default configuration.`);
+            throw new Error(`${settingsStore.selectedProvider} model is required but not selected/configured.`);
+          }
+          if (settingsStore.aiModel) { // Pass model if available
+            requestBody.model = settingsStore.aiModel;
+          }
+        }
 
         // @ts-ignore - Nuxt auto-imported $fetch.
         const response = await $fetch<GenerateScriptApiResponse>("/api/generate-script", {
@@ -228,13 +255,15 @@ Host: Couldn't agree more. Thanks for joining us, Elliot, and thank you to our l
       this.validationError = null;
       this.validationResult = null;
 
+      const settingsStore = usePlaygroundSettingsStore(); // Get settings store instance
+
       try {
         if (!podcastSettings?.title) throw new Error("Please set the podcast title");
         if (!hostPersona) throw new Error("Please select a host");
         if (guestPersonas.length === 0 || guestPersonas.every(p => !p)) throw new Error("Please select at least one guest");
         if (!this.textToSynthesize) throw new Error("Script content is empty");
 
-        const requestBody = {
+        const requestBody: any = { // Use 'any' for requestBody or define a more specific type
           title: podcastSettings.title,
           rawScript: this.textToSynthesize,
           personas: {
@@ -249,14 +278,24 @@ Host: Couldn't agree more. Thanks for joining us, Elliot, and thank you to our l
               voice_model_identifier: persona!.voice_model_identifier || "",
             })),
           },
-          preferences: { // These should come from podcastSettings
-            style: podcastSettings.style || "Conversational",
-            language: podcastSettings.language || "en-US", // Default if not set
-            keywords: podcastSettings.keywords || "",
-            numberOfSegments: podcastSettings.numberOfSegments || 3,
-            backgroundMusic: podcastSettings.backgroundMusic,
-          },
+          language: podcastSettings.language || "en",
         };
+
+        // Add provider and model if they are set in settingsStore
+        if (settingsStore.selectedProvider) {
+          requestBody.provider = settingsStore.selectedProvider;
+          if (settingsStore.selectedProvider === 'openrouter') {
+            if (!settingsStore.aiModel) {
+              toast.error('OpenRouter model is not selected. Please select a model in settings.');
+              throw new Error('OpenRouter model is required but not selected.');
+            }
+            requestBody.model = settingsStore.aiModel;
+          }
+          // Add model for other providers if needed, e.g., for elevenlabs if it starts supporting named models via this API
+          // else if (settingsStore.selectedProvider === 'elevenlabs' && settingsStore.aiModel) {
+          //   requestBody.model = settingsStore.aiModel; // Or specific parameter name for ElevenLabs
+          // }
+        }
 
         // @ts-ignore - Nuxt auto-imported $fetch
         const response = await $fetch<ValidateScriptResponse>("/api/podcast/process/validate", {

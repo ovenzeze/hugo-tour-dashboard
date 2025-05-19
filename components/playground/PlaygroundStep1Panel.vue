@@ -30,37 +30,37 @@
           <!-- Status Title -->
           <h3 class="text-center text-lg font-semibold mt-6">
             <template v-if="isScriptGenerating">
-              <span v-if="aiScriptStep === 1">正在分析输入...</span>
-              <span v-else-if="aiScriptStep === 2">正在构建大纲...</span>
-              <span v-else-if="aiScriptStep === 3">正在生成脚本内容...</span>
-              <span v-else>正在生成脚本...</span>
+              <span v-if="aiScriptStep === 1">Analyzing input...</span>
+              <span v-else-if="aiScriptStep === 2">Building outline...</span>
+              <span v-else-if="aiScriptStep === 3">Generating script content...</span>
+              <span v-else>Generating script...</span>
             </template>
             <template v-else-if="isValidating">
-              正在验证脚本...
+              Validating script...
             </template>
           </h3>
 
           <!-- Detailed Status Description -->
           <p class="text-center text-sm text-muted-foreground max-w-md">
-            {{ aiScriptStepText || '请稍候，这可能需要一点时间...' }}
+            {{ aiScriptStepText || 'Please wait, this may take a moment...' }}
           </p>
         </div>
       </template>
       <template v-else-if="scriptError">
         <div class="flex flex-col items-center justify-center h-full text-center">
           <Icon name="ph:x-circle" class="w-16 h-16 text-destructive mb-4" />
-          <h3 class="text-xl font-semibold text-destructive mb-2">脚本生成失败</h3>
+          <h3 class="text-xl font-semibold text-destructive mb-2">Script Generation Failed</h3>
           <p class="text-muted-foreground max-w-md">{{ scriptError }}</p>
           <Button variant="outline" @click="emit('clearErrorAndRetry')" class="mt-6">
             <Icon name="ph:arrow-clockwise" class="w-4 h-4 mr-2" />
-            重试
+            Retry
           </Button>
         </div>
       </template>
       <Textarea
         v-else-if="!selectedPersonaIdForHighlighting"
         :model-value="mainEditorContent"
-        placeholder="脚本生成后将在此处显示..."
+        placeholder="Script will appear here once generated..."
         class="flex-1 w-full h-full resize-none min-h-[200px] rounded-lg border border-input bg-background p-4 text-base focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 transition placeholder:text-muted-foreground"
         @update:model-value="emit('update:mainEditorContent', $event)"
       />

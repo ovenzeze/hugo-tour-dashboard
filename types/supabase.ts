@@ -559,6 +559,7 @@ export type Database = {
       }
       podcasts: {
         Row: {
+          cover_image_url: string | null
           created_at: string | null
           creator_persona_id: number | null
           guest_persona_id: number | null
@@ -570,6 +571,7 @@ export type Database = {
           total_word_count: number | null
         }
         Insert: {
+          cover_image_url?: string | null
           created_at?: string | null
           creator_persona_id?: number | null
           guest_persona_id?: number | null
@@ -581,6 +583,7 @@ export type Database = {
           total_word_count?: number | null
         }
         Update: {
+          cover_image_url?: string | null
           created_at?: string | null
           creator_persona_id?: number | null
           guest_persona_id?: number | null

@@ -44,18 +44,45 @@ export const defaultPodcastSettings: FullPodcastSettings = {
 export interface PlaygroundSettingsState {
   podcastSettings: FullPodcastSettings;
   createPodcast: boolean; // true for AI script generation, false for manual/validated script
-  selectedProvider: string | undefined; // e.g., 'elevenlabs'
+  selectedProvider: string | undefined; // e.g., 'elevenlabs', 'openrouter'
+  aiModel: string | undefined; // e.g., 'mistralai/mistral-7b-instruct' for openrouter
 }
 
 export const usePlaygroundSettingsStore = defineStore("playgroundSettings", {
-  state: (): PlaygroundSettingsState => ({
-    podcastSettings: { ...defaultPodcastSettings },
-    createPodcast: true, // Default to AI script generation mode
-    selectedProvider: "elevenlabs",
-  }),
+  state: (): PlaygroundSettingsState => {
+    const config = useRuntimeConfig();
+    const initialProvider = "elevenlabs"; // Keeping default as elevenlabs as per original state
+    let initialAiModel: string | undefined = undefined;
+
+    if (initialProvider === 'openrouter') {
+      initialAiModel = config.public.openrouterDefaultModel as string | undefined;
+    } else if (initialProvider === 'groq') {
+      initialAiModel = config.public.groqDefaultModel as string | undefined;
+    }
+    // else if (initialProvider === 'elevenlabs') { /* set default elevenlabs model if any */ }
+
+    return {
+      podcastSettings: { ...defaultPodcastSettings },
+      createPodcast: true, 
+      selectedProvider: initialProvider,
+      aiModel: initialAiModel,
+    };
+  },
   actions: {
     updateSelectedProvider(providerId: string | undefined) {
+      const config = useRuntimeConfig();
       this.selectedProvider = providerId;
+      if (providerId === 'openrouter') {
+        this.aiModel = config.public.openrouterDefaultModel as string | undefined;
+      } else if (providerId === 'groq') {
+        this.aiModel = config.public.groqDefaultModel as string | undefined;
+      } else {
+        this.aiModel = undefined;
+      }
+    },
+
+    updateAiModel(modelId: string | undefined) { // New action to update AI model
+      this.aiModel = modelId;
     },
 
     updateElevenLabsProjectId(projectId: string | undefined) {
@@ -112,6 +139,7 @@ export const usePlaygroundSettingsStore = defineStore("playgroundSettings", {
       this.podcastSettings = { ...defaultPodcastSettings };
       this.createPodcast = true; // Default back to AI mode
       this.selectedProvider = "elevenlabs";
+      this.aiModel = undefined; // Reset AI model
       // toast.info("Podcast settings have been reset."); // Consider if toast is needed here or in a more global reset
     },
 

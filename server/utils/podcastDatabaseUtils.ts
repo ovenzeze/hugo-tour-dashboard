@@ -113,7 +113,7 @@ export const getPodcastWithSegments = async (event: H3Event, podcastId: string) 
   const { data: podcast, error: podcastError } = await supabase
     .from('podcasts')
     .select('*')
-    .eq('id', podcastId)
+    .eq('podcast_id', podcastId)
     .single();
 
   if (podcastError) {
