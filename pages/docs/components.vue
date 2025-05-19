@@ -65,7 +65,7 @@
                 <pre class="bg-gray-100 dark:bg-zinc-800 p-4 rounded-md overflow-auto"><code>&lt;template&gt;
   &lt;div class="space-y-8"&gt;
     &lt;div&gt;
-      &lt;h2 class="text-lg font-medium mb-4"&gt;单选模式&lt;/h2&gt;
+      &lt;h2 class="text-lg font-medium mb-4"&gt;Single Selection Mode&lt;/h2&gt;
       &lt;PersonaSelector
         v-model="selectedPersona"
         :personas="personas"
@@ -77,7 +77,7 @@
     &lt;/div&gt;
 
     &lt;div&gt;
-      &lt;h2 class="text-lg font-medium mb-4"&gt;多选模式&lt;/h2&gt;
+      &lt;h2 class="text-lg font-medium mb-4"&gt;Multiple Selection Mode&lt;/h2&gt;
       &lt;PersonaSelector
         v-model="selectedPersonas"
         :personas="personas"
@@ -95,13 +95,13 @@
 import { ref } from 'vue';
 import type { ApiPersona } from '~/pages/personas/index.vue';
 
-// 单选模式
+// Single selection mode
 const selectedPersona = ref&lt;number | null&gt;(null);
 
-// 多选模式
+// Multiple selection mode
 const selectedPersonas = ref&lt;number[]&gt;([]);
 
-// 角色数据
+// Persona data
 const personas = ref&lt;ApiPersona[]&gt;([
   {
     persona_id: 1,

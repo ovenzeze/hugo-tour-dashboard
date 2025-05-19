@@ -69,9 +69,9 @@ defineProps({
   }
 })
 
-// 控制内容加载动画
+// Control content loading animation
 onMounted(() => {
-  // 在挂载后为内容添加动画效果类
+  // Add animation effect class to content after mounting
   setTimeout(() => {
     const contentSections = document.querySelectorAll('.content-section');
     contentSections.forEach((section, index) => {

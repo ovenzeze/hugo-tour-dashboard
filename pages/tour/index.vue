@@ -195,7 +195,7 @@ function closeInfoCard() {
 
 // View exhibit details
 function viewExhibitDetails(exhibit: Exhibit) {
-  // 可以导航到详情页面或显示更多信息
+  // Can navigate to a detail page or show more information
   console.log('View details for:', exhibit.name)
 }
 
@@ -213,7 +213,7 @@ function startGuidedTour() {
 
 // Start speech recognition
 function startListening() {
-  // 语音识别开始逻辑
+  // Speech recognition start logic
 }
 
 // Stop speech recognition
@@ -225,7 +225,7 @@ function stopListening() {
 
 // Open guide dialog
 function openGuideDialog() {
-  // 打开导游对话框逻辑
+  // Logic to open the guide dialog
 }
 
 // Go back to previous page

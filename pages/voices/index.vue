@@ -35,15 +35,15 @@
               :key="audio.audio_guide_id"
               class="border rounded-xl overflow-hidden shadow-md hover:shadow-xl transition-shadow bg-white/95 dark:bg-zinc-900/90 flex flex-col py-0 min-w-[300px]"
             >
-              <!-- 卡片头部：主信息 -->
+              <!-- Card Header: Main Info -->
               <div class="px-4 py-3 border-b flex justify-between items-center gap-2">
                 <div class="flex flex-col min-w-0 flex-1 overflow-hidden">
-                  <!-- 主信息：音频名称/摘要 -->
+                  <!-- Main Info: Audio Name/Summary -->
                   <span class="font-bold text-lg text-primary flex items-center gap-1 min-w-0 truncate">
                     <Icon name="ph:speaker-high" class="h-5 w-5 flex-shrink-0 text-primary" />
                     <span class="truncate">{{ audio.guide_text_preview || `Audio #${audio.audio_guide_id}` }}</span>
                   </span>
-                  <!-- 主标签区：横向滚动，主标签单行展示 -->
+                  <!-- Main Tag Area: Horizontal scroll, main tags displayed in a single line -->
                   <div
                     class="flex flex-row items-center gap-2 min-w-0 overflow-x-auto no-scrollbar scrollbar-thumb-gray-300 scrollbar-track-transparent"
                     style="max-width: 100%;"
@@ -80,7 +80,7 @@
                     </span>
                   </div>
                 </div>
-                <!-- 操作菜单 -->
+                <!-- Action Menu -->
                 <div class="flex flex-row gap-1 flex-shrink-0 ml-2">
                   <Button variant="ghost" size="sm" @click="openEditAudioDialog(audio)">
                     <Icon name="ph:pencil-simple" class="h-4 w-4" />
@@ -95,7 +95,7 @@
                   </Button>
                 </div>
               </div>
-              <!-- 卡片内容摘要与播放 -->
+              <!-- Card Content Summary and Playback -->
               <div class="p-4 flex flex-col gap-3 flex-1">
                 <div class="flex items-center gap-2 min-w-0">
                   <Icon name="ph:waveform" class="h-5 w-5 text-primary" />
@@ -151,7 +151,7 @@
                     <span class="mr-1">Duration:</span>
                     <span>{{ audio.duration_seconds ? `${audio.duration_seconds}s` : 'N/A' }}</span>
                   </span>
-                  <!-- 新增：metadata 主要字段展示 -->
+                  <!-- New: Display of main metadata fields -->
                   <template v-if="audio.metadata">
                     <span v-if="audio.metadata.tts_provider" class="metadata-pill">
                       <Icon name="ph:robot" class="h-3.5 w-3.5 mr-1 flex-shrink-0" />
@@ -380,7 +380,7 @@
       </AlertDialogContent>
     </AlertDialog>
 
-    <!-- 移除弹窗播放器 Dialog，避免与卡片内 audio 冲突 -->
+    <!-- Removed Dialog Player to avoid conflict with audio in cards -->
   </div>
 </template>
 
@@ -487,9 +487,9 @@ async function fetchGuideAudios() {
     } else if (response && Array.isArray((response as any).data)) {
       audios = (response as any).data;
     } else {
-      // 打印API实际返回内容，便于调试
+      // Print the actual content returned by the API for debugging
       // eslint-disable-next-line no-console
-      console.error('API /api/guide-audios 返回内容:', response);
+      console.error('API /api/guide-audios returned content:', response);
       throw new Error('API response is not an array or does not contain a data array');
     }
     console.log('Original audio data from API:', JSON.parse(JSON.stringify(audios)));

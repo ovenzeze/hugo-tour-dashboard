@@ -140,29 +140,29 @@ const formatDate = (dateString) => {
   })
 }
 
-// 自动获取所有文档
-const { data: allDocs } = await useAsyncData('docs', () => 
+// Automatically fetch all documents
+const { data: allDocs } = await useAsyncData('docs', () =>
   queryContent('docs')
     .where({ _extension: 'md' })
     .without(['body', '_'])
     .find()
 )
 
-// 根据文档的类别标签或元数据将文档分类
+// Categorize documents based on category tags or metadata
 const apiDocs = computed(() => {
   return allDocs.value?.filter(doc => {
-    // 根据文档的tags或其他元数据判断是否为API文档
-    // 如果文档有category字段，则根据category判断
+    // Determine if it's an API document based on tags or other metadata
+    // If the document has a category field, determine based on category
     if (doc.category === 'api') return true
     
-    // 如果文档有tags字段，则根据tags判断
+    // If the document has a tags field, determine based on tags
     if (doc.tags && Array.isArray(doc.tags)) {
       return doc.tags.some(tag => 
         ['api', 'database', 'data', 'process', 'podcast'].includes(tag.toLowerCase())
       )
     }
     
-    // 根据文档标题或slug判断
+    // Determine based on document title or slug
     const apiKeywords = ['api', 'database', 'data', 'process', 'podcast']
     return apiKeywords.some(keyword => 
       (doc.title && doc.title.toLowerCase().includes(keyword)) || 
@@ -171,33 +171,33 @@ const apiDocs = computed(() => {
   }) || []
 })
 
-// 项目文档
+// Project documents
 const projectDocs = computed(() => {
   return allDocs.value?.filter(doc => {
-    // 排除已经归类为API文档的文档
+    // Exclude documents already categorized as API documents
     if (apiDocs.value.some(apiDoc => apiDoc._path === doc._path)) {
       return false
     }
     
-    // 根据文档的category字段判断
+    // Determine based on the document's category field
     if (doc.category === 'project') return true
     
-    // 根据文档的tags字段判断
+    // Determine based on the document's tags field
     if (doc.tags && Array.isArray(doc.tags)) {
       return doc.tags.some(tag => 
         ['project', 'guide', 'development', 'structure', 'plan'].includes(tag.toLowerCase())
       )
     }
     
-    return true // 默认归类为项目文档
+    return true // Default to categorizing as project document
   }) || []
 })
 
-// 获取最新更新日期
+// Get the last update date
 const lastUpdateDate = computed(() => {
   if (!allDocs.value || allDocs.value.length === 0) return new Date().toISOString()
   
-  // 找出所有文档中最新的updatedAt日期
+  // Find the latest updatedAt date among all documents
   const dates = allDocs.value
     .map(doc => doc.updatedAt || doc.date)
     .filter(Boolean)

@@ -1,6 +1,6 @@
 <template>
   <div class="container mx-auto py-10">
-    <!-- 顶部操作栏和过滤 -->
+    <!-- Top Action Bar and Filters -->
     <div class="flex flex-wrap justify-between items-center gap-4 mb-6 px-6">
       <h1 class="text-3xl font-bold">Podcasts</h1>
       <div class="flex items-center gap-4">
@@ -282,5 +282,5 @@ const handleDeletePodcast = (podcastId: string) => {
 </script>
 
 <style scoped>
-/* 页面样式 */
+/* Page styles */
 </style>

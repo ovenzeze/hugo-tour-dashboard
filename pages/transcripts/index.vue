@@ -1,6 +1,6 @@
 <template>
   <div class="p-4 sm:p-6 lg:p-8">
-    <!-- 页面标题 -->
+    <!-- Page Title -->
     <div class="sm:flex sm:items-center mb-6">
 
       <div class="mt-4 sm:mt-0 sm:ml-16 sm:flex-none">
@@ -11,7 +11,7 @@
       </div>
     </div>
 
-    <!-- 加载状态 -->
+    <!-- Loading State -->
     <div v-if="pending" class="space-y-4 py-4">
       <Skeleton class="h-10 w-full" />
       <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
@@ -23,7 +23,7 @@
       </div>
     </div>
 
-    <!-- 错误状态 -->
+    <!-- Error State -->
     <div v-else-if="error" class="rounded-md bg-destructive/10 p-4 my-4">
       <div class="flex">
         <div class="flex-shrink-0">
@@ -38,7 +38,7 @@
       </div>
     </div>
 
-    <!-- 空状态 -->
+    <!-- Empty State -->
     <div v-else-if="!guideTexts || !guideTexts.length" class="text-center py-12 border-2 border-dashed border-muted rounded-lg">
       <Icon name="heroicons-outline:document-text" class="mx-auto h-12 w-12 text-muted-foreground" />
       <h3 class="mt-2 text-sm font-medium text-foreground">No transcripts</h3>
@@ -51,22 +51,22 @@
       </div>
     </div>
 
-    <!-- 内容列表 - 卡片视图 -->
+    <!-- Content List - Card View -->
     <div v-else class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mt-4">
       <div
         v-for="transcript in guideTexts"
         :key="transcript.guide_text_id"
         class="border rounded-xl overflow-hidden shadow-md hover:shadow-xl transition-shadow bg-white/95 dark:bg-zinc-900/90 min-w-[300px] flex flex-col"
       >
-        <!-- 卡片头部：角色、语言、版本、最新标记 -->
+        <!-- Card Header: Persona, Language, Version, Latest Tag -->
         <div class="px-4 py-3 border-b flex justify-between items-center bg-muted/40">
           <div class="flex flex-col min-w-0 flex-1 overflow-hidden">
-            <!-- 第一行：角色名称 -->
+            <!-- First Row: Persona Name -->
             <span class="font-bold text-lg text-primary flex items-center gap-1 min-w-0 truncate">
               <Icon name="ph:user" class="h-5 w-5 flex-shrink-0 text-primary" />
               <span class="truncate">{{ transcript.personas?.name || `Persona #${transcript.persona_id}` }}</span>
             </span>
-            <!-- 第二行：标签信息 -->
+            <!-- Second Row: Tag Information -->
             <div class="flex flex-row items-center gap-2 mt-1 min-w-0 flex-wrap">
               <span v-if="transcript.is_latest_version"
                 class="px-2 py-0.5 text-xs bg-green-50 text-green-700 dark:bg-green-900 dark:text-green-200 rounded-full font-semibold tracking-wide flex items-center gap-1 flex-shrink-0"
@@ -98,12 +98,12 @@
             </Button>
           </div>
         </div>
-        <!-- 卡片内容摘要 -->
+        <!-- Card Content Summary -->
         <div class="p-4 flex flex-col gap-3 flex-1">
           <p class="text-base font-semibold text-foreground line-clamp-4 leading-relaxed">
             {{ transcript.transcript }}
           </p>
-          <!-- 元数据分组（底部固定） -->
+          <!-- Metadata Group (fixed at bottom) -->
           <div class="flex flex-wrap gap-3 text-xs text-muted-foreground mt-auto">
             <span class="opacity-70">
               <Icon name="ph:calendar-blank" class="inline h-4 w-4 mr-1 align-text-bottom" />
@@ -140,15 +140,15 @@
       </div>
     </div>
 
-    <!-- 翻页和统计信息 -->
+    <!-- Pagination and Statistics -->
     <div v-if="guideTexts && guideTexts.length > 0 && !pending && !error" class="mt-8 flex justify-between items-center">
       <p class="text-sm text-muted-foreground">
         Showing {{ guideTexts.length }} transcripts
       </p>
-      <!-- 在未来可以添加分页组件 -->
+      <!-- Pagination component can be added in the future -->
     </div>
 
-    <!-- 添加对话框 -->
+    <!-- Add Dialog -->
     <Dialog v-model:open="isAddDialogOpen">
       <DialogContent class="sm:max-w-[600px]">
         <DialogHeader>
@@ -206,10 +206,10 @@
         </form>
       </DialogContent>
     </Dialog>
-
-    <!-- 编辑对话框 - 类似于添加对话框，可根据需要调整 -->
-    <!-- 删除确认对话框 -->
-    <AlertDialog v-model:open="isDeleteDialogOpen">
+ 
+     <!-- Edit Dialog - Similar to Add Dialog, adjust as needed -->
+     <!-- Delete Confirmation Dialog -->
+     <AlertDialog v-model:open="isDeleteDialogOpen">
       <AlertDialogContent>
         <AlertDialogHeader>
           <AlertDialogTitle>Are you absolutely sure?</AlertDialogTitle>
@@ -261,7 +261,7 @@ interface TranscriptFormData {
 }
 
 /**
- * 日期格式化函数：优先“x小时前”，否则“YYYY-MM-DD HH:mm”
+ * Date formatting function: prioritize "x hours ago", otherwise "YYYY-MM-DD HH:mm"
  */
 function formatDate(dateString: string | null | undefined): string {
   if (!dateString) return 'Unknown date';
