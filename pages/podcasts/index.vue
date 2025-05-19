@@ -69,12 +69,14 @@
         :podcasts="filteredPodcasts"
         :current-previewing-id="currentlyPreviewingId"
         :is-audio-playing="isPlayingPreview"
+        :hide-empty-podcasts-toggle="hideEmptyPodcasts"
         @select-podcast="handleSelectPodcast"
         @edit-podcast="handleEditPodcast"
         @delete-podcast="handleDeletePodcast"
         @download-podcast="handleDownloadAll"
         @preview-podcast="handlePreviewPodcast"
         @stop-preview="stopPreview"
+        @generate-cover="handleGenerateCover"
       />
     </div>
 
@@ -278,6 +280,24 @@ const handleDownloadAll = (podcastId: string) => {
 const handleDeletePodcast = (podcastId: string) => {
   console.log('Delete podcast:', podcastId);
   deletePodcast(podcastId);
+};
+
+const handleGenerateCover = async (podcastId: string) => {
+  console.log('Generating cover for podcast:', podcastId);
+  try {
+    const response = await $fetch(`/api/podcast/${podcastId}/generate-cover`, {
+      method: 'POST'
+    });
+    
+    console.log('Cover generated successfully:', response);
+    
+    // Refresh podcast data to show the new cover
+    await fetchPodcasts();
+    
+  } catch (error) {
+    console.error('Error generating cover:', error);
+    // Optionally show a notification to the user
+  }
 };
 </script>
 

@@ -147,7 +147,7 @@
                       {{ formatDuration(getSegmentDuration(segment)) }}
                     </span>
                   </div>
-                  <p class="text-xs truncate group-hover:whitespace-normal group-hover:line-clamp-3"
+                  <p class="text-xs truncate "
                      :class="podcast.cover_image_url ? 'text-white/70' : 'text-muted-foreground'">
                     {{ segment.text || 'No text available' }}
                   </p>
@@ -207,16 +207,55 @@
               size="icon" 
               class="h-9 w-9" 
               title="Generate Cover Image"
-              @click.stop="emit('generate-cover', podcast.podcast_id)"
-              :disabled="currentPreviewingId === podcast.podcast_id"
+              @click.stop="handleGenerateCover(String(podcast.podcast_id))"
+              :disabled="currentPreviewingId === podcast.podcast_id || loadingCovers[podcast.podcast_id]"
             >
-              <Icon name="ph:image" class="h-4 w-4" />
+              <Icon v-if="!loadingCovers[podcast.podcast_id]" name="ph:image" class="h-4 w-4" />
+              <Icon v-else name="ph:spinner-gap" class="h-4 w-4 animate-spin" />
             </Button>
             <Button 
               variant="outline" 
               size="icon" 
               class="h-9 w-9" 
-              title="Share"
+              title="Edit Podcast"
+              @click.stop="emit('edit-podcast', podcast.podcast_id)"
+            >
+              <Icon name="ph:pencil-simple" class="h-4 w-4" />
+            </Button>
+            <TooltipProvider v-if="!hasPlayableSegments(podcast)">
+              <Tooltip>
+                <TooltipTrigger as-child>
+                  <Button
+                    variant="outline"
+                    size="icon"
+                    class="h-9 w-9"
+                    :disabled="!hasPlayableSegments(podcast)"
+                    :class="{ 'opacity-50 cursor-not-allowed': !hasPlayableSegments(podcast) }"
+                  >
+                    <Icon name="ph:eye" class="h-4 w-4" />
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent>
+                  <p>此播客当前没有可播放的音频内容</p>
+                </TooltipContent>
+              </Tooltip>
+            </TooltipProvider>
+            <Button
+              v-else
+              variant="outline"
+              size="icon"
+              class="h-9 w-9"
+              title="Preview Share"
+              @click.stop="openSharePreviewModal(String(podcast.podcast_id))"
+              :disabled="!hasPlayableSegments(podcast)"
+            >
+              <Icon name="ph:eye" class="h-4 w-4" />
+            </Button>
+            <Button 
+              variant="outline" 
+              size="icon" 
+              class="h-9 w-9" 
+              title="Copy Share Link"
               @click.stop="sharePodcast(String(podcast.podcast_id))"
             >
               <Icon name="ph:link" class="h-4 w-4" />
@@ -267,7 +306,7 @@ import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle }
 import { Badge } from '@/components/ui/badge';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
-import { ref, computed } from 'vue';
+import { ref, computed, watch } from 'vue';
 import { useDateFormatter } from '~/composables/useDateFormatter';
 import type { Database } from '~/types/supabase';
 // Icon component is globally available or auto-imported
@@ -276,6 +315,9 @@ const { formatRelativeTime } = useDateFormatter();
 
 // Track hovered podcast
 const hoveredPodcastId = ref<string | null>(null);
+
+// Track podcasts with loading covers
+const loadingCovers = ref<Record<string, boolean>>({});
 
 // Share Modal State
 const isShareModalOpen = ref(false);
@@ -414,6 +456,23 @@ const props = defineProps<{
 }>();
 
 const emit = defineEmits(['select-podcast', 'edit-podcast', 'delete-podcast', 'download-podcast', 'preview-podcast', 'stop-preview', 'generate-cover']);
+
+// Listen for event from parent when cover generation starts/completes
+// This allows us to properly reflect loading state in the UI
+watch(() => props.podcasts, (newPodcasts) => {
+  // Clear any loading states for podcasts that have covers
+  for (const podcast of newPodcasts) {
+    if (podcast.cover_image_url && loadingCovers.value[podcast.podcast_id]) {
+      loadingCovers.value[podcast.podcast_id] = false;
+    }
+  }
+}, { deep: true });
+
+// Modify the original emit method for generate-cover to track loading state
+function handleGenerateCover(podcastId: string) {
+  loadingCovers.value[podcastId] = true;
+  emit('generate-cover', podcastId);
+}
 
 const filteredPodcasts = computed(() => {
   if (!props.hideEmptyPodcastsToggle) {
