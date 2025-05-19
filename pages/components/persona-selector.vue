@@ -1,6 +1,6 @@
 <template>
   <div class="container mx-auto py-8 px-4">
-    <!-- 面包屑导航 -->
+    <!-- Breadcrumb Navigation -->
     <div class="flex items-center text-sm mb-6">
       <NuxtLink to="/components" class="text-gray-500 hover:text-primary">Components</NuxtLink>
       <Icon name="ph:caret-right" class="mx-2 h-4 w-4 text-gray-400" />
@@ -27,7 +27,7 @@
       </CardContent>
     </Card>
     
-    <!-- 组件示例 -->
+    <!-- Component Examples -->
     <div class="mb-12">
       <h2 class="text-2xl font-bold mb-6">Examples</h2>
       
@@ -84,7 +84,7 @@ const personas = ref<ApiPersona[]>([
         </CardContent>
       </Card>
       
-      <!-- 多选模式 -->
+      <!-- Multiple Selection Mode -->
       <Card class="mb-8">
         <CardHeader>
           <CardTitle>Multiple Selection Mode</CardTitle>
@@ -138,7 +138,7 @@ const personas = ref<ApiPersona[]>([
         </CardContent>
       </Card>
       
-      <!-- 禁用状态 -->
+      <!-- Disabled State -->
       <Card class="mb-8">
         <CardHeader>
           <CardTitle>Disabled State</CardTitle>
@@ -176,7 +176,7 @@ const personas = ref<ApiPersona[]>([
       </Card>
     </div>
     
-    <!-- API 文档 -->
+    <!-- API Documentation -->
     <div class="mb-12">
       <h2 class="text-2xl font-bold mb-6">API</h2>
       

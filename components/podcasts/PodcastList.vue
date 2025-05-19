@@ -1,7 +1,7 @@
 <template>
   <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mt-4">
     <Card
-      v-for="podcast in podcasts"
+      v-for="podcast in filteredPodcasts"
       :key="podcast.podcast_id"
       :class="[
         'border rounded-xl overflow-hidden shadow-md hover:shadow-lg transition-all duration-200 ease-in-out bg-card text-card-foreground flex flex-col',
@@ -61,9 +61,7 @@
         <!-- 状态信息区域 -->
         <div class="mb-4">
           <div class="flex items-center justify-between mb-3">
-            <Badge :variant="getSynthesisStatusVariant(podcast)" class="mr-2">
-              {{ getSynthesisStatusText(podcast) }}
-            </Badge>
+            <!-- Removed synthesis status badge -->
             <span class="text-xs flex items-center">
               <Icon name="ph:clock" class="h-4 w-4 mr-1 text-muted-foreground" />
               {{ getPodcastTotalDuration(podcast) }}
@@ -139,11 +137,30 @@
             <Icon name="ph:stop-fill" class="mr-2 h-4 w-4" />
             Stop
           </Button>
+          <TooltipProvider v-if="!hasPlayableSegments(podcast)">
+            <Tooltip>
+              <TooltipTrigger as-child>
+                <Button
+                  variant="default"
+                  class="w-full flex items-center justify-center"
+                  :disabled="!hasPlayableSegments(podcast)"
+                  :class="{ 'opacity-50 cursor-not-allowed': !hasPlayableSegments(podcast) }"
+                >
+                  <Icon name="ph:play-fill" class="mr-2 h-4 w-4" />
+                  Preview
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent>
+                <p>此播客当前没有可播放的音频内容</p>
+              </TooltipContent>
+            </Tooltip>
+          </TooltipProvider>
           <Button
             v-else
             variant="default"
             class="w-full flex items-center justify-center"
             @click.stop="emit('preview-podcast', podcast.podcast_id)"
+            :disabled="!hasPlayableSegments(podcast)"
           >
             <Icon name="ph:play-fill" class="mr-2 h-4 w-4" />
             Preview
@@ -170,12 +187,32 @@
           >
             <Icon name="ph:pencil-simple" class="h-4 w-4" />
           </Button>
+          <TooltipProvider v-if="!hasPlayableSegments(podcast)">
+            <Tooltip>
+              <TooltipTrigger as-child>
+                <Button
+                  variant="outline"
+                  size="icon"
+                  class="h-9 w-9"
+                  :disabled="!hasPlayableSegments(podcast)"
+                  :class="{ 'opacity-50 cursor-not-allowed': !hasPlayableSegments(podcast) }"
+                >
+                  <Icon name="ph:eye" class="h-4 w-4" />
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent>
+                <p>此播客当前没有可播放的音频内容</p>
+              </TooltipContent>
+            </Tooltip>
+          </TooltipProvider>
           <Button
+            v-else
             variant="outline"
             size="icon"
             class="h-9 w-9"
             title="Preview Share"
             @click.stop="openSharePreviewModal(String(podcast.podcast_id))"
+            :disabled="!hasPlayableSegments(podcast)"
           >
             <Icon name="ph:eye" class="h-4 w-4" />
           </Button>
@@ -191,7 +228,7 @@
         </div>
       </CardFooter>
     </Card>
-    <div v-if="!podcasts || podcasts.length === 0" class="col-span-full text-center py-8 text-muted-foreground">
+    <div v-if="!filteredPodcasts || filteredPodcasts.length === 0" class="col-span-full text-center py-8 text-muted-foreground">
       <Icon name="ph:microphone-slash-duotone" class="mx-auto h-12 w-12" />
       <h3 class="mt-2 text-sm font-medium">No Podcasts Yet</h3>
       <p class="mt-1 text-sm">Get started by creating a new podcast.</p>
@@ -232,6 +269,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { ref, computed } from 'vue';
 import { useDateFormatter } from '~/composables/useDateFormatter';
 import type { Database } from '~/types/supabase';
@@ -331,15 +369,6 @@ function getSegmentDuration(segment: Segment): number | null {
   return null;
 }
 
-// 获取合成状态变体
-function getSynthesisStatusVariant(podcast: Podcast): "default" | "destructive" | "outline" | "secondary" | null | undefined {
-  const status = getSynthesisStatusText(podcast);
-  if (status === 'All Synced') return 'outline'; // 使用outline代替success
-  if (status === 'Partially Synced') return 'secondary'; // 使用secondary代替warning
-  if (status === 'Not Synced') return 'destructive';
-  return 'default'; // For "No Segments"
-}
-
 // Define types with nested relationships based on Supabase types
 type SegmentAudio = Database['public']['Tables']['segment_audios']['Row'] & {
   duration_ms?: number | null; // Allow null to match database type
@@ -360,44 +389,26 @@ const props = defineProps<{
   podcasts: Podcast[];
   currentPreviewingId: string | null;
   isAudioPlaying: boolean;
+  hideEmptyPodcastsToggle?: boolean; // Added for filtering empty podcasts
 }>();
 
 const emit = defineEmits(['select-podcast', 'edit-podcast', 'delete-podcast', 'download-podcast', 'preview-podcast', 'stop-preview']);
 
-// Function to get the count of synced segments
-function getSyncedSegmentsCount(podcast: Podcast): number {
-  if (!podcast.podcast_segments || podcast.podcast_segments.length === 0) {
-    return 0;
+const filteredPodcasts = computed(() => {
+  if (!props.hideEmptyPodcastsToggle) {
+    return props.podcasts;
   }
-  return podcast.podcast_segments.filter(segment =>
-    segment.segment_audios && segment.segment_audios.some(audio => audio.audio_url && audio.version_tag === 'final')
-  ).length;
-}
-
-// Function to determine synthesis status text
-function getSynthesisStatusText(podcast: Podcast): string {
-  if (!podcast.podcast_segments || podcast.podcast_segments.length === 0) {
-    return 'No Segments';
-  }
-  const syncedCount = getSyncedSegmentsCount(podcast);
-  const totalSegments = podcast.podcast_segments.length;
-
-  if (syncedCount === totalSegments) {
-    return 'All Synced';
-  } else if (syncedCount > 0) {
-    return 'Partially Synced';
-  } else {
-    return 'Not Synced';
-  }
-}
-
-function getSynthesisStatusClass(podcast: Podcast): string {
-  const status = getSynthesisStatusText(podcast);
-  if (status === 'All Synced') return 'text-green-600 dark:text-green-400 font-medium';
-  if (status === 'Partially Synced') return 'text-yellow-600 dark:text-yellow-400 font-medium';
-  if (status === 'Not Synced') return 'text-red-600 dark:text-red-400 font-medium';
-  return 'text-muted-foreground'; // For "No Segments"
-}
+  return props.podcasts.filter(podcast => {
+    if (!podcast.podcast_segments || podcast.podcast_segments.length === 0) {
+      return false; // Filter out if podcast_segments is empty
+    }
+    // Check if any segment has at least one segment_audio
+    const hasAnySegmentWithAudio = podcast.podcast_segments.some(segment =>
+      segment.segment_audios && segment.segment_audios.length > 0
+    );
+    return hasAnySegmentWithAudio; // Keep if at least one segment has audio
+  });
+});
 
 // Function to get podcast total duration (placeholder)
 function getPodcastTotalDuration(podcast: Podcast): string {
@@ -454,6 +465,23 @@ async function sharePodcast(podcastId: string | number) {
     console.error('Failed to copy share link: ', err);
     window.prompt('Could not copy to clipboard. Please copy this link manually:', shareUrl);
   }
+}
+
+// Function to check if podcast has any playable segments
+function hasPlayableSegments(podcast: Podcast): boolean {
+  if (!podcast.podcast_segments || podcast.podcast_segments.length === 0) {
+    return false;
+  }
+  for (const segment of podcast.podcast_segments) {
+    if (segment.segment_audios && segment.segment_audios.length > 0) {
+      for (const audio of segment.segment_audios) {
+        if (audio.audio_url && audio.audio_url.trim() !== '') {
+          return true; // Found a playable audio URL
+        }
+      }
+    }
+  }
+  return false; // No playable audio URL found
 }
 </script>
 

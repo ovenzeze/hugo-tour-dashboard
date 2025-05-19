@@ -301,7 +301,7 @@ const presetTexts = [
   "Hello, this is a test of the Eleven Labs text-to-speech synthesis.",
   "The quick brown fox jumps over the lazy dog.",
   "To be, or not to be, that is the question.",
-  "Hello, this is a test in Chinese.", // Example Chinese
+  "Hello, this is a test in Chinese.", // 中文示例
 ];
 
 // Get component instance uid for unique IDs

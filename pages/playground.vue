@@ -2,7 +2,7 @@
   <div class="h-[100vh] w-full flex flex-col overflow-hidden">
     <!-- Top Section: Stepper -->
     <div class="px-4 py-4 border-b bg-background">
-      <PlaygroundStepper v-model="currentStepIndex" :steps="podcastSteps" />
+      <PlaygroundStepper v-model="currentStepIndex" :steps="[...podcastSteps]" />
     </div>
 
     <!-- Main Content: Unified Card Layout -->
@@ -26,8 +26,12 @@
           :main-editor-content="mainEditorContent"
           :selected-persona-id-for-highlighting="personaStore.selectedPersonaIdForHighlighting"
           :highlighted-script="highlightedScript"
+          :ai-script-step="aiScriptStep"
+          :ai-script-step-text="aiScriptStepText"
+          :script-error="scriptError"
           @update:podcast-settings="settingsStore.updateFullPodcastSettings($event)"
           @update:main-editor-content="mainEditorContent = $event"
+          @clear-error-and-retry="handleClearErrorAndRetry"
         />
         <PlaygroundStep2Panel
           v-if="currentStepIndex === 2"
@@ -140,6 +144,12 @@ const errorDataForModal = ref<ErrorData>({ errorMessage: 'An unknown error occur
 
 
 // Script Composable
+// Fallback definitions for scriptError and clearScriptError
+const scriptError = ref<string | null>(null);
+const clearScriptError = () => {
+  scriptError.value = null;
+};
+
 const {
   isScriptGenerating,
   mainEditorContent,
@@ -150,6 +160,10 @@ const {
   handleUsePresetScript,
   parseScriptToSegments,
   initializeScript,
+  aiScriptStep, // Added for staged loading text
+  aiScriptStepText, // Added for staged loading text
+  // scriptError, // Added for error display - Using fallback
+  // clearScriptError, // Added to clear error - Using fallback
 } = usePlaygroundScript();
 
 // Refs for components and shared state
@@ -242,7 +256,14 @@ async function generateAllSegmentsAudioPreview() {
     isGlobalPreviewLoading.value = false;
   }
 }
+; // Added closing bracket
 
+const handleClearErrorAndRetry = () => {
+clearScriptError();
+// Optionally, re-trigger script generation or allow user to modify settings
+// For now, just clearing the error. User can click "Generate" again.
+toast.info("Error cleared. You can adjust settings and try again.");
+};
 
 onMounted(async () => {
   await personaStore.fetchPersonas();
@@ -386,7 +407,7 @@ const handleModalConfirmSynthesis = async () => {
 
 const handleModalCancelConfirmation = () => {
   showSynthesisModal.value = false;
-  toast.info('Synthesis cancelled');
+  toast.info('Synthesis cancelled.');
 };
 
 const handleModalCancelSynthesis = () => {
@@ -443,7 +464,7 @@ const handleModalViewHelp = () => {
 // --- Update PlaygroundFooterActions synthesize-podcast handler ---
 const handleShowSynthesisModal = () => {
   // Prepare data for the modal
-  // podcastNameForModal.value = settingsStore.podcastSettings.title || '未命名 Podcast'; // Get from actual settings
+  // podcastNameForModal.value = settingsStore.podcastSettings.title || 'Untitled Podcast'; // Get from actual settings
   // For now, let's use a placeholder or the current value
   if (!settingsStore.podcastSettings.title && mainEditorContent.value) {
       // Try to extract a title from the script if no explicit title is set

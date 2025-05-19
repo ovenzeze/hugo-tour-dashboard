@@ -100,6 +100,6 @@
 import PersonaSelectorExample from '~/components/PersonaSelectorExample.vue';
 
 definePageMeta({
-  title: 'Persona选择器组件演示'
+  title: 'Persona Selector Component Demo'
 });
 </script>

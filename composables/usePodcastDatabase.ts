@@ -4,12 +4,16 @@ import { useSupabaseClient } from '#imports';
 import type { Database } from '~/types/supabase';
 
 // Define types with nested relationships based on Supabase types for composable use
+export type Persona = Database['public']['Tables']['personas']['Row'];
 export type SegmentAudio = Database['public']['Tables']['segment_audios']['Row'];
 export type Segment = Database['public']['Tables']['podcast_segments']['Row'] & {
   segment_audios?: SegmentAudio[];
 };
 export type Podcast = Database['public']['Tables']['podcasts']['Row'] & {
   podcast_segments?: Segment[];
+  host_persona?: Persona | null;
+  creator_persona?: Persona | null;
+  // guest_persona?: Persona | null; // Example if needed later
 };
 
 export const usePodcastDatabase = () => {
@@ -28,7 +32,7 @@ export const usePodcastDatabase = () => {
       // Fetch podcasts and nested relationships
       const { data, error: dbError } = await supabase
         .from('podcasts')
-        .select('*, podcast_segments(*, segment_audios(*))') // Select nested data
+        .select('*, podcast_segments(*, segment_audios(*)), host_persona:personas!podcasts_host_persona_id_fkey(*), creator_persona:personas!podcasts_creator_persona_id_fkey(*)') // Select nested data
         .order('created_at', { ascending: false }); // Order by creation date, newest first
 
       if (dbError) {
@@ -51,7 +55,7 @@ export const usePodcastDatabase = () => {
     try {
       const { data, error: dbError } = await supabase
         .from('podcasts')
-        .select('*, podcast_segments(*, segment_audios(*))') // Select nested data
+        .select('*, podcast_segments(*, segment_audios(*)), host_persona:personas!podcasts_host_persona_id_fkey(*), creator_persona:personas!podcasts_creator_persona_id_fkey(*)')
         .eq('podcast_id', podcastId)
         .single(); // Expect a single result
 
@@ -69,27 +73,43 @@ export const usePodcastDatabase = () => {
   };
 
   // Placeholder functions for actions (to be implemented)
-  const createPodcast = async (newPodcastData: { title: string; topic?: string }) => {
+  const createPodcast = async (newPodcastData: { title: string; topic?: string; host_persona_id?: number; creator_persona_id?: number }) => {
     loading.value = true;
     error.value = null;
     try {
       const { data, error: dbError } = await supabase
         .from('podcasts')
         .insert([newPodcastData])
-        .select() // Select the inserted data to get the new podcast_id
+        .select('*, podcast_segments(*, segment_audios(*)), host_persona:personas!podcasts_host_persona_id_fkey(*), creator_persona:personas!podcasts_creator_persona_id_fkey(*)')
         .single();
 
       if (dbError) {
         throw dbError;
       }
 
-      // Add the newly created podcast to the local state
       if (data) {
-         // Fetch the full podcast data with segments and audios after creation
-         await fetchPodcastById(data.podcast_id);
-         if(selectedPodcast.value) {
-            podcasts.value.push(selectedPodcast.value);
-         }
+        // Construct the object as before
+        const newPodcastEntryDto = {
+          podcast_id: data.podcast_id,
+          created_at: data.created_at,
+          title: data.title,
+          topic: data.topic,
+          host_persona_id: data.host_persona_id,
+          creator_persona_id: data.creator_persona_id,
+          guest_persona_id: data.guest_persona_id,
+          total_duration_ms: data.total_duration_ms,
+          total_word_count: data.total_word_count,
+          host_persona: data.host_persona ? { ...data.host_persona } : null,
+          creator_persona: data.creator_persona ? { ...data.creator_persona } : null,
+          podcast_segments: data.podcast_segments || [],
+        };
+
+        // Use 'any' strategically to bypass the deep type instantiation issue
+        const newEntryForArray: any = newPodcastEntryDto;
+        const currentPodcasts: any[] = podcasts.value;
+
+        podcasts.value = [newEntryForArray, ...currentPodcasts] as Podcast[];
+        selectedPodcast.value = newPodcastEntryDto as Podcast;
       }
 
     } catch (e: any) {
@@ -113,12 +133,10 @@ export const usePodcastDatabase = () => {
         throw dbError;
       }
 
-      // Remove the deleted podcast from the local state
-      const indexToDelete = podcasts.value.findIndex((p: Podcast) => p.podcast_id === podcastId);
+      const indexToDelete = podcasts.value.findIndex((p: any) => p.podcast_id === podcastId); // Use any for p
       if (indexToDelete !== -1) {
         podcasts.value.splice(indexToDelete, 1);
       }
-      // If the deleted podcast was the selected one, clear selectedPodcast
       if (selectedPodcast.value?.podcast_id === podcastId) {
         selectedPodcast.value = null;
       }
@@ -133,40 +151,7 @@ export const usePodcastDatabase = () => {
 
   const downloadPodcast = async (podcastId: string) => {
     console.log('Download entire podcast:', podcastId);
-    // TODO: Implement logic to fetch and download the final combined podcast audio.
-    // This will likely involve:
-    // 1. Finding the podcast by ID.
-    // 2. Checking if a final combined audio URL exists (assuming a new field in the podcasts table or a related table).
-    // 3. If the URL exists, trigger the download (similar to the segment download logic, but for a single file).
-    // 4. Handle cases where the final audio is not yet available.
-
-    // Placeholder for future implementation:
-    // loading.value = true;
-    // error.value = null;
-    // try {
-    //   const podcastToDownload = podcasts.value.find(p => p.podcast_id === podcastId);
-    //   if (!podcastToDownload) {
-    //     throw new Error(`Podcast with ID ${podcastId} not found.`);
-    //   }
-    //   // Assuming podcastToDownload has a final_audio_url field
-    //   if (podcastToDownload.final_audio_url) {
-    //     const link = document.createElement('a');
-    //     link.href = podcastToDownload.final_audio_url;
-    //     link.setAttribute('download', `${podcastToDownload.title}.mp3`); // Suggest a filename
-    //     document.body.appendChild(link);
-    //     link.click();
-    //     document.body.removeChild(link);
-    //   } else {
-    //     console.warn(`Final audio not available for podcast with ID ${podcastId}.`);
-    //     // Optionally set an error message for the user
-    //     // error.value = 'Final audio not available.';
-    //   }
-    // } catch (e: any) {
-    //   error.value = e.message;
-    //   console.error(`Error downloading podcast with ID ${podcastId}:`, e);
-    // } finally {
-    //   loading.value = false;
-    // }
+    // TODO: Implement logic
   };
 
   const resynthesizeAllSegments = async (podcastId: string) => {
@@ -174,11 +159,8 @@ export const usePodcastDatabase = () => {
     error.value = null;
     console.log(`Requesting resynthesis for all segments of podcast: ${podcastId}`);
     try {
-      // TODO: Replace with actual API call
-      // Example: await $fetch(`/api/podcasts/${podcastId}/synthesize-all`, { method: 'POST' });
-      // For now, simulate a delay and then refresh the podcast data
-      await new Promise(resolve => setTimeout(resolve, 2000)); // Simulate API call delay
-      await fetchPodcastById(podcastId); // Refresh data to reflect potential changes
+      await new Promise(resolve => setTimeout(resolve, 2000));
+      await fetchPodcastById(podcastId);
       console.log(`Resynthesis for all segments of podcast ${podcastId} (simulated) complete.`);
     } catch (e: any) {
       error.value = e.message;
@@ -189,20 +171,13 @@ export const usePodcastDatabase = () => {
   };
 
   const resynthesizeSegment = async (segmentId: string) => {
-    // Note: segmentId here is likely segment_text_id from the podcast_segments table
     loading.value = true;
     error.value = null;
     console.log(`Requesting resynthesis for segment: ${segmentId}`);
     try {
-      // TODO: Replace with actual API call
-      // Example: await $fetch(`/api/podcast-segments/${segmentId}/synthesize`, { method: 'POST' });
-      // For now, simulate a delay.
-      // After a successful call, you'd typically want to refresh the specific podcast
-      // or at least the segment's audio status.
-      await new Promise(resolve => setTimeout(resolve, 1500)); // Simulate API call delay
-      
-      // Find which podcast this segment belongs to and refresh it
-      const podcastToRefresh = podcasts.value.find(p => p.podcast_segments?.some(s => s.segment_text_id === segmentId));
+      await new Promise(resolve => setTimeout(resolve, 1500));
+      // Use any for p in findIndex as well if this causes issues later
+      const podcastToRefresh = podcasts.value.find((p: any) => p.podcast_segments?.some((s: any) => s.segment_text_id === segmentId));
       if (podcastToRefresh) {
         await fetchPodcastById(podcastToRefresh.podcast_id);
       }

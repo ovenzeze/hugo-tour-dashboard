@@ -140,61 +140,71 @@ const formatDate = (dateString) => {
   })
 }
 
-// Documentation last update date
-const lastUpdateDate = '2024-05-02'
+// 自动获取所有文档
+const { data: allDocs } = await useAsyncData('docs', () => 
+  queryContent('docs')
+    .where({ _extension: 'md' })
+    .without(['body', '_'])
+    .find()
+)
 
-// API and Database Documentation
-const apiDocs = [
-  {
-    title: 'Audio API Guide',
-    slug: 'audio-api-guide',
-    description: 'Detailed guide for audio generation and upload API usage and parameters'
-  },
-  {
-    title: 'Data Entry Guide',
-    slug: 'data-entry-guide',
-    description: 'Guide for museum, exhibition hall, and exhibit data entry process and best practices'
-  },
-  {
-    title: 'Database Design',
-    slug: 'database-design',
-    description: 'Database table structure and relationship documentation'
-  },
-  {
-    title: '播客处理流程与相关API文档',
-    slug: 'podcast-process-api-docs',
-    description: '播客处理流程与相关API文档'
-  }
-]
+// 根据文档的类别标签或元数据将文档分类
+const apiDocs = computed(() => {
+  return allDocs.value?.filter(doc => {
+    // 根据文档的tags或其他元数据判断是否为API文档
+    // 如果文档有category字段，则根据category判断
+    if (doc.category === 'api') return true
+    
+    // 如果文档有tags字段，则根据tags判断
+    if (doc.tags && Array.isArray(doc.tags)) {
+      return doc.tags.some(tag => 
+        ['api', 'database', 'data', 'process', 'podcast'].includes(tag.toLowerCase())
+      )
+    }
+    
+    // 根据文档标题或slug判断
+    const apiKeywords = ['api', 'database', 'data', 'process', 'podcast']
+    return apiKeywords.some(keyword => 
+      (doc.title && doc.title.toLowerCase().includes(keyword)) || 
+      (doc.slug && doc.slug.toLowerCase().includes(keyword))
+    )
+  }) || []
+})
 
-// Project Documentation
-const projectDocs = [
-  {
-    title: 'Project Structure',
-    slug: 'project-structure',
-    description: 'Project file structure and component documentation'
-  },
-  {
-    title: 'Development Plan',
-    slug: 'tour-dev-plan',
-    description: 'Project feature development planning and progress'
-  },
-  {
-    title: 'Map Fix Plan',
-    slug: 'map-fix-plan',
-    description: 'Map functionality optimization and fix plan'
-  },
-  {
-    title: 'Requirements',
-    slug: 'requirements',
-    description: 'System functional requirements specification'
-  },
-  {
-    title: 'Nuxt Warning Fixes',
-    slug: 'fix-nuxt-warnings',
-    description: 'Solutions for fixing Nuxt-related warnings'
-  }
-]
+// 项目文档
+const projectDocs = computed(() => {
+  return allDocs.value?.filter(doc => {
+    // 排除已经归类为API文档的文档
+    if (apiDocs.value.some(apiDoc => apiDoc._path === doc._path)) {
+      return false
+    }
+    
+    // 根据文档的category字段判断
+    if (doc.category === 'project') return true
+    
+    // 根据文档的tags字段判断
+    if (doc.tags && Array.isArray(doc.tags)) {
+      return doc.tags.some(tag => 
+        ['project', 'guide', 'development', 'structure', 'plan'].includes(tag.toLowerCase())
+      )
+    }
+    
+    return true // 默认归类为项目文档
+  }) || []
+})
+
+// 获取最新更新日期
+const lastUpdateDate = computed(() => {
+  if (!allDocs.value || allDocs.value.length === 0) return new Date().toISOString()
+  
+  // 找出所有文档中最新的updatedAt日期
+  const dates = allDocs.value
+    .map(doc => doc.updatedAt || doc.date)
+    .filter(Boolean)
+    .sort((a, b) => new Date(b) - new Date(a))
+  
+  return dates[0] || new Date().toISOString()
+})
 
 // Set page metadata
 useHead({

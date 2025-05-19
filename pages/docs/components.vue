@@ -1,12 +1,12 @@
 <template>
   <div class="container mx-auto py-8 px-4">
-    <h1 class="text-3xl font-bold mb-8">组件文档</h1>
+    <h1 class="text-3xl font-bold mb-8">Component Documentation</h1>
     
     <div class="grid grid-cols-1 md:grid-cols-4 gap-6">
-      <!-- 侧边导航 -->
+      <!-- Sidebar Navigation -->
       <div class="md:col-span-1">
         <div class="bg-white dark:bg-zinc-900 rounded-lg shadow-md p-4 sticky top-20">
-          <h2 class="text-lg font-semibold mb-4">组件列表</h2>
+          <h2 class="text-lg font-semibold mb-4">Component List</h2>
           <ul class="space-y-2">
             <li>
               <a 
@@ -18,45 +18,45 @@
                 PersonaSelector
               </a>
             </li>
-            <!-- 未来可以添加更多组件 -->
+            <!-- More components can be added in the future -->
           </ul>
         </div>
       </div>
       
-      <!-- 主要内容 -->
+      <!-- Main Content -->
       <div class="md:col-span-3">
-        <!-- PersonaSelector 组件文档 -->
+        <!-- PersonaSelector Component Documentation -->
         <section id="persona-selector" class="bg-white dark:bg-zinc-900 rounded-lg shadow-md p-6 mb-8">
           <div class="flex items-center justify-between mb-6">
             <h2 class="text-2xl font-bold">PersonaSelector</h2>
-            <Badge variant="outline" class="text-xs">UI 组件</Badge>
+            <Badge variant="outline" class="text-xs">UI Component</Badge>
           </div>
           
           <p class="text-gray-600 dark:text-gray-300 mb-6">
-            PersonaSelector 是一个支持多选和单选的可搜索高级选择器组件，用于选择角色（Persona）。
-            它基于 shadcn/ui 的 Combobox 组件构建，提供了丰富的功能和良好的用户体验。
+            PersonaSelector is a searchable advanced selector component supporting multiple and single selection, used for selecting personas.
+            It is built on shadcn/ui's Combobox component and provides rich features and a good user experience.
           </p>
           
-          <!-- 功能特点 -->
+          <!-- Features -->
           <div class="mb-8">
-            <h3 class="text-lg font-semibold mb-3">功能特点</h3>
+            <h3 class="text-lg font-semibold mb-3">Features</h3>
             <ul class="list-disc pl-5 space-y-1">
-              <li>支持单选和多选模式</li>
-              <li>支持搜索过滤</li>
-              <li>显示选中项目的标签</li>
-              <li>支持禁用状态</li>
-              <li>支持自定义标签和描述</li>
+              <li>Supports single and multiple selection modes</li>
+              <li>Supports search filtering</li>
+              <li>Displays selected item tags</li>
+              <li>Supports disabled state</li>
+              <li>Supports custom labels and descriptions</li>
             </ul>
           </div>
           
-          <!-- 示例 -->
+          <!-- Examples -->
           <div class="mb-8">
-            <h3 class="text-lg font-semibold mb-3">示例</h3>
+            <h3 class="text-lg font-semibold mb-3">Examples</h3>
             
             <Tabs default-value="preview" class="mb-6">
               <TabsList>
-                <TabsTrigger value="preview">预览</TabsTrigger>
-                <TabsTrigger value="code">代码</TabsTrigger>
+                <TabsTrigger value="preview">Preview</TabsTrigger>
+                <TabsTrigger value="code">Code</TabsTrigger>
               </TabsList>
               <TabsContent value="preview" class="p-4 border rounded-md mt-2">
                 <PersonaSelectorExample />
@@ -69,9 +69,9 @@
       &lt;PersonaSelector
         v-model="selectedPersona"
         :personas="personas"
-        label="选择一个角色"
-        placeholder="搜索角色..."
-        description="请选择一个角色作为主持人"
+        label="Select a Persona"
+        placeholder="Search persona..."
+        description="Please select a persona as the host"
         :filterable="true"
       /&gt;
     &lt;/div&gt;
@@ -82,9 +82,9 @@
         v-model="selectedPersonas"
         :personas="personas"
         :multiple="true"
-        label="选择多个角色"
-        placeholder="搜索角色..."
-        description="请选择多个角色作为嘉宾"
+        label="Select Multiple Personas"
+        placeholder="Search persona..."
+        description="Please select multiple personas as guests"
         :filterable="true"
       /&gt;
     &lt;/div&gt;
@@ -105,18 +105,18 @@ const selectedPersonas = ref&lt;number[]&gt;([]);
 const personas = ref&lt;ApiPersona[]&gt;([
   {
     persona_id: 1,
-    name: '历史学家',
-    description: '专注于历史事件和文化背景的解说',
-    // 其他属性...
+    name: 'Historian',
+    description: 'Focuses on historical events and cultural background',
+    // other properties...
   },
-  // 其他角色...
+  // other personas...
 ]);
 &lt;/script&gt;</code></pre>
               </TabsContent>
             </Tabs>
           </div>
           
-          <!-- API 文档 -->
+          <!-- API Documentation -->
           <div class="mb-8">
             <h3 class="text-lg font-semibold mb-3">API</h3>
             
@@ -125,10 +125,10 @@ const personas = ref&lt;ApiPersona[]&gt;([
               <table class="w-full border-collapse">
                 <thead>
                   <tr>
-                    <th class="border border-gray-300 dark:border-zinc-700 px-4 py-2 text-left">属性名</th>
-                    <th class="border border-gray-300 dark:border-zinc-700 px-4 py-2 text-left">类型</th>
-                    <th class="border border-gray-300 dark:border-zinc-700 px-4 py-2 text-left">默认值</th>
-                    <th class="border border-gray-300 dark:border-zinc-700 px-4 py-2 text-left">说明</th>
+                    <th class="border border-gray-300 dark:border-zinc-700 px-4 py-2 text-left">Prop Name</th>
+                    <th class="border border-gray-300 dark:border-zinc-700 px-4 py-2 text-left">Type</th>
+                    <th class="border border-gray-300 dark:border-zinc-700 px-4 py-2 text-left">Default</th>
+                    <th class="border border-gray-300 dark:border-zinc-700 px-4 py-2 text-left">Description</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -136,96 +136,96 @@ const personas = ref&lt;ApiPersona[]&gt;([
                     <td class="border border-gray-300 dark:border-zinc-700 px-4 py-2">modelValue</td>
                     <td class="border border-gray-300 dark:border-zinc-700 px-4 py-2">number | number[] | null</td>
                     <td class="border border-gray-300 dark:border-zinc-700 px-4 py-2">null</td>
-                    <td class="border border-gray-300 dark:border-zinc-700 px-4 py-2">选中的角色ID或ID数组</td>
+                    <td class="border border-gray-300 dark:border-zinc-700 px-4 py-2">Selected persona ID or array of IDs</td>
                   </tr>
                   <tr>
                     <td class="border border-gray-300 dark:border-zinc-700 px-4 py-2">personas</td>
                     <td class="border border-gray-300 dark:border-zinc-700 px-4 py-2">ApiPersona[]</td>
                     <td class="border border-gray-300 dark:border-zinc-700 px-4 py-2">[]</td>
-                    <td class="border border-gray-300 dark:border-zinc-700 px-4 py-2">角色数据列表</td>
+                    <td class="border border-gray-300 dark:border-zinc-700 px-4 py-2">Persona data list</td>
                   </tr>
                   <tr>
                     <td class="border border-gray-300 dark:border-zinc-700 px-4 py-2">multiple</td>
                     <td class="border border-gray-300 dark:border-zinc-700 px-4 py-2">boolean</td>
                     <td class="border border-gray-300 dark:border-zinc-700 px-4 py-2">false</td>
-                    <td class="border border-gray-300 dark:border-zinc-700 px-4 py-2">是否支持多选</td>
+                    <td class="border border-gray-300 dark:border-zinc-700 px-4 py-2">Whether multiple selection is supported</td>
                   </tr>
                   <tr>
                     <td class="border border-gray-300 dark:border-zinc-700 px-4 py-2">filterable</td>
                     <td class="border border-gray-300 dark:border-zinc-700 px-4 py-2">boolean</td>
                     <td class="border border-gray-300 dark:border-zinc-700 px-4 py-2">false</td>
-                    <td class="border border-gray-300 dark:border-zinc-700 px-4 py-2">是否支持搜索过滤</td>
+                    <td class="border border-gray-300 dark:border-zinc-700 px-4 py-2">Whether search filtering is supported</td>
                   </tr>
                   <tr>
                     <td class="border border-gray-300 dark:border-zinc-700 px-4 py-2">disabled</td>
                     <td class="border border-gray-300 dark:border-zinc-700 px-4 py-2">boolean</td>
                     <td class="border border-gray-300 dark:border-zinc-700 px-4 py-2">false</td>
-                    <td class="border border-gray-300 dark:border-zinc-700 px-4 py-2">是否禁用</td>
+                    <td class="border border-gray-300 dark:border-zinc-700 px-4 py-2">Whether disabled</td>
                   </tr>
                   <tr>
                     <td class="border border-gray-300 dark:border-zinc-700 px-4 py-2">label</td>
                     <td class="border border-gray-300 dark:border-zinc-700 px-4 py-2">string</td>
                     <td class="border border-gray-300 dark:border-zinc-700 px-4 py-2">undefined</td>
-                    <td class="border border-gray-300 dark:border-zinc-700 px-4 py-2">标签文本</td>
+                    <td class="border border-gray-300 dark:border-zinc-700 px-4 py-2">Label text</td>
                   </tr>
                   <tr>
                     <td class="border border-gray-300 dark:border-zinc-700 px-4 py-2">placeholder</td>
                     <td class="border border-gray-300 dark:border-zinc-700 px-4 py-2">string</td>
                     <td class="border border-gray-300 dark:border-zinc-700 px-4 py-2">undefined</td>
-                    <td class="border border-gray-300 dark:border-zinc-700 px-4 py-2">输入框占位文本</td>
+                    <td class="border border-gray-300 dark:border-zinc-700 px-4 py-2">Input placeholder text</td>
                   </tr>
                   <tr>
                     <td class="border border-gray-300 dark:border-zinc-700 px-4 py-2">description</td>
                     <td class="border border-gray-300 dark:border-zinc-700 px-4 py-2">string</td>
                     <td class="border border-gray-300 dark:border-zinc-700 px-4 py-2">undefined</td>
-                    <td class="border border-gray-300 dark:border-zinc-700 px-4 py-2">描述文本</td>
+                    <td class="border border-gray-300 dark:border-zinc-700 px-4 py-2">Description text</td>
                   </tr>
                 </tbody>
               </table>
             </div>
             
-            <h4 class="font-medium mt-4 mb-2">事件</h4>
+            <h4 class="font-medium mt-4 mb-2">Events</h4>
             <div class="overflow-x-auto">
               <table class="w-full border-collapse">
                 <thead>
                   <tr>
-                    <th class="border border-gray-300 dark:border-zinc-700 px-4 py-2 text-left">事件名</th>
-                    <th class="border border-gray-300 dark:border-zinc-700 px-4 py-2 text-left">参数</th>
-                    <th class="border border-gray-300 dark:border-zinc-700 px-4 py-2 text-left">说明</th>
+                    <th class="border border-gray-300 dark:border-zinc-700 px-4 py-2 text-left">Event Name</th>
+                    <th class="border border-gray-300 dark:border-zinc-700 px-4 py-2 text-left">Parameters</th>
+                    <th class="border border-gray-300 dark:border-zinc-700 px-4 py-2 text-left">Description</th>
                   </tr>
                 </thead>
                 <tbody>
                   <tr>
                     <td class="border border-gray-300 dark:border-zinc-700 px-4 py-2">update:modelValue</td>
                     <td class="border border-gray-300 dark:border-zinc-700 px-4 py-2">number | number[] | null</td>
-                    <td class="border border-gray-300 dark:border-zinc-700 px-4 py-2">当选中值变化时触发</td>
+                    <td class="border border-gray-300 dark:border-zinc-700 px-4 py-2">Triggered when the selected value changes</td>
                   </tr>
                 </tbody>
               </table>
             </div>
           </div>
           
-          <!-- 最佳实践 -->
+          <!-- Best Practices -->
           <div>
-            <h3 class="text-lg font-semibold mb-3">最佳实践</h3>
+            <h3 class="text-lg font-semibold mb-3">Best Practices</h3>
             <ul class="list-disc pl-5 space-y-2">
               <li>
-                <strong>单选模式</strong>：当只需要选择一个角色时使用，例如选择主持人或主讲人。
+                <strong>Single Selection Mode</strong>: Use when you only need to select one persona, e.g., selecting a host or speaker.
               </li>
               <li>
-                <strong>多选模式</strong>：当需要选择多个角色时使用，例如选择嘉宾或参与者。
+                <strong>Multiple Selection Mode</strong>: Use when you need to select multiple personas, e.g., selecting guests or participants.
               </li>
               <li>
-                <strong>搜索功能</strong>：当角色列表较长时，建议启用搜索功能（filterable=true），提高用户体验。
+                <strong>Search Functionality</strong>: When the persona list is long, it is recommended to enable the search function (filterable=true) to improve user experience.
               </li>
               <li>
-                <strong>描述文本</strong>：提供清晰的描述文本，帮助用户理解选择的目的和要求。
+                <strong>Description Text</strong>: Provide clear description text to help users understand the purpose and requirements of the selection.
               </li>
             </ul>
           </div>
         </section>
         
-        <!-- 未来可以添加更多组件文档 -->
+        <!-- More component documentation can be added in the future -->
       </div>
     </div>
   </div>
@@ -236,13 +236,13 @@ import { ref, onMounted, onUnmounted } from 'vue';
 import PersonaSelectorExample from '~/components/PersonaSelectorExample.vue';
 
 definePageMeta({
-  title: '组件文档'
+  title: 'Component Documentation'
 });
 
-// 当前活动的部分
+// Current active section
 const activeSection = ref('persona-selector');
 
-// 滚动到指定部分
+// Scroll to a specific section
 const scrollToSection = (sectionId: string) => {
   const element = document.getElementById(sectionId);
   if (element) {
@@ -251,7 +251,7 @@ const scrollToSection = (sectionId: string) => {
   }
 };
 
-// 监听滚动事件，更新当前活动的部分
+// Listen for scroll events to update the current active section
 const handleScroll = () => {
   const sections = document.querySelectorAll('section[id]');
   let currentSection = '';

@@ -92,13 +92,14 @@
                 <div class="flex items-center justify-center">
                   <div v-if="isValidating" class="absolute inset-0 bg-primary/10 animate-pulse"></div>
                   <div class="flex items-center justify-center relative z-10">
-                    <Icon 
-                      v-if="isValidating" 
-                      name="ph:spinner" 
-                      class="w-4 h-4 mr-2 animate-spin text-primary" 
+                    <Icon
+                      v-if="isValidating"
+                      name="ph:spinner"
+                      class="w-4 h-4 mr-2 animate-spin text-primary"
                     />
-                    <span>Next</span>
-                    <Icon name="ph:arrow-right" class="w-4 h-4 ml-2" />
+                    <span v-if="isValidating">Validating...</span>
+                    <span v-else>Next</span>
+                    <Icon v-if="!isValidating" name="ph:arrow-right" class="w-4 h-4 ml-2" />
                   </div>
                 </div>
               </Button>

@@ -257,7 +257,7 @@ const closeSheet = () => {
 const smoothScrollTo = (id) => {
   const element = document.getElementById(id)
   if (element) {
-    const yOffset = -80 // 偏移量，考虑固定导航栏的高度
+    const yOffset = -80 // Offset to account for fixed navigation bar height
     const y = element.getBoundingClientRect().top + window.scrollY + yOffset
     
     window.scrollTo({

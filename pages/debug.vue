@@ -76,7 +76,7 @@
                 Default Notification
               </button>
               <button
-                @click="() => toast.success('操作成功', { 
+                @click="() => toast.success('Success', {
                   description: 'Your content has been saved',
                   duration: 4000
                 })"
@@ -86,7 +86,7 @@
                 Success Notification
               </button>
               <button
-                @click="() => toast.error('操作失败', { 
+                @click="() => toast.error('Error', {
                   description: 'Please check your input and try again',
                   duration: 4000
                 })"
@@ -96,7 +96,7 @@
                 Error Notification
               </button>
               <button
-                @click="() => toast.info('信息通知', { 
+                @click="() => toast.info('Info', {
                   description: 'There are new messages to view',
                   duration: 4000
                 })"
@@ -106,7 +106,7 @@
                 Info Notification
               </button>
               <button
-                @click="() => toast.warning('警告提示', { 
+                @click="() => toast.warning('Warning', {
                   description: 'This operation may result in data loss',
                   duration: 4000
                 })"

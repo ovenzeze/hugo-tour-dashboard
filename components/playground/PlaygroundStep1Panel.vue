@@ -10,82 +10,57 @@
       />
     </Card>
     <!-- Right Script Editing Area, Scrolls Independently -->
-    <Card class="flex-1 min-h-[240px] flex flex-col bg-background border-none shadow-md overflow-y-auto h-full">
+    <!-- Right Script Editing Area, Scrolls Independently -->
+    <Card class="flex-1 min-h-[240px] flex flex-col bg-background border-none shadow-md overflow-y-auto h-full p-4">
       <template v-if="isScriptGenerating || isValidating">
-        <div class="flex flex-col items-center justify-center h-full">
-          <!-- Progress Indicator -->
-          <div class="relative mb-6">
-            <div class="w-32 h-32 rounded-full flex items-center justify-center bg-muted/20">
-              <div class="w-24 h-24 rounded-full flex items-center justify-center bg-background shadow-inner">
-                <div class="text-center">
-                  <div class="text-xl font-bold text-primary">
-                    {{ aiScriptStep === 1 ? '1/2' : '2/2' }}
-                  </div>
-                  <div class="text-xs text-muted-foreground">Step</div>
-                </div>
-              </div>
-            </div>
-            <!-- Rotating Ring -->
-            <div class="absolute inset-0 w-32 h-32">
-              <svg class="w-full h-full animate-spin-slow" viewBox="0 0 100 100">
-                <circle 
-                  cx="50" cy="50" r="45" 
-                  fill="none" 
-                  stroke="currentColor" 
-                  stroke-width="8"
-                  stroke-linecap="round"
-                  stroke-dasharray="70 283"
-                  class="text-primary"
-                />
-              </svg>
-            </div>
+        <div class="flex flex-col items-center justify-center h-full space-y-4">
+          <!-- Skeleton Loader -->
+          <div class="w-full space-y-3">
+            <Skeleton class="h-8 w-3/4" />
+            <Skeleton class="h-4 w-full" />
+            <Skeleton class="h-4 w-5/6" />
+            <Skeleton class="h-4 w-full" />
+            <Skeleton class="h-4 w-4/6" />
+            <Skeleton class="h-8 w-1/2 mt-4" />
+            <Skeleton class="h-4 w-full" />
+            <Skeleton class="h-4 w-full" />
+            <Skeleton class="h-4 w-3/4" />
           </div>
-          
+
           <!-- Status Title -->
-          <h3 class="text-center text-xl font-semibold mb-2">
-            <template v-if="isScriptGenerating && aiScriptStep">
-              <span v-if="aiScriptStep === 1">Creating Podcast Metadata</span>
-              <span v-else-if="aiScriptStep === 2">Generating Complete Script</span>
-              <span v-else>AI Script Generation</span>
+          <h3 class="text-center text-lg font-semibold mt-6">
+            <template v-if="isScriptGenerating">
+              <span v-if="aiScriptStep === 1">正在分析输入...</span>
+              <span v-else-if="aiScriptStep === 2">正在构建大纲...</span>
+              <span v-else-if="aiScriptStep === 3">正在生成脚本内容...</span>
+              <span v-else>正在生成脚本...</span>
             </template>
-            <template v-else>
-              {{ isScriptGenerating ? 'Standardizing Script...' : 'Validating Script...' }}
+            <template v-else-if="isValidating">
+              正在验证脚本...
             </template>
           </h3>
-          
+
           <!-- Detailed Status Description -->
-          <div class="text-center text-sm text-muted-foreground max-w-md">
-            <template v-if="isScriptGenerating && aiScriptStep === 1">
-              <p class="mb-2">AI is analyzing your settings and creating the podcast structure, including:</p>
-              <ul class="text-left list-disc pl-6 space-y-1">
-                <li>Determining the optimal podcast title</li>
-                <li>Planning conversation structure and flow</li>
-                <li>Designing character traits for host and guests</li>
-              </ul>
-            </template>
-            <template v-else-if="isScriptGenerating && aiScriptStep === 2">
-              <p class="mb-2">AI is creating the complete script based on metadata, including:</p>
-              <ul class="text-left list-disc pl-6 space-y-1">
-                <li>Writing natural and fluid dialogue</li>
-                <li>Ensuring content matches your chosen topic and style</li>
-                <li>Balancing participation across all characters</li>
-              </ul>
-            </template>
-            <template v-else>
-              {{ isScriptGenerating ? 'Processing and saving script...' : '验证脚本格式和内容，准备进入下一步...' }}
-            </template>
-          </div>
-          
-          <!-- Status Text -->
-          <p class="mt-4 text-sm italic text-muted-foreground">
-            {{ aiScriptStepText || 'Please wait, this may take a moment...' }}
+          <p class="text-center text-sm text-muted-foreground max-w-md">
+            {{ aiScriptStepText || '请稍候，这可能需要一点时间...' }}
           </p>
+        </div>
+      </template>
+      <template v-else-if="scriptError">
+        <div class="flex flex-col items-center justify-center h-full text-center">
+          <Icon name="ph:x-circle" class="w-16 h-16 text-destructive mb-4" />
+          <h3 class="text-xl font-semibold text-destructive mb-2">脚本生成失败</h3>
+          <p class="text-muted-foreground max-w-md">{{ scriptError }}</p>
+          <Button variant="outline" @click="emit('clearErrorAndRetry')" class="mt-6">
+            <Icon name="ph:arrow-clockwise" class="w-4 h-4 mr-2" />
+            重试
+          </Button>
         </div>
       </template>
       <Textarea
         v-else-if="!selectedPersonaIdForHighlighting"
         :model-value="mainEditorContent"
-        placeholder="Script will appear here after generation..."
+        placeholder="脚本生成后将在此处显示..."
         class="flex-1 w-full h-full resize-none min-h-[200px] rounded-lg border border-input bg-background p-4 text-base focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 transition placeholder:text-muted-foreground"
         @update:model-value="emit('update:mainEditorContent', $event)"
       />
@@ -101,6 +76,8 @@
 <script setup lang="ts">
 import { Card } from '@/components/ui/card';
 import { Textarea } from '@/components/ui/textarea';
+import { Skeleton } from '@/components/ui/skeleton'; // Import Skeleton
+import { Button } from '@/components/ui/button'; // Import Button
 // Icon is auto-imported
 import PodcastSettingsForm from './PodcastSettingsForm.vue';
 // Import types expected by PodcastSettingsForm
@@ -115,29 +92,20 @@ interface Props {
   mainEditorContent: string;
   selectedPersonaIdForHighlighting: number | null;
   highlightedScript: string;
-  aiScriptStep?: number;
+  aiScriptStep?: number; // 1: Analyzing, 2: Outlining, 3: Generating Content
   aiScriptStepText?: string;
+  scriptError?: string | null; // To display error messages
 }
 
-const props = defineProps<Props>();
+const props = withDefaults(defineProps<Props>(), {
+  aiScriptStep: 0,
+  aiScriptStepText: '',
+  scriptError: null,
+});
 
-const aiScriptStep = props.aiScriptStep ?? 0;
-const aiScriptStepText = props.aiScriptStepText ?? '';
-
-const emit = defineEmits(['update:podcastSettings', 'update:mainEditorContent']);
+const emit = defineEmits(['update:podcastSettings', 'update:mainEditorContent', 'clearErrorAndRetry']);
 </script>
 
 <style scoped>
-.animate-spin-slow {
-  animation: spin 3s linear infinite;
-}
-
-@keyframes spin {
-  from {
-    transform: rotate(0deg);
-  }
-  to {
-    transform: rotate(360deg);
-  }
-}
+/* Styles for skeleton or other specific needs can go here */
 </style>

@@ -126,7 +126,7 @@
           class="mt-2" /> <!-- Adjusted margin-top -->
       </div>
        <div>
-        <Label for="backgroundMusic" class="text-sm font-medium">Background Music (Optional)</Label>
+        <Label for="backgroundMusic" class="text-sm font-medium">Background(Optional)</Label>
         <Input
           id="backgroundMusic"
           v-model="editableSettings.backgroundMusic"
