@@ -171,34 +171,36 @@
               <Icon name="ph:stop-fill" class="mr-2 h-4 w-4" />
               Stop
             </Button>
-            <TooltipProvider v-if="!hasPlayableSegments(podcast)">
-              <Tooltip>
-                <TooltipTrigger as-child>
-                  <Button
-                    variant="default"
-                    class="w-full flex items-center justify-center"
-                    :disabled="!hasPlayableSegments(podcast)"
-                    :class="{ 'opacity-50 cursor-not-allowed': !hasPlayableSegments(podcast) }"
-                  >
-                    <Icon name="ph:play-fill" class="mr-2 h-4 w-4" />
-                    Preview
-                  </Button>
-                </TooltipTrigger>
-                <TooltipContent>
-                  <p>此播客当前没有可播放的音频内容</p>
-                </TooltipContent>
-              </Tooltip>
-            </TooltipProvider>
-            <Button
-              v-else
-              variant="default"
-              class="w-full flex items-center justify-center"
-              @click.stop="emit('preview-podcast', podcast.podcast_id)"
-              :disabled="!hasPlayableSegments(podcast)"
-            >
-              <Icon name="ph:play-fill" class="mr-2 h-4 w-4" />
-              Preview
-            </Button>
+            <template v-else>
+              <TooltipProvider v-if="!hasPlayableSegments(podcast)">
+                <Tooltip>
+                  <TooltipTrigger as-child>
+                    <Button
+                      variant="default"
+                      class="w-full flex items-center justify-center"
+                      :disabled="!hasPlayableSegments(podcast)"
+                      :class="{ 'opacity-50 cursor-not-allowed': !hasPlayableSegments(podcast) }"
+                    >
+                      <Icon name="ph:play-fill" class="mr-2 h-4 w-4" />
+                      Preview
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent>
+                    <p>此播客当前没有可播放的音频内容</p>
+                  </TooltipContent>
+                </Tooltip>
+              </TooltipProvider>
+              <Button
+                v-else
+                variant="default"
+                class="w-full flex items-center justify-center"
+                @click.stop="emit('preview-podcast', podcast.podcast_id)"
+                :disabled="!hasPlayableSegments(podcast)"
+              >
+                <Icon name="ph:play-fill" class="mr-2 h-4 w-4" />
+                Preview
+              </Button>
+            </template>
           </div>
           
           <div class="flex gap-2">
