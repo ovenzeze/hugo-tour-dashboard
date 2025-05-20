@@ -1,83 +1,21 @@
 <template>
   <div class="space-y-6 p-4">
-    <div>
-      <Label for="podcastTitle" class="text-base font-semibold">Title</Label>
-      <Input
-        id="podcastTitle"
-        v-model="editableSettings.title"
-        placeholder="e.g., The Future of AI Podcast"
-        class="mt-2" />
-    </div>
-
-    <div>
-      <Label for="podcastTopic" class="text-base font-semibold">User Instructions</Label>
-      <Textarea
-        id="podcastTopic"
-        v-model="editableSettings.topic"
-        placeholder="Describe in detail what you want the podcast to cover..."
-        class="mt-2 min-h-[120px]" />
-    </div>
-
-    <div class="space-y-8 pt-4">
-      <div>
-        <Label for="hostPersonaUnified" class="text-base font-semibold">Host Character</Label>
-        <UnifiedPersonaSelector
-          id="hostPersonaUnified"
-          v-model="editableSettings.hostPersonaId"
-          :personas="props.personas"
-          :selection-mode="'single'"
-          class="mt-3"
-        />
-      </div>
-
-      <div>
-        <Label for="guestPersonasUnified" class="text-base font-semibold">Guest Characters (Old Selector - For Reference)</Label>
-        <UnifiedPersonaSelector
-          id="guestPersonasUnified"
-          v-model="editableSettings.guestPersonaIds"
-          :personas="availableGuestPersonas"
-          :selection-mode="'multiple'"
-          class="mt-3"
-        ></UnifiedPersonaSelector>
-      </div>
-    </div>
-    
-    <div class="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-5 pt-6">
-      <div>
-        <Label for="podcastSegments" class="text-sm font-medium">Number of Segments</Label>
-        <Input
-          id="podcastSegments"
-          type="number"
-          v-model.number="editableSettings.numberOfSegments"
-          placeholder="e.g., 3"
-          class="mt-2 appearance-none hide-spin"
-          min="1"
-          max="10"
-          inputmode="numeric" />
-      </div>
-
-      <div>
-        <Label for="podcastStyle" class="text-sm font-medium">Style / Tone</Label>
-        <Input
-          id="podcastStyle"
-          v-model="editableSettings.style"
-          placeholder="e.g., Casual, Educational, Storytelling"
-          class="mt-2" />
-      </div>
-
-      <div>
-        <Label for="podcastKeywords" class="text-sm font-medium">Keywords</Label>
-        <Input
-          id="podcastKeywords"
-          v-model="keywordsForInput"
-          placeholder="Comma-separated, e.g., AI, ML, Future Tech"
-          class="mt-2" />
-      </div>
-
-      <div>
-        <Label for="podcastLanguage" class="text-sm font-medium">Podcast Language</Label>
-        <Select v-model="podcastLanguageValue">
-          <SelectTrigger class="mt-2 w-full">
+    <!-- Top Row: Language and Number of Segments -->
+    <div class="grid md:grid-cols-2 gap-x-6 gap-y-5">
+      <!-- Podcast Language -->
+      <div class="flex items-center gap-3">
+        <TooltipProvider :delay-duration="100">
+          <Tooltip>
+            <TooltipTrigger as-child>
+              <button type="button" class="flex-shrink-0 text-muted-foreground hover:text-foreground">
+                <Icon name="ph:globe-simple-bold" class="w-5 h-5" />
+              </button>
+            </TooltipTrigger>
+            <TooltipContent><p>Podcast Language</p></TooltipContent>
+          </Tooltip>
+        </TooltipProvider>
+        <Select v-model="podcastLanguageValue" class="w-48">
+          <SelectTrigger class="flex-grow w-48 overflow-hidden">
             <SelectValue placeholder="Select language" />
           </SelectTrigger>
           <SelectContent>
@@ -91,27 +29,200 @@
         </Select>
       </div>
 
-      <div>
-        <Label for="backgroundMusic" class="text-sm font-medium">Background(Optional)</Label>
-        <Input
-          id="backgroundMusic"
-          v-model="editableSettings.backgroundMusic"
-          placeholder="Theme or style, e.g., Upbeat, Chill Tech"
-          class="mt-2" />
+      <!-- Number of Segments -->
+      <div class="flex items-center gap-3">
+        <TooltipProvider :delay-duration="100">
+          <Tooltip>
+            <TooltipTrigger as-child>
+              <button type="button" class="flex-shrink-0 text-muted-foreground hover:text-foreground">
+                <Icon name="ph:stack-bold" class="w-5 h-5" />
+              </button>
+            </TooltipTrigger>
+            <TooltipContent><p>Number of Segments</p></TooltipContent>
+          </Tooltip>
+        </TooltipProvider>
+        <Select v-model.number="editableSettings.numberOfSegments">
+          <SelectTrigger class="flex-grow">
+            <SelectValue placeholder="Select segments" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem
+              v-for="option in segmentOptions"
+              :key="option"
+              :value="option">
+              {{ option }} segments
+            </SelectItem>
+          </SelectContent>
+        </Select>
+      </div>
+    </div>
+
+    <!-- Title -->
+    <div class="flex items-center gap-3">
+      <TooltipProvider :delay-duration="100">
+        <Tooltip>
+          <TooltipTrigger as-child>
+            <button type="button" class="flex-shrink-0 text-muted-foreground hover:text-foreground">
+              <Icon name="ph:text-t-bold" class="w-5 h-5" />
+            </button>
+          </TooltipTrigger>
+          <TooltipContent><p>Podcast Title</p></TooltipContent>
+        </Tooltip>
+      </TooltipProvider>
+      <Input
+        id="podcastTitle"
+        v-model="editableSettings.title"
+        placeholder="Enter the title for your podcast, e.g., The Future of AI"
+        class="flex-grow"
+      />
+    </div>
+
+    <!-- User Instructions / Topic -->
+    <div class="flex items-start gap-3"> 
+      <TooltipProvider :delay-duration="100">
+        <Tooltip>
+          <TooltipTrigger as-child>
+            <button type="button" class="flex-shrink-0 text-muted-foreground hover:text-foreground pt-2.5">
+              <Icon name="ph:lightbulb-filament-bold" class="w-5 h-5" />
+            </button>
+          </TooltipTrigger>
+          <TooltipContent><p>User Instructions / Podcast Topic</p></TooltipContent>
+        </Tooltip>
+      </TooltipProvider>
+      <Textarea
+        id="podcastTopic"
+        v-model="editableSettings.topic"
+        placeholder="Describe in detail what the podcast should cover: main points, questions for guests, desired tone, etc."
+        class="min-h-[100px] flex-grow"
+      />
+    </div>
+
+    <!-- Host Character -->
+    <div class="flex items-center gap-3">
+      <TooltipProvider :delay-duration="100">
+        <Tooltip>
+          <TooltipTrigger as-child>
+            <button type="button" class="flex-shrink-0 text-muted-foreground hover:text-foreground">
+              <Icon name="ph:user-sound-bold" class="w-5 h-5" />
+            </button>
+          </TooltipTrigger>
+          <TooltipContent><p>Host Character</p></TooltipContent>
+        </Tooltip>
+      </TooltipProvider>
+      <UnifiedPersonaSelector
+        id="hostPersonaUnified"
+        v-model="editableSettings.hostPersonaId"
+        :personas="props.personas"
+        :selection-mode="'single'"
+        placeholder="Select Host Persona"
+        class="flex-grow"
+      />
+    </div>
+
+    <!-- Guest Characters -->
+    <div class="flex items-center gap-3">
+      <TooltipProvider :delay-duration="100">
+        <Tooltip>
+          <TooltipTrigger as-child>
+            <button type="button" class="flex-shrink-0 text-muted-foreground hover:text-foreground">
+              <Icon name="ph:users-three-bold" class="w-5 h-5" />
+            </button>
+          </TooltipTrigger>
+          <TooltipContent><p>Guest Characters (Select one or more)</p></TooltipContent>
+        </Tooltip>
+      </TooltipProvider>
+      <UnifiedPersonaSelector
+        id="guestPersonasUnified"
+        v-model="editableSettings.guestPersonaIds"
+        :personas="availableGuestPersonas"
+        :selection-mode="'multiple'"
+        placeholder="Select Guest Persona(s) (Optional)"
+        class="flex-grow"
+      />
+    </div>
+    
+    <!-- Advanced Options -->
+    <div class="pt-4">
+      <h3 class="text-sm font-medium text-muted-foreground mb-4 ml-1">Advanced Options</h3>
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-5">
+        <!-- Style / Tone -->
+        <div class="flex items-center gap-3">
+          <TooltipProvider :delay-duration="100">
+            <Tooltip>
+              <TooltipTrigger as-child>
+                <button type="button" class="flex-shrink-0 text-muted-foreground hover:text-foreground">
+                  <Icon name="ph:palette-bold" class="w-5 h-5" />
+                </button>
+              </TooltipTrigger>
+              <TooltipContent><p>Style / Tone</p></TooltipContent>
+            </Tooltip>
+          </TooltipProvider>
+          <Input
+            id="podcastStyle"
+            v-model="editableSettings.style"
+            placeholder="e.g., Casual, Educational"
+            class="flex-grow"
+          />
+        </div>
+
+        <!-- Keywords -->
+        <div class="flex items-center gap-3">
+          <TooltipProvider :delay-duration="100">
+            <Tooltip>
+              <TooltipTrigger as-child>
+                <button type="button" class="flex-shrink-0 text-muted-foreground hover:text-foreground">
+                  <Icon name="ph:tag-bold" class="w-5 h-5" />
+                </button>
+              </TooltipTrigger>
+              <TooltipContent><p>Keywords (comma-separated)</p></TooltipContent>
+            </Tooltip>
+          </TooltipProvider>
+          <Input
+            id="podcastKeywords"
+            v-model="keywordsForInput"
+            placeholder="e.g., AI, Future Tech"
+            class="flex-grow"
+          />
+        </div>
+
+        <!-- Background Music -->
+        <div class="flex items-center gap-3">
+          <TooltipProvider :delay-duration="100">
+            <Tooltip>
+              <TooltipTrigger as-child>
+                <button type="button" class="flex-shrink-0 text-muted-foreground hover:text-foreground">
+                  <Icon name="ph:music-notes-simple-bold" class="w-5 h-5" />
+                </button>
+              </TooltipTrigger>
+              <TooltipContent><p>Background Music (Optional)</p></TooltipContent>
+            </Tooltip>
+          </TooltipProvider>
+          <Input
+            id="backgroundMusic"
+            v-model="editableSettings.backgroundMusic"
+            placeholder="Theme or style, e.g., Upbeat"
+            class="flex-grow"
+          />
+        </div>
       </div>
     </div>
   </div>
 </template>
 
 <script setup lang="ts">
-import { computed, watch } from 'vue';
+import { computed, watch, ref } from 'vue';
 import { Skeleton } from '@/components/ui/skeleton';
 // import UnifiedPersonaSelector from '@/components/UnifiedPersonaSelector.vue'; // Commented out old selector
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Input } from '@/components/ui/input'; 
+import { Textarea } from '@/components/ui/textarea'; 
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'; 
 import { Button } from '@/components/ui/button';
 import type { Persona } from '@/stores/playgroundPersona';
 import type { FullPodcastSettings } from '@/stores/playgroundSettings';
 import { SUPPORTED_LANGUAGES } from '@/stores/playgroundSettings';
+
+const segmentOptions = ref([5, 10, 20, 30, 40, 50]);
 
 const props = defineProps<{
   modelValue: FullPodcastSettings;
@@ -240,8 +351,9 @@ watch(() => props.personas, (loadedPersonas) => {
   -webkit-appearance: none;
   margin: 0;
 }
-.hide-spin[type="number"] {
-  -moz-appearance: textfield;
+
+.hide-spin[type=number] {
+  -moz-appearance: textfield; /* Firefox */
   appearance: textfield;
 }
 </style>

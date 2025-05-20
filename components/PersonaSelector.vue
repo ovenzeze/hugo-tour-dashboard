@@ -18,7 +18,7 @@
         <span>{{ persona.name }}</span>
         <button 
           type="button" 
-          class="rounded-full hover:bg-muted/20 focus:outline-none focus:ring-2 focus:ring-ring"
+          class="rounded-full hover:bg-slate-600/70 focus:outline-none focus:ring-2 focus:ring-sky-500 focus:ring-offset-2 focus:ring-offset-slate-900"
           @click="removePersona(persona)"
         >
           <Icon name="ph:x" class="h-3 w-3" />
@@ -34,7 +34,7 @@
             :id="id"
             :placeholder="placeholder"
             :disabled="disabled"
-            class="w-full flex h-9 rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm transition-colors placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50"
+            class="w-full flex h-9 rounded-md border border-slate-700 bg-slate-800/70 px-3 py-1 text-sm text-slate-100 shadow-sm transition-colors placeholder:text-slate-400 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-sky-500 focus-visible:ring-offset-2 focus-visible:ring-offset-slate-900 disabled:cursor-not-allowed disabled:opacity-50"
             :value="searchQuery"
             @update:modelValue="searchQuery = $event"
           />
@@ -44,13 +44,13 @@
             </ComboboxTrigger>
           </div>
         </div>
-        <ComboboxList class="absolute z-50 mt-1 max-h-60 w-full overflow-auto rounded-md border bg-popover p-1 text-popover-foreground shadow-md">
+        <ComboboxList class="absolute z-50 mt-1.5 max-h-60 w-full overflow-auto rounded-lg border border-slate-700 bg-slate-800/95 text-slate-200 shadow-lg backdrop-blur-sm p-2">
           <ComboboxInput 
             v-if="filterable"
             placeholder="Search personas..."
-            class="h-9 px-3 py-2 w-full border-b mb-1"
+            class="h-9 px-3 py-2 w-full border-b border-slate-600 mb-1 bg-slate-700/50 text-slate-100 placeholder:text-slate-400 focus:outline-none focus:ring-1 focus:ring-sky-500"
           />
-          <ComboboxEmpty v-if="filteredPersonas.length === 0" class="relative flex cursor-default select-none items-center rounded-sm px-2 py-1.5 text-sm outline-none text-muted-foreground">
+          <ComboboxEmpty v-if="filteredPersonas.length === 0" class="relative flex cursor-default select-none items-center rounded-sm px-2 py-1.5 text-sm outline-none text-slate-400">
             No personas found.
           </ComboboxEmpty>
           <ComboboxViewport>
@@ -58,19 +58,22 @@
               v-for="persona in filteredPersonas" 
               :key="persona.persona_id" 
               :value="persona.persona_id"
-              class="relative flex cursor-default select-none items-center rounded-sm px-2 py-1.5 text-sm outline-none data-[disabled]:pointer-events-none data-[disabled]:opacity-50"
+              class="relative flex cursor-default select-none items-center rounded-md px-2 py-2.5 text-sm text-slate-300 outline-none data-[highlighted]:bg-sky-600/30 data-[highlighted]:text-sky-100 data-[disabled]:pointer-events-none data-[disabled]:opacity-50"
             >
-              <div class="flex items-center gap-2 w-full">
-                <Avatar class="h-6 w-6 flex-shrink-0">
+              <div class="flex items-center gap-3 w-full">
+                <Avatar class="h-8 w-8 flex-shrink-0">
                   <AvatarImage v-if="persona.avatar_url" :src="persona.avatar_url" :alt="persona.name" />
                   <AvatarFallback>
-                    <Icon name="ph:user-circle" class="h-4 w-4 text-muted-foreground" />
+                    <Icon name="ph:user-circle" class="h-5 w-5 text-slate-400" />
                   </AvatarFallback>
                 </Avatar>
                 <div class="flex-1 overflow-hidden">
-                  <span class="text-sm font-medium truncate">{{ persona.name }}</span>
-                  <p v-if="persona.description" class="text-xs text-muted-foreground truncate">
+                  <span class="text-sm font-medium truncate block">{{ persona.name }}</span>
+                  <p v-if="persona.description" class="text-xs text-slate-400 truncate block">
                     {{ persona.description }}
+                  </p>
+                  <p v-if="persona.scenario" class="text-xs text-slate-500 truncate block mt-0.5">
+                    <Icon name="ph:target" class="h-3 w-3 mr-1 inline-block align-text-bottom" /> Scenario: {{ persona.scenario }}
                   </p>
                 </div>
                 <ComboboxItemIndicator>
@@ -172,7 +175,8 @@ const filteredPersonas = computed(() => {
   const query = searchQuery.value.toLowerCase();
   return source.filter(persona => 
     persona.name.toLowerCase().includes(query) || 
-    (persona.description && persona.description.toLowerCase().includes(query))
+    (persona.description && persona.description.toLowerCase().includes(query)) ||
+    (persona.scenario && persona.scenario.toLowerCase().includes(query))
   );
 });
 

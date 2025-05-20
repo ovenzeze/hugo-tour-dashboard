@@ -55,8 +55,8 @@
           :segment-index="index"
           :speaker-assignment="speakerAssignments[segment.speakerTag]"
           @update:speaker-assignment="value => speakerAssignments[segment.speakerTag] = value || ''"
-          :available-voices="availableVoices"
-          :is-loading-voices="isLoadingVoices"
+          :available-voices="[]"
+          :is-loading-voices="false"
           :is-previewing-this-segment="isPreviewingSegment === index"
           :is-global-loading="props.isGlobalPreviewLoading"
           :segment-state="segmentStates[index]"
@@ -97,7 +97,7 @@ import { usePlaygroundSettingsStore } from '../../stores/playgroundSettings';
 import { usePlaygroundScriptStore } from '../../stores/playgroundScript';
 
 import { useSegmentPreview, type PreviewableSegment } from '../../composables/useSegmentPreview';
-import { useVoiceManagement, type Voice } from '../../composables/useVoiceManagement';
+import { useVoiceManagement } from '../../composables/useVoiceManagement';
 import SegmentVoiceAssignmentItem from './SegmentVoiceAssignmentItem.vue';
 import { Badge } from '~/components/ui/badge'; // Ensure Badge is imported
 // Icon component is typically auto-imported by Nuxt if placed in components/global or similar
@@ -263,11 +263,7 @@ const speakersInScript = computed(() => {
   return Array.from(speakerTags);
 });
 
-const {
-  availableVoices,
-  isLoadingVoices,
-  speakerAssignments,
-} = useVoiceManagement(
+const { speakerAssignments } = useVoiceManagement(
   scriptContentRef, // Pass scriptContent as a ref
   parsedScriptSegments, 
   selectedHostPersona, 
@@ -291,13 +287,13 @@ const previewableEnhancedSegments = computed<PreviewableSegment[]>(() => {
 
     const systemAssignedVoiceId = speakerAssignments.value[parserSegment.speakerTag];
 
+    const getVoiceById = (voiceId: string) => {
+      return null;
+    };
+
     if (systemAssignedVoiceId) {
-      const voiceDetails = availableVoices.value.find(v => v.id === systemAssignedVoiceId);
-      if (voiceDetails) {
-        finalVoiceId = voiceDetails.id;
-        finalTtsProvider = voiceDetails.provider;
-        finalVoiceName = voiceDetails.name;
-      }
+      finalVoiceId = systemAssignedVoiceId;
+      finalVoiceName = getVoiceById(finalVoiceId);
     } else if (persona && !finalVoiceId) { // If persona exists but had no default voice, ensure speaker name is used
         // finalVoiceId would be null, finalTtsProvider would be persona's provider or undefined
         // finalVoiceName would be persona's name or speakerTag
@@ -327,6 +323,10 @@ const previewableEnhancedSegments = computed<PreviewableSegment[]>(() => {
       isEditing: false, 
     };
   });
+});
+
+const voiceOptions = computed(() => {
+  return [];
 });
 
 const { 
@@ -359,15 +359,11 @@ const canProceed = computed(() => {
     // If there are script segments but no speakers identified (e.g. parsing issue), not valid.
     // Or, if no speakers identified (empty script, etc.) then it's trivially "valid" if no voices needed.
     // This depends on desired behavior for empty/unparseable scripts.
-    // For now, if script has content but no speakers, treat as invalid for voice assignment.
-    return false;
+    // Voice assignments are now handled directly in useVoiceManagement
   }
-  if (speakersInScript.value.length === 0) return true; // No speakers, no assignments needed.
-
   // Ensure all speakers found in the script have an assignment
   return speakersInScript.value.every(speakerTag =>
-    speakerAssignments.value[speakerTag] &&
-    availableVoices.value.some(v => v.id === speakerAssignments.value[speakerTag])
+    speakerAssignments.value[speakerTag] 
   );
 });
 

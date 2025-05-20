@@ -8,7 +8,7 @@
       'md:left-0': isExpanded
     }"
   >
-    <!-- 音频元素 -->
+    <!-- Audio element -->
     <audio
       ref="audioElement"
       :src="audioStore.currentTrack.isM3u8 ? undefined : audioStore.currentTrack.url"
@@ -23,18 +23,18 @@
       preload="metadata"
     ></audio>
 
-    <!-- 播放器界面 -->
-    <!-- 展开/收起按钮 (仅在PC端显示) -->
+    <!-- Player interface -->
+    <!-- Expand/collapse button (desktop only) -->
     <button
       @click="toggleExpanded"
-      class="absolute top-0 left-0 -translate-y-full hidden md:flex items-center justify-center bg-background border border-border border-b-0 rounded-t-md px-2 py-1 text-xs"
+      class="absolute top-0 left-0 -translate-y-full hidden md:flex items-center justify-center bg-background border border-border border-b-0 rounded-t-md px-2 py-1 text-xs hover:bg-muted transition-colors"
     >
       <Icon :name="isExpanded ? 'ph:arrows-in' : 'ph:arrows-out'" class="h-3 w-3 mr-1" />
-      {{ isExpanded ? '收起' : '展开' }}
+      {{ isExpanded ? 'Collapse' : 'Expand' }}
     </button>
 
     <div class="container mx-auto px-4 py-2" :class="{'max-w-full': isExpanded}">
-      <!-- 进度条 -->
+      <!-- Progress bar -->
       <div 
         class="w-full h-1 bg-muted cursor-pointer mb-2 relative group"
         @click="onProgressBarClick"
@@ -51,7 +51,7 @@
       </div>
 
       <div class="flex items-center justify-between">
-        <!-- 左侧：封面和信息 -->
+        <!-- Left: Cover and info -->
         <div class="flex items-center space-x-3 flex-1 min-w-0">
           <div 
             class="w-10 h-10 bg-muted rounded-md flex-shrink-0 overflow-hidden"
@@ -75,12 +75,12 @@
           </div>
         </div>
 
-        <!-- 中间：控制按钮 -->
+        <!-- Middle: Control buttons -->
         <div class="flex items-center space-x-2 md:space-x-4">
           <Button 
             variant="ghost" 
             size="icon" 
-            class="h-8 w-8"
+            class="h-8 w-8 hover:bg-primary/10 transition-colors"
             :disabled="!audioStore.hasPrevious"
             @click="audioStore.previous()"
           >
@@ -90,7 +90,7 @@
           <Button 
             variant="default" 
             size="icon" 
-            class="h-10 w-10 rounded-full"
+            class="h-10 w-10 rounded-full hover:scale-105 transition-transform"
             @click="audioStore.togglePlay()"
             :disabled="audioStore.isLoading"
           >
@@ -114,7 +114,7 @@
           <Button 
             variant="ghost" 
             size="icon" 
-            class="h-8 w-8"
+            class="h-8 w-8 hover:bg-primary/10 transition-colors"
             :disabled="!audioStore.hasNext"
             @click="audioStore.next()"
           >
@@ -122,7 +122,7 @@
           </Button>
         </div>
 
-        <!-- 右侧：音量和时间 -->
+        <!-- Right: Volume and time -->
         <div class="flex items-center space-x-3 flex-1 justify-end">
           <div class="text-xs text-muted-foreground hidden sm:block">
             {{ formatTime(audioStore.currentTime) }} / {{ formatTime(audioStore.duration) }}
@@ -132,7 +132,7 @@
             <Button 
               variant="ghost" 
               size="icon" 
-              class="h-8 w-8"
+              class="h-8 w-8 hover:bg-primary/10 transition-colors"
               @click="audioStore.toggleMute()"
             >
               <Icon 
@@ -152,10 +152,14 @@
               />
             </Button>
 
-            <div class="w-20 h-1 bg-muted cursor-pointer relative" @click="onVolumeBarClick">
+            <div class="w-20 h-1 bg-muted cursor-pointer relative group" @click="onVolumeBarClick">
               <div 
                 class="absolute top-0 left-0 h-full bg-primary"
                 :style="{ width: `${audioStore.isMuted ? 0 : audioStore.volume * 100}%` }"
+              ></div>
+              <div 
+                class="absolute top-0 left-0 h-3 w-3 bg-primary rounded-full -mt-1 opacity-0 group-hover:opacity-100 transition-opacity"
+                :style="{ left: `${audioStore.isMuted ? 0 : audioStore.volume * 100}%`, transform: 'translateX(-50%)' }"
               ></div>
             </div>
           </div>
@@ -163,7 +167,7 @@
           <Button 
             variant="ghost" 
             size="icon" 
-            class="h-8 w-8"
+            class="h-8 w-8 hover:bg-primary/10 transition-colors"
             @click="toggleMinimize"
           >
             <Icon 
@@ -181,7 +185,7 @@
           <Button 
             variant="ghost" 
             size="icon" 
-            class="h-8 w-8"
+            class="h-8 w-8 hover:bg-destructive/10 transition-colors"
             @click="closePlayer"
           >
             <Icon name="ph:x" class="h-4 w-4" />
@@ -203,17 +207,17 @@ const isMinimized = ref(false);
 const isExpanded = ref(false);
 const isSeeking = ref(false);
 
-// HLS 相关
+// HLS related
 let Hls: any = null;
 
-// 格式化时间
+// Format time
 function formatTime(seconds: number): string {
   const mins = Math.floor(seconds / 60);
   const secs = Math.floor(seconds % 60);
   return `${mins}:${secs < 10 ? '0' : ''}${secs}`;
 }
 
-// 事件处理函数
+// Event handlers
 function onPlay() {
   audioStore.isPlaying = true;
 }
@@ -225,7 +229,7 @@ function onPause() {
 function onEnded() {
   audioStore.isPlaying = false;
   
-  // 自动播放下一首
+  // Auto play next track
   if (audioStore.hasNext) {
     audioStore.next();
   } else {
@@ -248,7 +252,7 @@ function onLoadedMetadata() {
 
 function onError(e: Event) {
   console.error('Audio playback error:', e);
-  audioStore.setError('播放出错，请稍后再试');
+  audioStore.setError('Playback error. Please try again later.');
   audioStore.setLoading(false);
 }
 
@@ -304,14 +308,14 @@ function closePlayer() {
   audioStore.stop();
   audioStore.currentTrack = null;
   
-  // 清理 HLS 实例
+  // Clean up HLS instance
   if (audioStore.hlsInstance) {
     audioStore.hlsInstance.destroy();
     audioStore.setHlsInstance(null);
   }
 }
 
-// 监听播放状态变化
+// Watch for play state changes
 watch(() => audioStore.isPlaying, (isPlaying) => {
   if (!audioElement.value) return;
   
@@ -325,57 +329,57 @@ watch(() => audioStore.isPlaying, (isPlaying) => {
   }
 });
 
-// 监听音量变化
+// Watch for volume changes
 watch(() => [audioStore.volume, audioStore.isMuted], ([volume, isMuted]) => {
   if (!audioElement.value) return;
   audioElement.value.volume = isMuted ? 0 : (volume as number);
 });
 
-// 监听 seek 操作
+// Watch for seek operations
 watch(() => audioStore.currentTime, (newTime) => {
   if (!audioElement.value || Math.abs(audioElement.value.currentTime - newTime) < 0.5) return;
   audioElement.value.currentTime = newTime;
 });
 
-// 监听当前曲目变化
+// Watch for current track changes
 watch(() => audioStore.currentTrack, async (newTrack) => {
   if (!newTrack) return;
   
-  // 重置状态
+  // Reset state
   audioStore.updateCurrentTime(0);
   audioStore.updateDuration(0);
   audioStore.setLoading(true);
   audioStore.setError(null);
   
-  // 处理 HLS 流媒体
+  // Handle HLS streaming
   if (newTrack.isM3u8) {
     try {
-      // 动态导入 hls.js
+      // Dynamically import hls.js
       if (!Hls) {
         const HlsModule = await import('hls.js');
         Hls = HlsModule.default;
       }
       
-      // 检查浏览器是否原生支持 HLS
+      // Check if browser natively supports HLS
       if (Hls.isSupported()) {
-        // 清理旧的 HLS 实例
+        // Clean up old HLS instance
         if (audioStore.hlsInstance) {
           audioStore.hlsInstance.destroy();
         }
         
-        // 创建新的 HLS 实例
+        // Create new HLS instance
         const hls = new Hls();
         audioStore.setHlsInstance(hls);
         
-        // 加载 m3u8 文件
+        // Load m3u8 file
         hls.loadSource(newTrack.url);
         
-        // 将 HLS 绑定到音频元素
+        // Bind HLS to audio element
         if (audioElement.value) {
           hls.attachMedia(audioElement.value);
         }
         
-        // 监听 HLS 事件
+        // Listen for HLS events
         hls.on(Hls.Events.MANIFEST_PARSED, () => {
           if (audioStore.isPlaying && audioElement.value) {
             audioElement.value.play().catch(err => {
@@ -389,26 +393,26 @@ watch(() => audioStore.currentTrack, async (newTrack) => {
           if (data.fatal) {
             switch (data.type) {
               case Hls.ErrorTypes.NETWORK_ERROR:
-                // 尝试恢复网络错误
+                // Try to recover from network error
                 console.log('Fatal network error encountered, trying to recover');
                 hls.startLoad();
                 break;
               case Hls.ErrorTypes.MEDIA_ERROR:
-                // 尝试恢复媒体错误
+                // Try to recover from media error
                 console.log('Fatal media error encountered, trying to recover');
                 hls.recoverMediaError();
                 break;
               default:
-                // 无法恢复的错误
+                // Unrecoverable error
                 console.error('Fatal error, cannot recover:', data);
-                audioStore.setError('播放出错，请稍后再试');
+                audioStore.setError('Playback error. Please try again later.');
                 hls.destroy();
                 break;
             }
           }
         });
       } else if (audioElement.value && audioElement.value.canPlayType('application/vnd.apple.mpegurl')) {
-        // 浏览器原生支持 HLS (如 Safari)
+        // Browser natively supports HLS (like Safari)
         audioElement.value.src = newTrack.url;
         if (audioStore.isPlaying) {
           audioElement.value.play().catch(err => {
@@ -417,14 +421,14 @@ watch(() => audioStore.currentTrack, async (newTrack) => {
           });
         }
       } else {
-        audioStore.setError('您的浏览器不支持 HLS 流媒体播放');
+        audioStore.setError('Your browser does not support HLS streaming playback');
       }
     } catch (error) {
       console.error('Error loading HLS:', error);
-      audioStore.setError('加载 HLS 库失败');
+      audioStore.setError('Failed to load HLS library');
     }
   } else if (audioElement.value) {
-    // 普通音频文件
+    // Regular audio file
     if (audioStore.isPlaying) {
       audioElement.value.play().catch(err => {
         console.error('Failed to play audio:', err);
@@ -434,15 +438,15 @@ watch(() => audioStore.currentTrack, async (newTrack) => {
   }
 }, { immediate: true });
 
-// 组件挂载时
+// On component mount
 onMounted(() => {
-  // 设置初始音量
+  // Set initial volume
   if (audioElement.value) {
     audioElement.value.volume = audioStore.isMuted ? 0 : audioStore.volume;
   }
 });
 
-// 组件卸载前清理
+// Clean up before component unmount
 onBeforeUnmount(() => {
   if (audioStore.hlsInstance) {
     audioStore.hlsInstance.destroy();

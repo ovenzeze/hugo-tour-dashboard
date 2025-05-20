@@ -96,7 +96,7 @@
           </div>
           <div class="grid grid-cols-4 items-center gap-4">
             <Label for="is_active" class="text-right">Active</Label>
-            <Switch id="is_active" v-model:checked="editingPersona.is_active" class="col-span-3" />
+            <Switch id="is_active" :checked="editingPersona.is_active ?? false" @update:checked="(val: boolean) => { if (editingPersona) editingPersona.is_active = val; }" class="col-span-3" />
           </div>
         </div>
         <DialogFooter>
@@ -166,7 +166,7 @@
               </FormItem>
             </FormField>
 
-            <FormField v-slot="{ componentField }" name="is_active">
+            <FormField v-slot="{ value, handleChange }" name="is_active">
               <FormItem class="flex flex-row items-center justify-between rounded-lg border p-3 shadow-sm">
                 <div class="space-y-0.5">
                   <FormLabel>Active</FormLabel>
@@ -175,7 +175,7 @@
                   </FormDescription>
                 </div>
                 <FormControl>
-                  <Switch :checked="componentField.value" @update:checked="componentField['onUpdate:modelValue']" />
+                  <Switch :checked="value" @update:checked="handleChange" />
                 </FormControl>
               </FormItem>
             </FormField>
@@ -195,6 +195,7 @@
 import { toTypedSchema } from '@vee-validate/zod';
 import { useForm } from 'vee-validate';
 import { computed, ref, watch } from 'vue';
+import { toast } from 'vue-sonner';
 import * as z from 'zod';
 
 // Define a more specific type for what the API returns, including potential joins
@@ -203,6 +204,7 @@ export interface ApiPersona {
   name: string;
   description: string | null;
   avatar_url: string | null;
+  scenario: string | null;
   is_active: boolean | null;
   system_prompt: string | null;
   voice_settings: string | null; // Assuming this might be JSON or structured string
@@ -308,51 +310,64 @@ const openAddPersonaDialog = () => {
   showAddDialog.value = true;
 };
 
-const saveNewPersona = async (formData: Partial<ApiPersona>) => {
+async function saveNewPersona(formData: Partial<ApiPersona>) {
   try {
-    const payload = {
-      name: formData.name,
-      description: formData.description || null,
-      system_prompt: formData.system_prompt || null,
-      voice_settings: formData.voice_settings || null,
-      is_active: formData.is_active,
-      avatar_url: formData.avatar_url || null,
-    };
-    const createdPersona = await $fetch('/api/personas', {
+    await $fetch('/api/personas', {
       method: 'POST',
-      body: payload
-    }) as ApiPersona;
-    useNuxtApp().$alert(`Persona "${createdPersona.name}" created successfully.`);
+      body: formData,
+    });
+    toast({ title: 'Success', description: 'Persona created successfully.' });
+    refreshPersonas(); 
     showAddDialog.value = false;
-    await refreshPersonas();
-  } catch (err: any) {
-    console.error('Failed to create persona:', err);
-    useNuxtApp().$alert(`Failed to create persona: ${err.data?.message || err.message}`);
+  } catch (e: any) {
+    let description = 'Failed to create persona.';
+    if (e instanceof Error) {
+      description = e.message;
+    } else if (e && typeof e.data?.message === 'string') {
+      description = e.data.message;
+    } else if (typeof e === 'string') {
+      description = e;
+    }
+    toast({ title: 'Error Creating Persona', description, variant: 'destructive' });
+    console.error('Failed to create persona:', e);
   }
-};
+}
 
 const editPersona = (id: number) => {
-  const persona = personas.value?.find((p: ApiPersona) => p.persona_id === id);
-  if (persona) {
-    editingPersona.value = JSON.parse(JSON.stringify(persona));
+  const foundPersona = personas.value?.find(p => p.persona_id === id);
+  if (foundPersona) {
+    editingPersona.value = {
+      ...foundPersona,
+      description: foundPersona.description ?? '',
+      system_prompt: foundPersona.system_prompt ?? '',
+      voice_settings: foundPersona.voice_settings ?? '',
+      is_active: foundPersona.is_active ?? false, // Ensure boolean for Switch
+    };
     showEditDialog.value = true;
   }
 };
 
-const saveEditedPersona = async () => {
+async function saveEditedPersona() {
   if (!editingPersona.value) return;
   try {
     await $fetch(`/api/personas/${editingPersona.value.persona_id}`, {
       method: 'PUT',
-      body: editingPersona.value
+      body: editingPersona.value,
     });
-    useNuxtApp().$alert(`Persona ${editingPersona.value.name} updated successfully.`);
+    toast({ title: 'Success', description: 'Persona updated successfully.' });
+    refreshPersonas();
     showEditDialog.value = false;
-    editingPersona.value = null;
-    await refreshPersonas();
-  } catch (err: any) {
-    console.error('Failed to update persona:', err);
-    useNuxtApp().$alert(`Failed to update persona: ${err.data?.message || err.message}`);
+  } catch (e: any) {
+    let description = 'Failed to update persona.';
+    if (e instanceof Error) {
+      description = e.message;
+    } else if (e && typeof e.data?.message === 'string') {
+      description = e.data.message;
+    } else if (typeof e === 'string') {
+      description = e;
+    }
+    toast({ title: 'Error Updating Persona', description, variant: 'destructive' });
+    console.error('Failed to update persona:', e);
   }
 };
 
@@ -361,14 +376,33 @@ const confirmDeletePersona = (id: number) => {
   personaToDelete.value = id;
 };
 
-const deletePersona = async (id: number) => {
+async function deletePersona(id: number) {
   try {
-    await $fetch(`/api/personas/${id}`, { method: 'DELETE' });
-    useNuxtApp().$alert(`Persona ${id} deleted successfully.`);
-    await refreshPersonas();
-  } catch (err: any) {
-    console.error('Failed to delete persona:', err);
-    useNuxtApp().$alert(`Failed to delete persona ${id}: ${err.data?.message || err.message}`);
+    await $fetch(`/api/personas/${id}`, {
+      method: 'DELETE',
+    });
+    toast({ title: 'Success', description: 'Persona deleted successfully.' });
+    refreshPersonas();
+    personaToDelete.value = null;
+  } catch (error: unknown) { 
+    let description = 'Failed to delete persona.';
+    const originalError = error; 
+
+    if (error instanceof Error) {
+      description = error.message;
+    } else if (typeof error === 'string') {
+      description = error;
+    } else if (error && typeof error === 'object') {
+      const errObj = error as { message?: string; data?: { message?: string } };
+      if (errObj.data && typeof errObj.data.message === 'string') {
+        description = errObj.data.message;
+      } else if (typeof errObj.message === 'string') {
+        description = errObj.message;
+      }
+    }
+
+    toast({ title: 'Error Deleting Persona', description, variant: 'destructive' });
+    console.error(`User-facing error: "${description}". Original error object:`, originalError);
   }
 };
 

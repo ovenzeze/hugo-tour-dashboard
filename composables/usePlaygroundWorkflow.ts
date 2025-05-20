@@ -4,7 +4,7 @@ import { usePlaygroundSettingsStore } from '@/stores/playgroundSettings';
 import { usePlaygroundScriptStore } from '@/stores/playgroundScript';
 import { usePlaygroundPersonaStore, type Persona as StorePersona } from '@/stores/playgroundPersona'; // Persona type
 import { usePlaygroundAudioStore } from '@/stores/playgroundAudio';
-// Removed unused imports: usePlaygroundStepper, usePlaygroundScript
+import { usePodcastCoverGenerator } from './usePodcastCoverGenerator'; // Import
 import { toast } from 'vue-sonner';
 
 // Assuming voicePerformanceSettingsRef will expose necessary methods/props
@@ -27,6 +27,7 @@ export function usePlaygroundWorkflow(
   const scriptStore = usePlaygroundScriptStore();
   const personaStore = usePlaygroundPersonaStore();
   const audioStore = usePlaygroundAudioStore();
+  const { generateAndSavePodcastCover } = usePodcastCoverGenerator(); // Instantiate
   
   const podcastPerformanceConfig = ref<any>(null); // Consider defining a specific type
   const showStep2ProceedConfirmation = ref(false);
@@ -245,6 +246,21 @@ export function usePlaygroundWorkflow(
         audioStore.setPodcastId(apiResult.podcastId); // Changed apiResult.data.podcastId to apiResult.podcastId
         toast.success('Script saved to database successfully. Proceeding to voice assignment.');
         goToStep(currentStepIndex.value + 1);
+        
+        // ******** TRIGGER COVER GENERATION ********
+        if (localPodcastSettings.title) {
+          generateAndSavePodcastCover(apiResult.podcastId.toString(), localPodcastSettings.title, localPodcastSettings.topic)
+            .then(() => {
+              console.log(`[Workflow] Cover generation process initiated for podcast ${apiResult.podcastId}.`);
+            })
+            .catch(coverError => {
+              console.error(`[Workflow] Error initiating cover generation for podcast ${apiResult.podcastId}:`, coverError);
+            });
+        } else {
+            console.warn(`[Workflow] Podcast title is missing, skipping cover generation for podcast ${apiResult.podcastId}.`)
+        }
+        // *******************************************
+
       } else {
         // Construct a more informative error message if podcastId is missing but success is true
         let errorMessage = 'Failed to save script to database or podcastId missing.';

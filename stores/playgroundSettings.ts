@@ -47,7 +47,7 @@ export type AIGenerateScriptProvider = 'elevenlabs' | 'openrouter' | 'groq'; // 
 export const defaultPodcastSettings: FullPodcastSettings = {
   title: "",
   topic: "",
-  numberOfSegments: 3,
+  numberOfSegments: 10,
   style: "",
   keywords: [], // Changed to empty array
   hostPersonaId: undefined,

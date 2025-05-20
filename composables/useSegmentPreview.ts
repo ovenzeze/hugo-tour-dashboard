@@ -8,11 +8,10 @@ export interface SegmentState {
   status: 'idle' | 'loading' | 'success' | 'error';
   message?: string;
   error?: string;
-  audioUrl?: string; // This might be redundant if segmentPreviews holds the URL
 }
 
 export interface SegmentPreviewData {
-  audioUrl: string;
+  audioUrl: string | null;
   timestamps?: any[]; // Define more specific type if structure is known
 }
 
@@ -54,28 +53,53 @@ export function useSegmentPreview(
 
   const initializeSegmentStates = () => {
     parsedScriptSegments.value.forEach((_, index) => {
-      if (!segmentStates.value[index]) {
+      if (segmentStates.value[index] === undefined) {
         segmentStates.value[index] = { status: 'idle', message: 'Ready to preview' };
       }
-      if(!segmentPreviews.value[index]){
-        // Ensure segmentPreviews has an entry, even if empty
-        // segmentPreviews.value[index] = { audioUrl: '' }; 
+      if (segmentPreviews.value[index] === undefined) {
+        segmentPreviews.value[index] = { audioUrl: null, timestamps: [] };
       }
     });
   };
   
-  watch(parsedScriptSegments, () => {
-      initializeSegmentStates();
-      // Potentially clear segmentPreviews and combinedPreviewUrl if script changes significantly
-      // segmentPreviews.value = {};
-      // combinedPreviewUrl.value = null;
+  watch(parsedScriptSegments, (newSegments, oldSegments) => {
+    const newSegmentStates: Record<number, SegmentState> = {};
+    const newSegmentPreviewsData: Record<number, SegmentPreviewData> = {};
+
+    newSegments.forEach((segment, index) => {
+      // Preserve existing state if segment ID matches, otherwise initialize
+      // This simple index-based preservation might need refinement if segments are reordered/deleted by ID
+      newSegmentStates[index] = segmentStates.value[index] || { status: 'idle', message: 'Ready to preview' };
+      newSegmentPreviewsData[index] = segmentPreviews.value[index] || { audioUrl: null, timestamps: [] };
+      
+      // Ensure audioUrl is null if it was somehow undefined
+      if (newSegmentPreviewsData[index].audioUrl === undefined) {
+        newSegmentPreviewsData[index].audioUrl = null;
+      }
+    });
+
+    segmentStates.value = newSegmentStates;
+    segmentPreviews.value = newSegmentPreviewsData;
+    
+    // If script changes significantly (e.g., length differs, or content implies reset)
+    // consider clearing combinedPreviewUrl
+    if (newSegments.length !== (oldSegments?.length || 0) || JSON.stringify(newSegments) !== JSON.stringify(oldSegments)){
+        combinedPreviewUrl.value = null;
+    }
+    // Initial call if needed, though immediate: true on watcher handles this.
+    // initializeSegmentStates(); // Call the refined logic if separated.
   }, { deep: true, immediate: true });
 
   async function previewSegment(segment: PreviewableSegment, index: number) {
     const voiceId = speakerAssignments.value[segment.speakerTag] || segment.voiceId; // Ensure voiceId is resolved
     if (!segment.text || !voiceId) {
       toast.error('Missing text or voice assignment for segment preview.');
-      segmentStates.value[index] = { status: 'error', message: 'Missing text or voice assignment.', error: 'No text or voice.', audioUrl: undefined };
+      segmentStates.value[index] = { status: 'error', message: 'Missing text or voice assignment.', error: 'No text or voice.' };
+      if (segmentPreviews.value[index]) {
+        segmentPreviews.value[index].audioUrl = null;
+      } else {
+        segmentPreviews.value[index] = { audioUrl: null, timestamps: [] };
+      }
       return;
     }
 
@@ -90,9 +114,13 @@ export function useSegmentPreview(
       segmentStates.value[index] = {
         status: 'error',
         message: 'TTS Provider missing for this segment.',
-        error: 'TTS provider configuration error for this segment.',
-        audioUrl: undefined
+        error: 'TTS provider configuration error for this segment.'
       };
+      if (segmentPreviews.value[index]) {
+        segmentPreviews.value[index].audioUrl = null;
+      } else {
+        segmentPreviews.value[index] = { audioUrl: null, timestamps: [] };
+      }
       return;
     }
 
@@ -141,7 +169,7 @@ export function useSegmentPreview(
               audioUrl: segmentResult.audioFileUrl,
               timestamps: segmentResult.timestampFileUrl ? await fetch(segmentResult.timestampFileUrl).then(r => r.json()).catch(() => []) : []
             };
-            segmentStates.value[index] = { status: 'success', message: 'Preview successful', audioUrl: segmentResult.audioFileUrl };
+            segmentStates.value[index] = { status: 'success', message: 'Preview successful' };
           } else {
             const errorMsg = segmentResult.error || 'Synthesis failed: No audioFileUrl from backend.';
             throw new Error(errorMsg);
@@ -156,7 +184,12 @@ export function useSegmentPreview(
     } catch (error: any) {
       console.error('Segment preview generation failed:', error);
       toast.error('Segment preview failed', { description: error.message });
-      segmentStates.value[index] = { status: 'error', message: 'Preview failed', error: error.message, audioUrl: undefined };
+      segmentStates.value[index] = { status: 'error', message: 'Preview failed', error: error.message };
+      if (segmentPreviews.value[index]) {
+        segmentPreviews.value[index].audioUrl = null;
+      } else {
+        segmentPreviews.value[index] = { audioUrl: null, timestamps: [] };
+      }
     } finally {
       isPreviewingSegment.value = null;
     }
@@ -227,14 +260,13 @@ export function useSegmentPreview(
                         audioUrl,
                         timestamps: segmentResultItem.timestamps || []
                     };
-                    segmentStates.value[index] = { status: 'success', message: 'Preview successful', audioUrl };
+                    segmentStates.value[index] = { status: 'success', message: 'Preview successful' };
                     successCount++;
                 } else {
                     segmentStates.value[index] = { 
                         status: 'error', 
                         message: segmentResultItem.error || 'Preview failed for this segment', 
-                        error: segmentResultItem.error || 'Unknown error',
-                        audioUrl: undefined
+                        error: segmentResultItem.error || 'Unknown error'
                     };
                 }
             });
@@ -257,7 +289,7 @@ export function useSegmentPreview(
         toast.error(`Preview all failed: ${error.message}`);
         parsedScriptSegments.value.forEach((_, index) => {
             if (segmentStates.value[index]?.status === 'loading') { // Only update those that were attempted
-                segmentStates.value[index] = { status: 'error', message: 'Preview all failed', error: error.message, audioUrl: undefined };
+                segmentStates.value[index] = { status: 'error', message: 'Preview all failed', error: error.message };
             }
         });
         return false;

@@ -61,7 +61,7 @@ useHead({
   font-feature-settings: normal;
   font-variation-settings: normal;
   -webkit-tap-highlight-color: transparent;
-  font-family: "Crimson Text", Inter var, Inter, system-ui;
+  font-family: "Crimson Text", "Noto Sans SC", Inter var, Inter, system-ui;
 }
 
 *::-webkit-scrollbar {

@@ -22,32 +22,37 @@ export default defineEventHandler(async (event) => {
     });
 
     // Use the ElevenLabsClient to get the list of voices
-    const voices = await elevenlabs.voices.getAll();
+    const response = await elevenlabs.voices.getAll();
 
-    console.log('Received response from ElevenLabs voices.getAll().');
+    console.log('Received response from ElevenLabs voices.getAll():', JSON.stringify(response)); // Log the actual structure
 
-    // The response from voices.getAll() is directly an array of voice objects
-    if (Array.isArray(voices)) {
+    // Check if the response object exists and has a 'voices' property that is an array
+    if (response && Array.isArray(response.voices)) {
       return {
         success: true,
-        voices: voices, // The client directly returns the array of voice objects
+        voices: response.voices, // Access the .voices property from the response object
       };
     } else {
-      // This case should ideally not be reached if the SDK works as expected
-      console.error('Unexpected response structure from ElevenLabsClient voices.getAll():', voices);
+      // This case means the SDK's response structure is not { voices: Voice[] }
+      console.error('Unexpected response structure from ElevenLabsClient voices.getAll(). Expected an object with a `voices` array. Actual response:', response);
       throw createError({
         statusCode: 500,
         statusMessage: 'Failed to retrieve voices from ElevenLabs API: Unexpected response structure from SDK.',
-        data: voices,
+        data: response, // Include the actual response for debugging
       });
     }
 
   } catch (error: any) {
     console.error('Error in elevenlabs/voices.get.ts endpoint:', error.message || error);
+    // Check if the error already has statusCode and statusMessage (e.g., from createError)
+    if (error.isH3Error === true) { // More reliable check for H3 errors
+        throw error; // Re-throw the original H3 error
+    }
+    // Otherwise, create a new H3 error
     throw createError({
-      statusCode: error.statusCode || 500,
-      statusMessage: `Failed to list ElevenLabs voices: ${error.statusMessage || error.message}`,
-      data: error.data || error,
+      statusCode: 500, // Default to 500 if not specified
+      statusMessage: `Failed to list ElevenLabs voices: ${error.message || 'Unknown error'}`,
+      data: error, // Include the original error for debugging
     });
   }
 });

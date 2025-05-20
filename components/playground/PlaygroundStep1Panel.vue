@@ -5,9 +5,10 @@
       <!-- Loading Overlay for Left Card -->
       <div
         v-if="isLeftCardLoading"
-        class="absolute inset-0 bg-background/50 backdrop-blur-sm z-10 flex items-center justify-center rounded-lg"
+        class="absolute inset-0 bg-background/50 backdrop-blur-sm z-10 flex flex-col items-center justify-center rounded-lg"
       >
-        <Icon name="ph:circle-notch" class="w-10 h-10 animate-spin text-primary" />
+        <Icon name="ph:spinner-gap" class="w-10 h-10 animate-spin text-primary" />
+        <p class="mt-4 text-sm text-muted-foreground">Processing, please wait...</p>
       </div>
       <PodcastSettingsForm
         :model-value="podcastSettings"
@@ -26,14 +27,25 @@
           class="absolute top-4 right-4 bg-green-100 dark:bg-green-800  text-green-700 dark:text-green-200 px-4 py-2 rounded-md shadow-lg text-sm z-20"
         >
           <Icon name="ph:check-circle" class="inline w-5 h-5 mr-2" />
-          脚本生成成功！
+          Script generated successfully!
         </div>
       </Transition>
 
       <template v-if="isScriptGenerating || isValidating">
         <div class="flex flex-col items-center justify-center h-full space-y-4">
+          <!-- Loading Indicator -->
+          <div class="flex flex-col items-center">
+            <Icon name="ph:spinner-gap" class="w-12 h-12 animate-spin text-primary" />
+            <div class="mt-4 bg-muted/30 rounded-full h-2 w-64 overflow-hidden">
+              <div
+                class="h-full bg-primary transition-all duration-300 ease-in-out"
+                :style="{ width: `${loadingProgress}%` }"
+              ></div>
+            </div>
+          </div>
+
           <!-- Skeleton Loader -->
-          <div class="w-full space-y-3">
+          <div class="w-full space-y-3 mt-6">
             <Skeleton class="h-8 w-3/4" />
             <Skeleton class="h-4 w-full" />
             <Skeleton class="h-4 w-5/6" />
@@ -61,6 +73,9 @@
           <!-- Detailed Status Description -->
           <p class="text-center text-sm text-muted-foreground max-w-md">
             {{ aiScriptStepText || 'Please wait, this may take a moment...' }}
+          </p>
+          <p class="text-xs text-muted-foreground">
+            Estimated time remaining: {{ estimatedTimeRemaining }}
           </p>
 
           <!-- 新增：部分内容生成时淡入显示 -->
@@ -113,7 +128,7 @@ import PodcastSettingsForm from './PodcastSettingsForm.vue';
 // Import types expected by PodcastSettingsForm
 import type { FullPodcastSettings } from '~/types/playground'; // Persona type will come from the store
 import type { Persona } from '@/stores/playgroundPersona'; // Import Persona from the store
-import { computed } from 'vue'; // Import computed
+import { computed, ref, watch, onMounted, onUnmounted } from 'vue'; // Import Vue composition API functions
 
 interface Props {
   podcastSettings: FullPodcastSettings; // Use FullPodcastSettings from ~/types/playground
@@ -153,8 +168,62 @@ const emit = defineEmits([
   'clearErrorAndRetry',
 ]);
 
+// Loading progress simulation
+const loadingProgress = ref(0);
+const estimatedTimeRemaining = ref('计算中...');
+let loadingInterval: NodeJS.Timeout | null = null;
+let startTime: number | null = null;
+
+// Success message handling
 const showSuccessMessage = ref(false);
 let successMessageTimeout: NodeJS.Timeout | null = null;
+
+// Function to start loading progress simulation
+function startLoadingProgress() {
+  if (loadingInterval) clearInterval(loadingInterval);
+  loadingProgress.value = 0;
+  startTime = Date.now();
+  
+  // Simulate progress with realistic acceleration and deceleration
+  loadingInterval = setInterval(() => {
+    // Calculate elapsed time in seconds
+    const elapsed = startTime ? (Date.now() - startTime) / 1000 : 0;
+    
+    // Progress calculation with sigmoid-like curve
+    // Faster at beginning, slows down as it approaches 90%
+    if (loadingProgress.value < 90) {
+      const increment = Math.max(0.1, (90 - loadingProgress.value) / 20);
+      loadingProgress.value = Math.min(90, loadingProgress.value + increment);
+    }
+    
+    // Update estimated time remaining
+    if (elapsed > 2) {
+      const totalEstimated = elapsed * 100 / loadingProgress.value;
+      const remaining = Math.max(0, totalEstimated - elapsed);
+      
+      if (remaining < 60) {
+        estimatedTimeRemaining.value = `~${Math.ceil(remaining)} seconds`;
+      } else {
+        estimatedTimeRemaining.value = `~${Math.ceil(remaining / 60)} minutes`;
+      }
+    }
+  }, 300);
+}
+
+// Function to complete loading progress
+function completeLoadingProgress() {
+  if (loadingInterval) {
+    clearInterval(loadingInterval);
+    loadingInterval = null;
+  }
+  loadingProgress.value = 100;
+  estimatedTimeRemaining.value = 'Complete';
+  
+  // Reset after a delay
+  setTimeout(() => {
+    loadingProgress.value = 0;
+  }, 1000);
+}
 
 watch(
   () => [props.isScriptGenerating, props.isValidating, props.scriptError],
@@ -162,25 +231,39 @@ watch(
     const isLoading = generating || validating;
     const wasLoading = prevGenerating || prevValidating;
 
-    if (wasLoading && !isLoading && !error) {
-      showSuccessMessage.value = true;
+    // Start loading progress when loading begins
+    if (!wasLoading && isLoading) {
+      startLoadingProgress();
+      showSuccessMessage.value = false;
       if (successMessageTimeout) clearTimeout(successMessageTimeout);
-      successMessageTimeout = setTimeout(() => {
-        showSuccessMessage.value = false;
-      }, 3000); // Show for 3 seconds
     }
 
-    // If loading starts or an error occurs, hide the success message immediately
-    if ((!wasLoading && isLoading) || error) {
+    // Complete loading progress when loading ends
+    if (wasLoading && !isLoading) {
+      completeLoadingProgress();
+      
+      // Show success message if no error
+      if (!error) {
+        showSuccessMessage.value = true;
+        if (successMessageTimeout) clearTimeout(successMessageTimeout);
+        successMessageTimeout = setTimeout(() => {
+          showSuccessMessage.value = false;
+        }, 3000); // Show for 3 seconds
+      }
+    }
+
+    // If an error occurs, hide the success message immediately
+    if (error) {
       showSuccessMessage.value = false;
       if (successMessageTimeout) clearTimeout(successMessageTimeout);
     }
   },
+  { immediate: false } // Optional: Add watch options if needed, like immediate or deep. Defaulting to false for immediate.
 );
-
-// Ensure to clear timeout on unmount
+// Ensure to clear all timeouts and intervals on unmount
 onUnmounted(() => {
   if (successMessageTimeout) clearTimeout(successMessageTimeout);
+  if (loadingInterval) clearInterval(loadingInterval);
 });
 </script>
 

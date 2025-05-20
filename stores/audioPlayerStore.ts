@@ -9,6 +9,14 @@ export interface AudioTrack {
   duration?: number;
   coverImage?: string;
   isM3u8?: boolean;
+  meta?: {
+    type?: string;
+    podcastId?: string;
+    segmentId?: string;
+    speaker?: string;
+    fullText?: string;
+    [key: string]: any;
+  };
 }
 
 export const useAudioPlayerStore = defineStore('audioPlayer', () => {

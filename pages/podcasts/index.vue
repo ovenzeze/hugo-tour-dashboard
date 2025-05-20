@@ -67,8 +67,8 @@
       <PodcastList
         v-else
         :podcasts="filteredPodcasts"
-        :current-previewing-id="currentlyPreviewingId"
-        :is-audio-playing="isPlayingPreview"
+        :current-previewing-id="podcastPlayer.currentPlayingPodcastId.value?.toString() || ''"
+        :is-audio-playing="!!podcastPlayer.isPlaying.value"
         :hide-empty-podcasts-toggle="hideEmptyPodcasts"
         @select-podcast="handleSelectPodcast"
         @edit-podcast="handleEditPodcast"
@@ -99,8 +99,7 @@
       </SheetContent>
     </Sheet>
 
-    <!-- Hidden Audio Player for Sequential Playback -->
-    <audio ref="audioPlayer" @ended="playNextSegment" style="display: none;"></audio>
+    <!-- No longer need hidden audio player, now using global audio player -->
   </div>
 </template>
 
@@ -114,7 +113,9 @@ import { Switch } from '@/components/ui/switch';
 import { computed, nextTick, onMounted, ref } from 'vue';
 import PodcastDetailDrawer from '~/components/podcasts/PodcastDetailDrawer.vue';
 import PodcastList from '~/components/podcasts/PodcastList.vue';
-import { usePodcastDatabase, type Podcast, type Segment, type SegmentAudio } from '~/composables/usePodcastDatabase';
+import { usePodcastDatabase } from '~/composables/usePodcastDatabase';
+import { type Podcast, type Segment, type SegmentAudio } from '~/types/podcast';
+import { usePodcastPlayer } from '~/composables/usePodcastPlayer';
 
 const searchTerm = ref('');
 const hideEmptyPodcasts = ref(true); // New filter state, default true
@@ -131,11 +132,8 @@ const {
   resynthesizeAllSegments
 } = usePodcastDatabase();
 
-const audioPlayer = ref<HTMLAudioElement | null>(null);
-const audioQueue = ref<string[]>([]);
-const currentSegmentIndex = ref(0);
-const isPlayingPreview = ref(false);
-const currentlyPreviewingId = ref<string | null>(null);
+// Initialize podcast player
+const podcastPlayer = usePodcastPlayer();
 
 // Filtered podcasts based on searchTerm and hideEmptyPodcasts
 const filteredPodcasts = computed<Podcast[]>(() => {
@@ -188,81 +186,29 @@ const handleEditPodcast = (podcastId: string) => {
   fetchPodcastById(podcastId);
 };
 
-const playNextSegment = () => {
-  if (isPlayingPreview.value && currentSegmentIndex.value < audioQueue.value.length -1) {
-    currentSegmentIndex.value++;
-    if (audioPlayer.value) {
-      audioPlayer.value.src = encodeURI(audioQueue.value[currentSegmentIndex.value]);
-      audioPlayer.value.play().catch(e => console.error("Error playing audio:", e));
-    }
-  } else {
-    stopPreview(); // End of queue or stopped manually
-  }
-};
+// No longer needed since we're using the global audio player
 
+// Stop any current podcast playback
 const stopPreview = () => {
-  if (audioPlayer.value) {
-    audioPlayer.value.pause();
-    audioPlayer.value.currentTime = 0;
-  }
-  audioQueue.value = [];
-  currentSegmentIndex.value = 0;
-  isPlayingPreview.value = false;
-  currentlyPreviewingId.value = null;
+  podcastPlayer.stopPodcast();
 };
 
+// Handle preview podcast click
 const handlePreviewPodcast = async (podcastId: string) => {
-  if (currentlyPreviewingId.value === podcastId && isPlayingPreview.value) {
-    // If clicking the same podcast that's already playing, treat as a stop/pause
-    // For simplicity, we'll just stop it. Pause/resume can be added later.
+  // If same podcast is playing, stop it
+  if (podcastPlayer.currentPlayingPodcastId.value === podcastId) {
     stopPreview();
     return;
   }
   
-  stopPreview(); // Stop any other current playback
-  currentlyPreviewingId.value = podcastId; // Set the ID of the podcast being previewed
-
-  let podcastToPreview: Podcast | undefined;
-  for (const p of podcasts.value) {
-    if (p.podcast_id === podcastId) {
-      podcastToPreview = p;
-      break;
-    }
-  }
-
-  if (podcastToPreview && podcastToPreview.podcast_segments) {
-    const playableSegments = podcastToPreview.podcast_segments
-      .map((segment: Segment) => {
-        // Logic to get a playable URL (prioritize final, then any other)
-        if (segment.segment_audios && segment.segment_audios.length > 0) {
-          const finalAudio = segment.segment_audios.find((sa: SegmentAudio) => sa.version_tag === 'final' && sa.audio_url);
-          if (finalAudio) return finalAudio.audio_url;
-          const anyAudio = segment.segment_audios.find((sa: SegmentAudio) => sa.audio_url);
-          return anyAudio?.audio_url;
-        }
-        return null;
-      })
-      .filter(url => url !== null) as string[];
-
-    if (playableSegments.length > 0) {
-      audioQueue.value = playableSegments;
-      currentSegmentIndex.value = 0;
-      isPlayingPreview.value = true;
-      await nextTick(); // Ensure audioPlayer ref is available
-      if (audioPlayer.value) {
-        audioPlayer.value.src = encodeURI(audioQueue.value[0]);
-        audioPlayer.value.play().catch(e => {
-          console.error("Error playing audio:", e);
-          stopPreview(); // Stop if playback fails
-        });
-      }
-    } else {
-      console.warn('No playable segments found for this podcast.');
-      stopPreview(); // Clear preview state if no segments
-      // Optionally show a toast or message to the user
-    }
+  // Find the podcast by ID
+  const podcastToPreview = podcasts.value.find(p => String(p.podcast_id) === String(podcastId));
+  
+  // If found, play it using the podcast player
+  if (podcastToPreview) {
+    podcastPlayer.playPodcast(podcastToPreview);
   } else {
-    stopPreview(); // Clear preview state if podcast not found
+    console.warn(`Podcast with ID ${podcastId} not found`);
   }
 };
 

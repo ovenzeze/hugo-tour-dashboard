@@ -1,24 +1,9 @@
 // composables/usePodcastDatabase.ts
 import { ref } from 'vue';
-import type { Database } from '~/types/supabase';
-import type { Persona } from '~/stores/playgroundPersona'; // Import Persona from the store
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { useSupabaseClient } from '#imports'; // Ensure this is correctly imported for client-side
-
-// Define types with nested relationships based on Supabase types for composable use
-// export type Persona = Database['public']['Tables']['personas']['Row']; // Removed local definition, using store's
-export type SegmentAudio = Database['public']['Tables']['segment_audios']['Row'];
-export type Segment = Database['public']['Tables']['podcast_segments']['Row'] & {
-  segment_audios?: SegmentAudio[];
-};
-export type Podcast = Database['public']['Tables']['podcasts']['Row'] & {
-  podcast_segments?: Segment[];
-  host_persona?: Persona | null;
-  creator_persona?: Persona | null;
-  cover_image_url?: string | null;
-  guest_persona?: Persona | null;
-  // guest_persona?: Persona | null; // Example if needed later
-};
+// Import shared types
+import type { Podcast, Segment, SegmentAudio, Persona } from '~/types/podcast';
 
 export const usePodcastDatabase = () => {
   const podcasts = ref<Podcast[]>([]);
@@ -33,7 +18,7 @@ export const usePodcastDatabase = () => {
     loading.value = true;
     error.value = null;
     try {
-      const client = useSupabaseClient<Database>();
+      const client = useSupabaseClient<SupabaseClient>();
       const { data, error: dbError } = await client
         .from('podcasts')
         .select(commonSelectQuery)
@@ -56,7 +41,7 @@ export const usePodcastDatabase = () => {
     loading.value = true;
     error.value = null;
     try {
-      const client = useSupabaseClient<Database>();
+      const client = useSupabaseClient<SupabaseClient>();
       const { data, error: dbError } = await client
         .from('podcasts')
         .select(commonSelectQuery)
@@ -79,7 +64,7 @@ export const usePodcastDatabase = () => {
     loading.value = true;
     error.value = null;
     try {
-      const client = useSupabaseClient<Database>();
+      const client = useSupabaseClient<SupabaseClient>();
       const { data, error: dbError } = await client
         .from('podcasts')
         .insert([newPodcastData])
@@ -123,7 +108,7 @@ export const usePodcastDatabase = () => {
     loading.value = true;
     error.value = null;
     try {
-      const client = useSupabaseClient<Database>();
+      const client = useSupabaseClient<SupabaseClient>();
       const { data, error: dbError } = await client
         .from('podcasts')
         .update(updates)
@@ -158,7 +143,7 @@ export const usePodcastDatabase = () => {
     loading.value = true;
     error.value = null;
     try {
-      const client = useSupabaseClient<Database>();
+      const client = useSupabaseClient<SupabaseClient>();
       const { error: dbError } = await client
         .from('podcasts')
         .delete()

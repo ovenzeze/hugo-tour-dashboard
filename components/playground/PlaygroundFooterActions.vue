@@ -40,7 +40,7 @@
                     />
                     <Icon 
                       v-else 
-                      name="ph:magic-wand" 
+                      name="ph:brain" 
                       class="w-5 h-5 mr-2 group-hover:rotate-12 transition-transform duration-300" 
                     />
                     <span v-if="isScriptGenerating">AI Creating...</span>
@@ -106,10 +106,10 @@
               </Button>
             </TooltipTrigger>
             <TooltipContent v-if="isValidating">
-              <p>正在验证脚本并准备下一步...</p>
+              <p>Validating script and preparing next step...</p>
             </TooltipContent>
             <TooltipContent v-else-if="isProcessingNextStep">
-              <p>正在处理并准备下一步...</p>
+              <p>Processing and preparing next step...</p>
             </TooltipContent>
           </Tooltip>
         </TooltipProvider>
@@ -120,7 +120,7 @@
           @click="emit('generate-audio-preview')"
           :disabled="!canProceedFromStep2 || isGeneratingAudioPreview"
         >
-          <Icon v-if="isGeneratingAudioPreview" name="ph:spinner" class="w-4 h-4 mr-2 animate-spin" />
+          <Icon v-if="isGeneratingAudioPreview" name="ph:spinner-gap" class="w-4 h-4 mr-2 animate-spin" />
           <Icon v-else name="ph:broadcast" class="w-4 h-4 mr-2" />
           {{ isGeneratingAudioPreview ? 'Generating...' : 'Generate Audio Preview' }}
         </Button>
@@ -156,7 +156,7 @@
           @click="emit('synthesize-podcast')"
           :disabled="isGeneratingOverall || isSynthesizing"
         >
-          <Icon v-if="isSynthesizing" name="ph:spinner" class="w-4 h-4 mr-2 animate-spin" />
+          <Icon v-if="isSynthesizing" name="ph:spinner-gap" class="w-4 h-4 mr-2 animate-spin" />
           <Icon v-else name="ph:broadcast" class="w-4 h-4 mr-2" />
           Synthesize Podcast
         </Button>
