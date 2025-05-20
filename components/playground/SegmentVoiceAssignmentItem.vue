@@ -1,6 +1,5 @@
 <script setup lang="ts">
 import { computed, ref, watch, onMounted, onBeforeUnmount } from 'vue';
-import { PlayIcon, StopIcon, SpeakerWaveIcon, SpeakerXMarkIcon } from '@heroicons/vue/24/solid';
 import type { SegmentState, PreviewableSegment } from '~/composables/useSegmentPreview';
 import { Avatar, AvatarFallback, AvatarImage } from '~/components/ui/avatar';
 import { Button } from '~/components/ui/button';
@@ -165,8 +164,8 @@ onBeforeUnmount(() => {
                 variant="ghost"
                 class="hover:bg-primary/10"
               >
-                <component 
-                  :is="isPlaying ? StopIcon : SpeakerWaveIcon" 
+                <Icon 
+                  :name="isPlaying ? 'ph:stop-fill' : 'ph:speaker-high-fill'" 
                   class="w-5 h-5 mr-2"
                   :class="{'text-primary animate-pulse': isPlaying, 'text-foreground': !isPlaying}"
                 />
@@ -179,7 +178,7 @@ onBeforeUnmount(() => {
               <TooltipProvider :delay-duration="200">
                 <Tooltip>
                   <TooltipTrigger>
-                    <span class="flex items-center"><SpeakerXMarkIcon class="w-4 h-4 mr-1"/> Error</span>
+                    <span class="flex items-center"><Icon name="ph:speaker-x-fill" class="w-4 h-4 mr-1"/> Error</span>
                   </TooltipTrigger>
                   <TooltipContent side="top" class="max-w-xs">
                     <p class="text-xs">{{ message }}: {{ errorDetails }}</p>

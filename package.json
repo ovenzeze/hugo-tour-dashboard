@@ -43,6 +43,7 @@
     "date-fns": "^4.1.0",
     "exceljs": "^4.4.0",
     "get-audio-duration": "^4.0.1",
+    "hls.js": "^1.6.2",
     "lucide-vue-next": "^0.511.0",
     "pg": "^8.15.6",
     "pinia": "^3.0.2",

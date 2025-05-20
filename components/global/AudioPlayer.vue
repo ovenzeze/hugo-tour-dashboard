@@ -1,4 +1,4 @@
-<template>
+ub<template>
   <div 
     v-if="audioStore.currentTrack" 
     class="fixed bottom-0 left-0 right-0 bg-background border-t border-border z-50 shadow-lg transition-transform duration-300"
@@ -310,7 +310,7 @@ watch(() => audioStore.isPlaying, (isPlaying) => {
 // 监听音量变化
 watch(() => [audioStore.volume, audioStore.isMuted], ([volume, isMuted]) => {
   if (!audioElement.value) return;
-  audioElement.value.volume = isMuted ? 0 : volume;
+  audioElement.value.volume = isMuted ? 0 : (volume as number);
 });
 
 // 监听 seek 操作
@@ -367,7 +367,7 @@ watch(() => audioStore.currentTrack, async (newTrack) => {
           }
         });
         
-        hls.on(Hls.Events.ERROR, (event, data) => {
+        hls.on(Hls.Events.ERROR, (event: any, data: any) => {
           if (data.fatal) {
             switch (data.type) {
               case Hls.ErrorTypes.NETWORK_ERROR:

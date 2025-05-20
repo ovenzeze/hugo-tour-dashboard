@@ -74,6 +74,9 @@ importers:
       get-audio-duration:
         specifier: ^4.0.1
         version: 4.0.1
+      hls.js:
+        specifier: ^1.6.2
+        version: 1.6.2
       lucide-vue-next:
         specifier: ^0.511.0
         version: 0.511.0(vue@3.5.14(typescript@5.8.3))
@@ -3549,6 +3552,9 @@ packages:
 
   hey-listen@1.0.8:
     resolution: {integrity: sha512-COpmrF2NOg4TBWUJ5UVyaCU2A88wEMkUPK4hNqyCkqHbxT92BbvfjoSozkAIIm6XhicGlJHhFdullInrdhwU8Q==}
+
+  hls.js@1.6.2:
+    resolution: {integrity: sha512-rx+pETSCJEDThm/JCm8CuadcAC410cVjb1XVXFNDKFuylaayHk1+tFxhkjvnMDAfqsJHxZXDAJ3Uc2d5xQyWlQ==}
 
   hookable@5.5.3:
     resolution: {integrity: sha512-Yc+BQe8SvoXH1643Qez1zqLRmbA5rCL+sSmk6TVos0LWVfNIB7PGncdlId77WzLGSIB5KaWgTaNTs2lNVEI6VQ==}
@@ -10611,6 +10617,8 @@ snapshots:
   he@1.2.0: {}
 
   hey-listen@1.0.8: {}
+
+  hls.js@1.6.2: {}
 
   hookable@5.5.3: {}
 
