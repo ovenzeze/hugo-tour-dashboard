@@ -1,169 +1,198 @@
+<script setup lang="ts">
+import { computed, ref, watch, onMounted, onBeforeUnmount } from 'vue';
+import { PlayIcon, StopIcon, SpeakerWaveIcon, SpeakerXMarkIcon } from '@heroicons/vue/24/solid';
+import type { SegmentState, PreviewableSegment } from '~/composables/useSegmentPreview';
+import { Avatar, AvatarFallback, AvatarImage } from '~/components/ui/avatar';
+import { Button } from '~/components/ui/button';
+import { Badge } from '~/components/ui/badge';
+import { Card, CardContent } from '~/components/ui/card';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '~/components/ui/tooltip';
+
+interface Props {
+  segment: PreviewableSegment;
+  segmentIndex: number;
+  isPreviewingThisSegment: boolean;
+  segmentState: SegmentState | undefined;
+  audioUrl: string | null; // This is the specific audio URL for this segment's preview attempt
+  isGlobalLoading: boolean; // To disable controls when something global is happening
+  personaAvatarUrl?: string | null;
+}
+
+const props = defineProps<Props>();
+
+const emit = defineEmits([
+  'preview-segment', // Request to parent to generate/fetch audio and set isPreviewingThisSegment
+  'audio-play',      // Inform parent that audio playback has started
+  'audio-pause-or-end',// Inform parent that audio playback has paused or ended
+]);
+
+const audioPlayerElement = ref<HTMLAudioElement | null>(null);
+const isPlaying = ref(false); // Local state reflecting if HTML audio element is playing
+
+const currentSegmentState = computed(() => props.segmentState);
+const status = computed(() => currentSegmentState.value?.status || 'idle');
+const message = computed(() => currentSegmentState.value?.message || '');
+const errorDetails = computed(() => currentSegmentState.value?.error || '');
+
+// Use the audioUrl prop first, as it's the result of a specific preview attempt.
+// Fallback to segment.audioUrl if needed, though parent should manage this via audioUrl prop.
+const effectiveAudioUrl = computed(() => props.audioUrl || props.segment.audioUrl);
+
+const handlePreviewClick = () => {
+  if (status.value === 'loading' || props.isGlobalLoading || !props.segment.voiceId) return;
+  
+  if (isPlaying.value) {
+    audioPlayerElement.value?.pause();
+    // Parent will react via 'audio-pause-or-end' and likely set isPreviewingThisSegment to false
+  } else {
+    // Request parent to prepare and start preview for this segment.
+    // Parent should then update isPreviewingThisSegment and audioUrl for this segment.
+    emit('preview-segment'); 
+  }
+};
+
+const onAudioPlay = () => {
+  isPlaying.value = true;
+  emit('audio-play');
+};
+
+const onAudioPause = () => {
+  isPlaying.value = false;
+  emit('audio-pause-or-end');
+};
+
+const onAudioEnded = () => {
+  isPlaying.value = false;
+  emit('audio-pause-or-end');
+};
+
+// Watch for changes in the parent's signal to preview this segment
+watch(() => props.isPreviewingThisSegment, (shouldPreview) => {
+  if (shouldPreview && effectiveAudioUrl.value) {
+    if (audioPlayerElement.value && audioPlayerElement.value.src !== effectiveAudioUrl.value) {
+      audioPlayerElement.value.src = effectiveAudioUrl.value;
+      audioPlayerElement.value.load();
+    }
+    audioPlayerElement.value?.play().catch(e => console.error(`Error playing audio for segment ${props.segmentIndex}:`, e));
+  } else if (!shouldPreview && isPlaying.value) {
+    audioPlayerElement.value?.pause();
+  }
+});
+
+// Watch for changes in the audio URL itself
+watch(effectiveAudioUrl, (newUrl) => {
+  if (newUrl && props.isPreviewingThisSegment) {
+     if (audioPlayerElement.value && audioPlayerElement.value.src !== newUrl) {
+      audioPlayerElement.value.src = newUrl;
+      audioPlayerElement.value.load();
+    }
+    audioPlayerElement.value?.play().catch(e => console.error(`Error playing new audio URL for segment ${props.segmentIndex}:`, e));
+  } else if (!newUrl && isPlaying.value) {
+    audioPlayerElement.value?.pause();
+    // isPlaying.value will be set to false by the 'pause' event handler
+  }
+});
+
+onMounted(() => {
+  // Ensure audio events are attached if player exists
+  if (audioPlayerElement.value) {
+    audioPlayerElement.value.addEventListener('play', onAudioPlay);
+    audioPlayerElement.value.addEventListener('pause', onAudioPause);
+    audioPlayerElement.value.addEventListener('ended', onAudioEnded);
+  }
+});
+
+onBeforeUnmount(() => {
+  if (audioPlayerElement.value) {
+    audioPlayerElement.value.removeEventListener('play', onAudioPlay);
+    audioPlayerElement.value.removeEventListener('pause', onAudioPause);
+    audioPlayerElement.value.removeEventListener('ended', onAudioEnded);
+    audioPlayerElement.value.pause();
+    audioPlayerElement.value.src = ''; // Release audio source
+  }
+});
+
+</script>
+
 <template>
-  <div 
-    class="border rounded-md p-3"
-    :class="{'bg-blue-50/20 dark:bg-blue-900/5': segment.roleType === 'host', 
-             'bg-green-50/20 dark:bg-green-900/5': segment.roleType === 'guest'}">
-    
-    <!-- Speaker Info and Controls -->
-    <div class="flex justify-between items-center mb-2">
-      <div class="flex items-center gap-2">
-        <Badge 
-          :variant="segment.roleType === 'host' ? 'default' : 'secondary'"
-          class="uppercase text-xs font-semibold px-2 py-0.5"
-        >
-          {{ segment.roleType === 'host' ? 'Host' : 'Guest' }}
-        </Badge>
-        
-        <div class="flex items-center gap-2">
-          <div v-if="segment.persona?.avatar_url" class="w-6 h-6 rounded-full overflow-hidden">
-            <img :src="segment.persona.avatar_url" class="w-full h-full object-cover" alt="Avatar" />
+  <Card 
+    class="mb-3 transition-all duration-300 ease-in-out" 
+    :class="{
+      'ring-2 ring-primary shadow-lg': isPreviewingThisSegment, 
+      'opacity-70': isGlobalLoading && !isPreviewingThisSegment 
+    }"
+  >
+    <CardContent class="p-4">
+      <div class="flex flex-col sm:flex-row gap-4 items-start">
+        <!-- Avatar and Speaker Info -->
+        <div class="flex-shrink-0 flex flex-col items-center w-full sm:w-24">
+          <Avatar class="w-16 h-16 mb-2 border-2" :class="{'border-primary': isPreviewingThisSegment}">
+            <AvatarImage :src="personaAvatarUrl || undefined" :alt="segment.speakerTag" />
+            <AvatarFallback>{{ segment.speakerTag.substring(0, 2).toUpperCase() }}</AvatarFallback>
+          </Avatar>
+          <div class="text-center">
+            <p class="font-semibold text-sm text-foreground">{{ segment.speakerTag }}</p>
+            <Badge variant="outline" class="text-xs mt-1 capitalize">{{ segment.roleType }}</Badge>
           </div>
-          <div v-else class="w-6 h-6 rounded-full bg-muted flex items-center justify-center text-xs">
-            {{ segment.speakerTag.charAt(0).toUpperCase() }}
+        </div>
+
+        <!-- Main Content: Text, Voice Info, Controls -->
+        <div class="flex-grow space-y-3 w-full">
+          <!-- Assigned Voice Information -->
+          <div class="p-3 rounded-md bg-muted/50 border">
+            <h4 class="text-xs font-medium text-muted-foreground mb-1">Assigned Voice:</h4>
+            <div v-if="segment.voiceId && segment.assignedVoiceName">
+              <p class="text-sm font-semibold">{{ segment.assignedVoiceName }}</p>
+              <p class="text-xs text-muted-foreground">Provider: {{ segment.ttsProvider || 'N/A' }}</p>
+            </div>
+            <div v-else>
+              <p class="text-sm text-destructive-foreground bg-destructive p-2 rounded-md">No voice assigned</p>
+            </div>
           </div>
           
-          <span class="font-medium">{{ segment.speakerTag }}</span>
+          <!-- Segment Text -->
+          <div>
+            <p class="text-sm text-foreground leading-relaxed whitespace-pre-wrap">{{ segment.currentText }}</p>
+          </div>
+
+          <!-- Controls and Status -->
+          <div class="flex flex-col sm:flex-row items-center justify-between gap-2 pt-2 border-t border-dashed">
+            <div class="flex items-center gap-2">
+              <Button 
+                @click="handlePreviewClick"
+                :disabled="status === 'loading' || isGlobalLoading || !segment.voiceId"
+                size="sm"
+                variant="ghost"
+                class="hover:bg-primary/10"
+              >
+                <component 
+                  :is="isPlaying ? StopIcon : SpeakerWaveIcon" 
+                  class="w-5 h-5 mr-2"
+                  :class="{'text-primary animate-pulse': isPlaying, 'text-foreground': !isPlaying}"
+                />
+                {{ isPlaying ? 'Stop' : (status === 'loading' ? 'Loading...' : 'Preview') }}
+              </Button>
+              <audio ref="audioPlayerElement" class="hidden"></audio> <!-- src is managed dynamically -->
+            </div>
+            
+            <div v-if="status === 'error'" class="text-xs text-destructive text-right">
+              <TooltipProvider :delay-duration="200">
+                <Tooltip>
+                  <TooltipTrigger>
+                    <span class="flex items-center"><SpeakerXMarkIcon class="w-4 h-4 mr-1"/> Error</span>
+                  </TooltipTrigger>
+                  <TooltipContent side="top" class="max-w-xs">
+                    <p class="text-xs">{{ message }}: {{ errorDetails }}</p>
+                  </TooltipContent>
+                </Tooltip>
+              </TooltipProvider>
+            </div>
+            <div v-else-if="status !== 'idle' && status !== 'loading' && message" class="text-xs text-muted-foreground text-right">
+              {{ message }}
+            </div>
+          </div>
         </div>
       </div>
-      
-      <!-- Voice Selection -->
-      <div class="flex items-center gap-2">
-        <Select
-          :model-value="speakerAssignment"
-          disabled
-        >
-          <SelectTrigger :id="`speaker-voice-${segment.speakerTag}-${segmentIndex}`" class="h-8 text-sm w-36">
-            <SelectValue :placeholder="voiceSelectionPlaceholder" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectGroup>
-              <SelectLabel v-if="speakerAssignment && availableVoices.find(v => v.id === speakerAssignment)" class="text-xs py-1 flex items-center font-semibold">
-                <Icon name="ph:speaker-high-duotone" class="h-3 w-3 text-primary mr-1" /> Assigned Voice
-              </SelectLabel>
-              <SelectItem v-if="speakerAssignment && availableVoices.find(v => v.id === speakerAssignment)" :key="speakerAssignment" :value="speakerAssignment">
-                {{ availableVoices.find(v => v.id === speakerAssignment)?.name || 'Assigned Voice' }}
-              </SelectItem>
-              <!-- Fallback if no voices are available but an assignment exists (e.g. from persona but provider has no voices) -->
-              <SelectItem v-else-if="speakerAssignment" :key="speakerAssignment" :value="speakerAssignment">
-                {{ segment.assignedVoiceName || 'Assigned Voice (Unavailable)' }} 
-              </SelectItem>
-            </SelectGroup>
-          </SelectContent>
-        </Select>
-        
-        <!-- Generate Button -->
-        <Button
-          size="sm"
-          variant="outline"
-          :disabled="!speakerAssignment || props.isGlobalLoading || isPreviewingThisSegment || segmentState?.status === 'loading'"
-          @click="emit('preview-segment')"
-          class="w-auto px-2 py-1 h-8"
-        >
-          <Icon v-if="props.isGlobalLoading || isPreviewingThisSegment || segmentState?.status === 'loading'" name="ph:spinner" class="w-3 h-3 mr-1.5 animate-spin" />
-          <Icon v-else name="ph:sparkle" class="w-3 h-3 mr-1.5" />
-          {{ previewButtonText }}
-        </Button>
-      </div>
-    </div>
-    
-    <!-- Text Content -->
-    <div class="text-sm text-muted-foreground mb-2">
-      {{ segment.text }}
-    </div>
-    
-    <!-- Status and Audio Player -->
-    <div class="flex flex-col gap-1">
-      <div v-if="segmentState" class="text-xs flex items-center gap-2">
-        <Icon v-if="segmentState.status === 'loading'" name="ph:spinner" class="w-3 h-3 animate-spin" />
-        <Icon v-else-if="segmentState.status === 'success'" name="ph:check-circle" class="w-3 h-3 text-green-500" />
-        <Icon v-else-if="segmentState.status === 'error'" name="ph:alert-circle" class="w-3 h-3 text-red-500" />
-        <span :class="{
-          'text-muted-foreground': segmentState.status === 'idle',
-          'text-blue-500': segmentState.status === 'loading',
-          'text-green-500': segmentState.status === 'success',
-          'text-red-500': segmentState.status === 'error'
-        }">{{ segmentState.message }}</span>
-      </div>
-      
-      <div v-if="audioUrl">
-        <audio 
-          :src="audioUrl" 
-          controls
-          class="w-full h-7 rounded"
-          :ref="audioPlayerRef"
-          @play="emit('audio-play')"
-          @pause="emit('audio-pause-or-end')"
-          @ended="emit('audio-pause-or-end')"
-        />
-      </div>
-    </div>
-  </div>
+    </CardContent>
+  </Card>
 </template>
-
-<script setup lang="ts">
-import { computed, ref } from 'vue';
-
-interface Voice {
-  id: string;
-  name: string;
-  personaId?: number | null;
-  description?: string | null;
-  avatarUrl?: string | null;
-}
-
-interface SegmentState {
-  status: 'idle' | 'loading' | 'success' | 'error';
-  message?: string;
-  error?: string;
-  audioUrl?: string;
-}
-
-// Using any for segment for now, should be typed properly from parent later
-// Typically this would come from playgroundStore types or a defined interface for enhancedScriptSegments
-interface SegmentData {
-  roleType: 'host' | 'guest';
-  persona?: { avatar_url?: string | null };
-  speakerTag: string;
-  validationVoiceId?: string | null;
-  assignedVoiceName?: string; // Added for fallback display
-  text: string;
-  // ... other properties from enhancedScriptSegments
-}
-
-const props = defineProps<{
-  segment: SegmentData;
-  segmentIndex: number;
-  speakerAssignment?: string | null; // The voice_id assigned to this segment's speakerTag
-  availableVoices: Voice[];
-  isLoadingVoices: boolean;
-  isPreviewingThisSegment: boolean;
-  segmentState?: SegmentState | null;
-  audioUrl?: string | null; // URL for the preview audio of this segment
-  isGlobalLoading?: boolean; // Added new prop
-}>();
-
-const emit = defineEmits<{
-  (e: 'update:speakerAssignment', value: string | undefined): void;
-  (e: 'preview-segment'): void;
-  (e: 'audio-play'): void;
-  (e: 'audio-pause-or-end'): void;
-}>();
-
-const audioPlayerRef = ref<HTMLAudioElement | null>(null);
-
-const voiceSelectionPlaceholder = computed(() => {
-  if (props.isLoadingVoices) return 'Loading Voices...';
-  if (props.availableVoices.length === 0) return 'No Voices Available';
-  if (props.segment.validationVoiceId) return 'Recommended Voice Available';
-  return 'Select Voice';
-});
-
-const previewButtonText = computed(() => {
-  if (props.isGlobalLoading) return 'Generating All...';
-  if (props.isPreviewingThisSegment || props.segmentState?.status === 'loading') return 'Generating...';
-  return props.audioUrl ? 'Re-preview' : 'Preview';
-});
-
-// Expose the audio player element if needed by parent
-defineExpose({ audioPlayerElement: audioPlayerRef });
-</script> 

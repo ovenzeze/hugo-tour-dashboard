@@ -98,7 +98,9 @@ const props = defineProps<{
   synthProgress?: { synthesized: number, total: number },
   isGlobalPreviewLoading?: boolean
 }>();
-const emit = defineEmits(['update:scriptContent', 'next', 'back']);
+// Corrected defineEmits to include 'update:isValid'
+// If 'update:scriptContent', 'next', 'back' are confirmed unused, they can be removed later.
+const emit = defineEmits(['update:scriptContent', 'next', 'back', 'update:isValid', 'update:settings']);
 
 const audioStore = usePlaygroundAudioStore();
 const personaStore = usePlaygroundPersonaStore();
@@ -389,3 +391,7 @@ defineExpose({
 });
 
 </script>
+
+<style scoped>
+/* Add any specific styles for this component here */
+</style>
