@@ -1,6 +1,5 @@
 import { v4 as uuidv4 } from 'uuid';
 import { H3Error } from 'h3';
-// import type { NitroFetchOptions } from 'nitropack'; // Removing explicit import
 
 // --- Interfaces based on Volcengine TTS API ---
 
@@ -8,7 +7,6 @@ interface VolcengineAppConfig {
   appid: string;
   token: string; // This is the Access Token
   cluster: string;
-  instance_id: string;
 }
 
 interface VolcengineUserConfig {
@@ -31,6 +29,7 @@ interface VolcengineRequestConfig {
   with_frontend?: 0 | 1; // 1 to get phonemes and word timestamps
   frontend_type?: 'unitTson'; // Required if with_frontend is 1
   need_timestamps?: 0 | 1; // 1 to enable timestamps in 'addition.frontend'
+  instance_id?: string; // Add instance_id to the request payload
 }
 
 interface VolcengineTTSApiRequest {
@@ -93,9 +92,13 @@ export type VolcengineVoiceType = keyof typeof VOICE_TYPES | string; // Allow cu
 
 // --- Utility Function ---
 
-export interface SynthesizeSpeechParams {
+export interface VolcengineSynthesizeParams {
   text: string;
-  voice?: VolcengineVoiceType;
+  appId: string;
+  accessToken: string;
+  cluster: string;
+  voiceType: string; // This is the actual voice_type for the API request
+  instanceId: string;
   enableTimestamps?: boolean;
   encoding?: 'mp3' | 'pcm' | 'wav';
   speedRatio?: number;
@@ -104,95 +107,75 @@ export interface SynthesizeSpeechParams {
 }
 
 export interface SynthesizedAudioResult {
-  audioBase64: string | null;
+  audioBuffer: ArrayBuffer | null;
   timestamps: FrontendTimestampData | null;
-  durationMs: number | null;
-  error?: string | null;
-  rawResponse?: VolcengineTTSApiResponse; // For debugging
+  durationMs?: number | null; // Duration in milliseconds, if available
+  error?: string;
 }
 
-export async function synthesizeSpeechVolcengine(
-  params: SynthesizeSpeechParams,
-): Promise<SynthesizedAudioResult> {
-  const {
-    text,
-    voice = 'female', // Default to female voice
-    enableTimestamps = true,
-    encoding = 'mp3',
-    speedRatio = 1.0,
-    volumeRatio = 1.0,
-    pitchRatio = 1.0,
+export async function synthesizeSpeechVolcengine(params: VolcengineSynthesizeParams): Promise<SynthesizedAudioResult> {
+  const { 
+    text, 
+    appId, 
+    accessToken, 
+    cluster, 
+    voiceType, 
+    instanceId, 
+    enableTimestamps, 
+    encoding = 'mp3', 
+    speedRatio = 1.0, 
+    volumeRatio = 1.0, 
+    pitchRatio = 1.0 
   } = params;
 
-  const config = useRuntimeConfig();
-  const { volcengine: volcConfig } = config;
-
-  if (
-    !volcConfig ||
-    !volcConfig.appId ||
-    !volcConfig.accessToken ||
-    !volcConfig.cluster
-  ) {
-    console.error('Volcengine TTS configuration missing in runtimeConfig.');
-    return {
-      audioBase64: null,
-      timestamps: null,
-      durationMs: null,
-      error: 'Server configuration error for Volcengine TTS.',
-    };
-  }
-
-  const selectedVoiceType = VOICE_TYPES[voice as keyof typeof VOICE_TYPES] || voice;
-
-  const requestPayload: VolcengineTTSApiRequest = {
+  const requestBody: VolcengineTTSApiRequest = {
     app: {
-      appid: volcConfig.appId,
-      token: volcConfig.accessToken,
-      cluster: volcConfig.cluster,
-      instance_id: volcConfig.instanceId || 'Speech_Synthesis_Default_InstanceID', // Use configured or a default
+      appid: appId,
+      token: 'M_Access_Token', // CRITICAL: Must be the literal string "M_Access_Token"
+      cluster: cluster,
     },
     user: {
-      uid: uuidv4(),
+      uid: uuidv4(), 
     },
     audio: {
-      voice_type: selectedVoiceType,
-      encoding,
+      voice_type: voiceType, 
+      encoding: encoding,
       speed_ratio: speedRatio,
       volume_ratio: volumeRatio,
       pitch_ratio: pitchRatio,
     },
     request: {
-      reqid: uuidv4(),
-      text,
-      text_type: 'plain',
+      reqid: uuidv4(), 
+      text: text,
+      text_type: 'plain', 
       operation: 'query',
+      instance_id: instanceId, // CORRECT: instance_id is here
       with_frontend: enableTimestamps ? 1 : 0,
       frontend_type: enableTimestamps ? 'unitTson' : undefined,
-      need_timestamps: enableTimestamps ? 1 : undefined, // Ensure this is correctly set for timestamps
     },
   };
 
   try {
-    // Let TypeScript infer the type of fetchOptions
     const fetchOptions = {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'Authorization': `Bearer;${volcConfig.accessToken}`,
+        'Authorization': `Bearer ${accessToken}`,
       },
-      body: requestPayload,
+      body: JSON.stringify(requestBody),
     };
+
+    console.log('[VolcengineTTS] Sending request payload:', JSON.stringify(requestBody, null, 2));
+
     const response = await $fetch<VolcengineTTSApiResponse>(VOLCENGINE_TTS_API_URL, fetchOptions);
 
-    // Volcengine API seems to return code 3000 for success in some cases based on Python logs
     if (response.code !== 0 && response.code !== 3000) {
       console.error('Volcengine TTS API Error:', response);
       return {
-        audioBase64: null,
+        audioBuffer: null,
         timestamps: null,
         durationMs: null,
         error: `API Error ${response.code}: ${response.message}`,
-        rawResponse: response,
       };
     }
 
@@ -200,26 +183,37 @@ export async function synthesizeSpeechVolcengine(
     const timestamps = response.addition?.frontend || null;
     const durationMs = response.addition?.duration ? parseInt(response.addition.duration, 10) : null;
 
-    return {
-      audioBase64,
-      timestamps,
-      durationMs,
-      error: null,
-      rawResponse: response,
-    };
-  } catch (error: any) {
-    console.error('Error calling Volcengine TTS API:', error);
-    let errorMessage = 'Failed to synthesize speech.';
-    if (error instanceof H3Error && error.data) {
-      errorMessage = `API Request Failed: ${error.data.statusMessage || error.message}`;
-    } else if (error.message) {
-      errorMessage = error.message;
+    if (!audioBase64) {
+      console.error('No audio data found in response or data is not a string:', response.data);
+      return { 
+        audioBuffer: null, 
+        timestamps: null, 
+        durationMs: null, 
+        error: 'No audio data found in response or data is not a string.' 
+      };
     }
+
+    const binaryString = atob(audioBase64);
+    const len = binaryString.length;
+    const bytes = new Uint8Array(len);
+    for (let i = 0; i < len; i++) {
+      bytes[i] = binaryString.charCodeAt(i);
+    }
+    console.log('Successfully decoded base64 audio data.');
+
     return {
-      audioBase64: null,
-      timestamps: null,
-      durationMs: null,
-      error: errorMessage,
+      audioBuffer: bytes.buffer,
+      timestamps: timestamps,
+      durationMs: durationMs,
+    };
+
+  } catch (error: any) {
+    console.error('Error synthesizing speech with Volcengine:', error);
+    return { 
+      audioBuffer: null, 
+      timestamps: null, 
+      durationMs: null, 
+      error: `Error synthesizing speech: ${error.message}` 
     };
   }
 }

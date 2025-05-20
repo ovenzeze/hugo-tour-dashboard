@@ -39,7 +39,10 @@ export interface VolcengineParams {
   text: string;
   voiceType: string; // Volcengine specific voice type (e.g., 'BV001_streaming')
   storageService: IStorageService;
-  // Volcengine config (appId, accessToken, cluster, instanceId) will be read from runtimeConfig by synthesizeSpeechVolcengine
+  appId: string; // Add appId
+  accessToken: string; // Add accessToken
+  cluster: string; // Add cluster
+  instanceId: string; // Add instanceId
   publicOutputDirectory: string;
   storageOutputDirectory: string;
   baseFilename: string;
@@ -47,6 +50,7 @@ export interface VolcengineParams {
   speedRatio?: number;
   volumeRatio?: number;
   pitchRatio?: number;
+  enableTimestamps?: boolean; // Added for consistency, was previously hardcoded in the function
 }
 
 export async function generateAndStoreTimedAudioSegmentElevenLabs(
@@ -135,6 +139,10 @@ export async function generateAndStoreTimedAudioSegmentVolcengine(
     text,
     voiceType,
     storageService,
+    appId, // Destructure appId
+    accessToken, // Destructure accessToken
+    cluster, // Destructure cluster
+    instanceId, // Destructure instanceId
     publicOutputDirectory,
     storageOutputDirectory,
     baseFilename,
@@ -142,32 +150,37 @@ export async function generateAndStoreTimedAudioSegmentVolcengine(
     speedRatio,
     volumeRatio,
     pitchRatio,
+    enableTimestamps = true, // Default to true, can be overridden by params
   } = params;
 
-  console.log('[timedAudioService - Volcengine] Received storageOutputDirectory:', storageOutputDirectory);
-  console.log('[timedAudioService - Volcengine] Received publicOutputDirectory:', publicOutputDirectory);
-
   try {
-    const volcengineParams: VolcengineSynthesizeParams = {
+    const volcengineApiParams: VolcengineSynthesizeParams = {
       text,
-      voice: voiceType,
-      enableTimestamps: true, // Always enable for this service's purpose
+      appId, // Pass appId
+      accessToken, // Pass accessToken
+      cluster, // Pass cluster
+      voiceType, // Pass voiceType (renamed from 'voice' in VolcengineSynthesizeParams to 'voiceType' here for clarity)
+      instanceId, // Pass instanceId
+      enableTimestamps: enableTimestamps, 
       encoding,
       speedRatio,
       volumeRatio,
       pitchRatio,
     };
 
-    console.log(`[timedAudioService - Volcengine] Calling synthesizeSpeechVolcengine for voice: ${voiceType}, baseFilename: ${baseFilename}`);
-    const volcResponse = await synthesizeSpeechVolcengine(volcengineParams);
+    const volcResponse = await synthesizeSpeechVolcengine(volcengineApiParams);
 
-    if (volcResponse.error || !volcResponse.audioBase64 || !volcResponse.timestamps) {
+    if (!volcResponse) { // Handle null response if synthesizeSpeechVolcengine returns null on error
+      console.error('[timedAudioService - Volcengine] Error from synthesizeSpeechVolcengine: Received null response.');
+      return { error: 'Failed to get audio or timestamps from Volcengine (null response).', provider: 'volcengine' };
+    }
+
+    if (volcResponse.error || !volcResponse.audioBuffer || !volcResponse.timestamps) {
       console.error('[timedAudioService - Volcengine] Error from synthesizeSpeechVolcengine:', volcResponse.error);
       return { error: volcResponse.error || 'Failed to get audio or timestamps from Volcengine.', provider: 'volcengine' };
     }
 
-    const audioBuffer = Buffer.from(volcResponse.audioBase64, 'base64');
-    // Volcengine provides timestamps in `FrontendTimestampData` format (words, phonemes)
+    const audioBuffer = volcResponse.audioBuffer; // audioBuffer is already an ArrayBuffer, no need to Buffer.from(..., 'base64') here
     const timestampData: VolcengineTimestamps = volcResponse.timestamps;
 
     const audioExtension = encoding; // mp3, wav, pcm
@@ -186,7 +199,7 @@ export async function generateAndStoreTimedAudioSegmentVolcengine(
     return {
       audioFileUrl,
       timestampFileUrl,
-      durationMs: volcResponse.durationMs === null ? undefined : volcResponse.durationMs,
+      durationMs: volcResponse.durationMs === null ? undefined : volcResponse.durationMs, // Ensure null is handled
       provider: 'volcengine',
     };
 

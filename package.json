@@ -47,6 +47,7 @@
     "pg": "^8.15.6",
     "pinia": "^3.0.2",
     "qrcode-vue": "^1.2.0",
+    "qrcode-vue3": "^1.7.2",
     "reka-ui": "^2.2.1",
     "shadcn-nuxt": "^2.0.1",
     "tailwind-merge": "^3.3.0",

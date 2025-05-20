@@ -207,7 +207,7 @@ export const usePlaygroundAudioStore = defineStore("playgroundAudio", {
         try {
           toast.loading(`Synthesizing segment ${index + 1}/${totalSegments}: ${segment.name}...`, { id: toastId });
           // @ts-ignore
-          const response = await $fetch('/api/podcast/process/synthesize-segments', {
+          const response = await $fetch('/api/podcast/process/synthesize', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: {
@@ -219,6 +219,7 @@ export const usePlaygroundAudioStore = defineStore("playgroundAudio", {
                 similarity_boost: this.synthesisParams.speed, // This was mapped to speed in original store
               },
               ttsProvider: ttsProviderForRequest, // Add ttsProvider to the request
+              synthesisParams: this.synthesisParams, // Pass synthesisParams
             },
           });
 

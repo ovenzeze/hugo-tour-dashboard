@@ -1,51 +1,63 @@
 <template>
-  <div class="min-h-screen bg-background flex flex-col items-center p-4 md:p-8">
+  <div class="min-h-screen bg-background flex flex-col items-center p-3 sm:p-4 md:p-8">
     <div v-if="loading" class="flex-grow flex items-center justify-center">
-      <p class="text-xl">Loading podcast...</p>
+      <div class="flex flex-col items-center gap-2">
+        <Icon name="ph:spinner-gap" class="h-8 w-8 animate-spin text-primary" />
+        <p class="text-lg">Loading podcast...</p>
+      </div>
     </div>
     <div v-else-if="error" class="flex-grow flex items-center justify-center text-destructive">
-      <p class="text-xl">Error loading podcast: {{ error.message }}</p>
+      <p class="text-lg sm:text-xl">Error loading podcast: {{ error.message }}</p>
     </div>
     <div v-else-if="podcast" class="w-full max-w-3xl mx-auto">
       <!-- Podcast Card -->
-      <Card class="relative bg-card text-card-foreground rounded-xl shadow-md border overflow-hidden mb-8">
+      <Card class="relative bg-card text-card-foreground rounded-xl shadow-md border overflow-hidden mb-6 sm:mb-8">
         <div class="relative">
           <img v-if="podcastCoverUrl" :src="podcastCoverUrl" alt="Podcast Cover"
             class="w-full aspect-square object-cover rounded-t-xl" />
           <div v-else class="w-full aspect-square flex items-center justify-center bg-muted text-muted-foreground rounded-t-xl">
-            <Icon name="ph:image" class="h-16 w-16" />
+            <Icon name="ph:image" class="h-12 w-12 sm:h-16 sm:w-16" />
           </div>
           <!-- 渐变蒙层 -->
           <div class="absolute inset-0 bg-gradient-to-t from-black/60 via-black/10 to-transparent pointer-events-none rounded-t-xl" />
         </div>
-        <div class="p-6">
+        <div class="p-4 sm:p-6">
           <div class="flex items-center gap-2 mb-2">
             <Badge v-if="podcast.topic" variant="secondary" class="rounded px-2 py-0.5 text-xs">{{ podcast.topic }}</Badge>
           </div>
-          <h1 class="text-3xl md:text-4xl font-bold mb-2 leading-tight">{{ podcast.title }}</h1>
+          <h1 class="text-2xl sm:text-3xl md:text-4xl font-bold mb-2 leading-tight tracking-tight">{{ podcast.title }}</h1>
           <p v-if="podcastArtist" class="text-base text-muted-foreground mb-4">{{ podcastArtist }}</p>
           <p v-if="podcast.description" class="text-sm text-muted-foreground mb-4 line-clamp-3">{{ podcast.description }}</p>
           <!-- 分享操作区 -->
           <div class="flex flex-wrap gap-3 mt-4">
-            <Button variant="outline" @click="copyShareLink" aria-label="Copy share link" title="Copy share link">
-              <Icon name="ph:link" class="h-5 w-5 mr-2" />Copy Link
+            <Button variant="outline" @click="copyShareLink" aria-label="Copy share link" title="Copy share link" class="share-button">
+              <Icon name="ph:link-simple" class="share-icon text-primary" />
+              <span class="share-text">Copy Link</span>
             </Button>
-            <Button variant="outline" @click="showWeChatQr = true" aria-label="Share to WeChat" title="Share to WeChat">
-              <Icon name="ph:wechat-logo" class="h-5 w-5 mr-2 text-green-500" />WeChat
+            <Button variant="outline" @click="showWeChatQr = true" aria-label="Share to WeChat" title="Share to WeChat" class="share-button">
+              <Icon name="ph:wechat-logo-fill" class="share-icon text-green-500" />
+              <span class="share-text">WeChat</span>
             </Button>
-            <Button variant="outline" @click="shareToWeibo" aria-label="Share to Weibo" title="Share to Weibo">
-              <Icon name="ph:weibo-logo" class="h-5 w-5 mr-2 text-[#e6162d]" />Weibo
+            <Button variant="outline" @click="shareToWeibo" aria-label="Share to Weibo" title="Share to Weibo" class="share-button">
+              <Icon name="ph:weibo-logo-fill" class="share-icon text-[#e6162d]" />
+              <span class="share-text">Weibo</span>
             </Button>
-            <Button variant="outline" @click="shareToTwitter" aria-label="Share to Twitter" title="Share to Twitter">
-              <Icon name="ph:twitter-logo" class="h-5 w-5 mr-2 text-blue-400" />Twitter
+            <Button variant="outline" @click="shareToTwitter" aria-label="Share to Twitter" title="Share to Twitter" class="share-button">
+              <Icon name="ph:twitter-logo-fill" class="share-icon text-blue-400" />
+              <span class="share-text">Twitter</span>
             </Button>
           </div>
           <!-- 微信二维码弹窗 -->
           <Dialog v-model:open="showWeChatQr">
-            <DialogContent class="flex flex-col items-center p-6">
+            <DialogContent class="flex flex-col items-center p-4 sm:p-6">
               <DialogTitle>Scan QR to Share on WeChat</DialogTitle>
               <div class="my-4">
-                <QRCodeVue :value="shareUrl" :size="180" class="rounded-lg shadow-md" />
+                <div v-if="qrCodeLoaded" class="qr-code-container rounded-lg shadow-md overflow-hidden">
+                  <QRCodeVue3 :value="shareUrl" :size="qrCodeSize" :margin="2" class="rounded-lg" />
+                </div>
+                <div v-else class="qr-code-placeholder rounded-lg shadow-md flex items-center justify-center">
+                  <Icon name="ph:qr-code" class="h-10 w-10 text-muted-foreground" />
+                </div>
               </div>
               <DialogClose as-child>
                 <Button variant="outline">Close</Button>
@@ -56,40 +68,49 @@
       </Card>
 
       <!-- 播放器与分段列表 -->
-      <Card class="bg-card text-card-foreground rounded-xl shadow-md border overflow-hidden mb-8">
-        <div v-if="audioQueue.length > 0" class="p-6">
-          <div class="flex items-center gap-4 mb-4">
-            <Button variant="ghost" :disabled="currentSegmentIndex === 0" @click="playPreviousSegment" aria-label="Previous segment">
-              <Icon name="ph:skip-back" class="h-6 w-6" />
-            </Button>
-            <Button variant="default" @click="togglePlayPause" aria-label="Play/Pause">
-              <Icon :name="isPlaying ? 'ph:pause-fill' : 'ph:play-fill'" class="h-8 w-8" />
-            </Button>
-            <Button variant="ghost" :disabled="currentSegmentIndex === audioQueue.length - 1" @click="playNextSegment" aria-label="Next segment">
-              <Icon name="ph:skip-forward" class="h-6 w-6" />
-            </Button>
-            <span class="ml-4 text-sm text-muted-foreground">{{ formatTime(currentTime) }} / {{ formatTime(duration) }}</span>
-          </div>
-          <div class="w-full bg-muted rounded-full h-2 mb-4 cursor-pointer" @click="seek">
-            <div class="bg-primary h-2 rounded-full transition-all" :style="{ width: progressPercentage + '%' }"></div>
+      <Card class="bg-card text-card-foreground rounded-xl shadow-md border overflow-hidden mb-6 sm:mb-8">
+        <div v-if="audioQueue.length > 0" class="p-4 sm:p-6">
+          <div class="player-controls">
+            <div class="flex items-center justify-between mb-4">
+              <div class="flex items-center gap-3">
+                <Button variant="ghost" :disabled="currentSegmentIndex === 0" @click="playPreviousSegment" aria-label="Previous segment" class="control-button">
+                  <Icon name="ph:skip-back-fill" class="control-icon" />
+                </Button>
+                <Button variant="default" @click="togglePlayPause" aria-label="Play/Pause" :disabled="isLoadingAudio" class="play-button">
+                  <Icon v-if="isLoadingAudio" name="ph:spinner-gap" class="play-icon animate-spin" />
+                  <Icon v-else :name="isPlaying ? 'ph:pause-fill' : 'ph:play-fill'" class="play-icon" />
+                </Button>
+                <Button variant="ghost" :disabled="currentSegmentIndex === audioQueue.length - 1 || isLoadingAudio" @click="playNextSegment" aria-label="Next segment" class="control-button">
+                  <Icon name="ph:skip-forward-fill" class="control-icon" />
+                </Button>
+              </div>
+              <span class="text-sm text-muted-foreground time-display">{{ formatTime(currentTime) }} / {{ formatTime(duration) }}</span>
+            </div>
+            <div class="progress-container">
+              <div class="w-full bg-muted rounded-full h-2 mb-4 cursor-pointer player-progress-bar-container" @click="seek" @touchstart="handleTouchStart" @touchmove="handleTouchMove" @touchend="handleTouchEnd">
+                <div class="bg-primary h-full rounded-full transition-all" :style="{ width: progressPercentage + '%' }">
+                  <div class="progress-handle" :style="{ left: progressPercentage + '%' }"></div>
+                </div>
+              </div>
+            </div>
           </div>
         </div>
         <div v-else class="p-6 text-muted-foreground text-center">No audio segments available for this podcast.</div>
 
-        <div v-if="audioQueue.length > 0" class="p-6 pt-0">
-          <h3 class="text-lg font-semibold mb-4">Episodes / Segments</h3>
+        <div v-if="audioQueue.length > 0" class="p-4 sm:p-6 pt-0 mt-2">
+          <h3 class="text-base sm:text-lg font-semibold mb-3 sm:mb-4 mt-4 sm:mt-6">Episodes / Segments</h3>
           <ul>
             <li v-for="(segment, index) in audioQueue" :key="segment.url + '-' + index"
               @click="playSegment(index)"
-              :class="['flex justify-between items-center p-3 rounded-md cursor-pointer transition', { 'bg-muted text-primary': currentSegmentIndex === index, 'hover:bg-accent': currentSegmentIndex !== index }]
+              :class="['flex justify-between items-center p-2 sm:p-3 rounded-md cursor-pointer transition group', { 'bg-muted text-primary': currentSegmentIndex === index, 'hover:bg-accent': currentSegmentIndex !== index }]
               "
             >
               <div class="flex items-center min-w-0">
-                <span class="mr-3 text-xs text-muted-foreground w-6 text-right flex-shrink-0">{{ index + 1 }}.</span>
-                <span class="font-medium truncate h-6 leading-6 overflow-hidden">{{ segment.title }}</span>
+                <span class="mr-2 sm:mr-3 text-xs text-muted-foreground w-5 sm:w-6 text-right flex-shrink-0">{{ index + 1 }}.</span>
+                <span class="font-medium truncate h-5 sm:h-6 leading-5 sm:leading-6 overflow-hidden text-sm sm:text-base">{{ segment.title }}</span>
               </div>
-              <Icon v-if="currentSegmentIndex === index && isPlaying" name="ph:waveform" class="h-5 w-5 text-primary animate-pulse" />
-              <Icon v-else name="ph:play" class="h-5 w-5 text-muted-foreground" />
+              <Icon v-if="currentSegmentIndex === index && isPlaying" name="ph:waveform-fill" class="segment-icon text-primary animate-pulse" />
+              <Icon v-else name="ph:play-fill" class="segment-icon text-muted-foreground group-hover:text-primary" />
             </li>
           </ul>
         </div>
@@ -102,6 +123,8 @@
 </template>
 
 <script setup lang="ts">
+import QRCodeVue3 from 'qrcode-vue3';
+import { useWindowSize } from '@vueuse/core';
 import { toast } from 'vue-sonner';
 import { usePodcastDatabase, type Podcast } from '~/composables/usePodcastDatabase';
 
@@ -121,6 +144,35 @@ const isPlaying = ref(false);
 const currentTime = ref(0);
 const duration = ref(0);
 const isLoadingAudio = ref(false);
+
+// 响应式窗口尺寸
+const { width } = useWindowSize();
+const isMobile = computed(() => width.value < 640);
+
+// QR码尺寸响应式调整
+const qrCodeSize = computed(() => isMobile.value ? 150 : 180);
+const qrCodeLoaded = ref(true);
+
+// 创建音频元素
+onMounted(() => {
+  audioPlayer.value = new Audio();
+  audioPlayer.value.addEventListener('timeupdate', updateProgress);
+  audioPlayer.value.addEventListener('loadedmetadata', updateDurationAndPlay);
+  audioPlayer.value.addEventListener('ended', handleSegmentEnd);
+  audioPlayer.value.addEventListener('error', handleAudioError);
+});
+
+// 清理音频元素
+onBeforeUnmount(() => {
+  if (audioPlayer.value) {
+    audioPlayer.value.removeEventListener('timeupdate', updateProgress);
+    audioPlayer.value.removeEventListener('loadedmetadata', updateDurationAndPlay);
+    audioPlayer.value.removeEventListener('ended', handleSegmentEnd);
+    audioPlayer.value.removeEventListener('error', handleAudioError);
+    audioPlayer.value.pause();
+    audioPlayer.value = null;
+  }
+});
 
 const podcastCoverUrl = computed(() => {
   if (!podcast.value) return null;
@@ -352,15 +404,63 @@ function handleAudioError(e: Event) {
   isLoadingAudio.value = false;
 }
 
+// 进度条触摸处理
+const isTouching = ref(false);
+
 function seek(event: MouseEvent) {
   if (audioPlayer.value && duration.value > 0 && !isLoadingAudio.value) {
     const progressBar = (event.currentTarget as HTMLElement);
-    const clickPosition = (event.offsetX / progressBar.offsetWidth) * duration.value;
+    const rect = progressBar.getBoundingClientRect();
+    const clickX = event.clientX - rect.left;
+    const clickPosition = (clickX / progressBar.offsetWidth) * duration.value;
     audioPlayer.value.currentTime = clickPosition;
     if (!isPlaying.value) {
       currentTime.value = clickPosition;
     }
   }
+}
+
+function handleTouchStart(event: TouchEvent) {
+  isTouching.value = true;
+  handleTouchMove(event);
+}
+
+function handleTouchMove(event: TouchEvent) {
+  if (!isTouching.value) return;
+  
+  event.preventDefault(); // 防止页面滚动
+  
+  if (audioPlayer.value && duration.value > 0 && !isLoadingAudio.value) {
+    const progressBar = (event.currentTarget as HTMLElement);
+    const rect = progressBar.getBoundingClientRect();
+    const touchX = event.touches[0].clientX - rect.left;
+    
+    // 确保值在进度条范围内
+    const boundedX = Math.max(0, Math.min(touchX, progressBar.offsetWidth));
+    const touchPosition = (boundedX / progressBar.offsetWidth) * duration.value;
+    
+    // 在拖动过程中更新显示的时间，但不立即设置音频时间
+    currentTime.value = touchPosition;
+  }
+}
+
+function handleTouchEnd(event: TouchEvent) {
+  if (!isTouching.value) return;
+  
+  if (audioPlayer.value && duration.value > 0 && !isLoadingAudio.value) {
+    const progressBar = (event.currentTarget as HTMLElement);
+    const rect = progressBar.getBoundingClientRect();
+    const touchX = event.changedTouches[0].clientX - rect.left;
+    
+    // 确保值在进度条范围内
+    const boundedX = Math.max(0, Math.min(touchX, progressBar.offsetWidth));
+    const touchPosition = (boundedX / progressBar.offsetWidth) * duration.value;
+    
+    // 触摸结束时设置音频时间
+    audioPlayer.value.currentTime = touchPosition;
+  }
+  
+  isTouching.value = false;
 }
 
 function formatTime(time: number) {
@@ -399,20 +499,169 @@ definePageMeta({
   -webkit-box-orient: vertical;
   overflow: hidden;
 }
-.custom-player .progress-bar-container {
+
+/* 播放器进度条样式 */
+.progress-container {
+  position: relative;
+  touch-action: none; /* 防止触摸时页面滚动 */
+}
+
+.player-progress-bar-container {
   transition: height 0.2s ease-in-out;
+  height: 0.5rem; /* Corresponds to h-2 */
+  position: relative;
 }
-.custom-player .progress-bar-container:hover {
-  height: 0.75rem;
+
+.player-progress-bar-container:hover {
+  height: 0.75rem; /* Corresponds to h-3, a bit thicker on hover */
 }
-.custom-player .progress-bar-container:hover .progress-bar {
-  height: 0.75rem;
+
+.progress-handle {
+  position: absolute;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  width: 1rem;
+  height: 1rem;
+  border-radius: 50%;
+  background-color: white;
+  box-shadow: 0 0 4px rgba(0, 0, 0, 0.3);
+  opacity: 0;
+  transition: opacity 0.2s ease;
+  pointer-events: none;
 }
+
+.player-progress-bar-container:hover .progress-handle,
+.player-progress-bar-container:active .progress-handle {
+  opacity: 1;
+}
+
+/* 控制按钮样式 */
+.player-controls {
+  width: 100%;
+}
+
+.control-button {
+  width: 2.75rem;
+  height: 2.75rem;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
 .control-button:disabled {
   opacity: 0.5;
   cursor: not-allowed;
 }
-.segment-item:hover .text-gray-400:not(.w-6) {
-  color: #ec4899;
+
+.play-button {
+  width: 3.5rem;
+  height: 3.5rem;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.control-icon {
+  height: 1.5rem;
+  width: 1.5rem;
+}
+
+.play-icon {
+  height: 2rem;
+  width: 2rem;
+}
+
+.time-display {
+  font-variant-numeric: tabular-nums;
+}
+
+/* 分享按钮样式 */
+.share-button {
+  display: flex;
+  align-items: center;
+  padding: 0.5rem 0.75rem;
+  border-radius: 0.5rem;
+}
+
+.share-icon {
+  height: 1.25rem;
+  width: 1.25rem;
+  margin-right: 0.5rem;
+}
+
+.share-text {
+  font-size: 0.875rem;
+}
+
+/* 分段列表图标 */
+.segment-icon {
+  height: 1.25rem;
+  width: 1.25rem;
+}
+
+/* 移动端适配 */
+@media (max-width: 640px) {
+  .player-controls {
+    padding: 0;
+  }
+  
+  .control-button {
+    width: 2.5rem;
+    height: 2.5rem;
+  }
+  
+  .play-button {
+    width: 3rem;
+    height: 3rem;
+  }
+  
+  .control-icon {
+    height: 1.25rem;
+    width: 1.25rem;
+  }
+  
+  .play-icon {
+    height: 1.75rem;
+    width: 1.75rem;
+  }
+  
+  .time-display {
+    font-size: 0.75rem;
+  }
+  
+  .share-button {
+    padding: 0.375rem 0.625rem;
+  }
+  
+  .share-icon {
+    height: 1.125rem;
+    width: 1.125rem;
+    margin-right: 0.375rem;
+  }
+  
+  .share-text {
+    font-size: 0.75rem;
+  }
+  
+  .qr-code-container,
+  .qr-code-placeholder {
+    width: 150px;
+    height: 150px;
+  }
+}
+
+/* 触摸设备优化 */
+@media (hover: none) {
+  .progress-handle {
+    opacity: 1;
+    width: 1.25rem;
+    height: 1.25rem;
+  }
+  
+  .player-progress-bar-container {
+    height: 0.75rem;
+  }
 }
 </style>

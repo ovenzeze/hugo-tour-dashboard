@@ -30,19 +30,22 @@
       <div class="flex items-center gap-2">
         <Select
           :model-value="speakerAssignment"
-          @update:model-value="(value) => emit('update:speakerAssignment', value === null || value === undefined ? undefined : String(value))"
-          :disabled="isLoadingVoices || availableVoices.length === 0"
+          disabled
         >
           <SelectTrigger :id="`speaker-voice-${segment.speakerTag}-${segmentIndex}`" class="h-8 text-sm w-36">
             <SelectValue :placeholder="voiceSelectionPlaceholder" />
           </SelectTrigger>
           <SelectContent>
             <SelectGroup>
-              <SelectLabel v-if="segment.validationVoiceId" class="text-xs py-1 flex items-center font-semibold">
-                <Icon name="ph:star" class="h-3 w-3 text-amber-500 mr-1" /> Recommended Voice
+              <SelectLabel v-if="speakerAssignment && availableVoices.find(v => v.id === speakerAssignment)" class="text-xs py-1 flex items-center font-semibold">
+                <Icon name="ph:speaker-high-duotone" class="h-3 w-3 text-primary mr-1" /> Assigned Voice
               </SelectLabel>
-              <SelectItem v-for="voice in availableVoices" :key="voice.id" :value="voice.id">
-                {{ voice.name }}
+              <SelectItem v-if="speakerAssignment && availableVoices.find(v => v.id === speakerAssignment)" :key="speakerAssignment" :value="speakerAssignment">
+                {{ availableVoices.find(v => v.id === speakerAssignment)?.name || 'Assigned Voice' }}
+              </SelectItem>
+              <!-- Fallback if no voices are available but an assignment exists (e.g. from persona but provider has no voices) -->
+              <SelectItem v-else-if="speakerAssignment" :key="speakerAssignment" :value="speakerAssignment">
+                {{ segment.assignedVoiceName || 'Assigned Voice (Unavailable)' }} 
               </SelectItem>
             </SelectGroup>
           </SelectContent>
@@ -122,6 +125,7 @@ interface SegmentData {
   persona?: { avatar_url?: string | null };
   speakerTag: string;
   validationVoiceId?: string | null;
+  assignedVoiceName?: string; // Added for fallback display
   text: string;
   // ... other properties from enhancedScriptSegments
 }

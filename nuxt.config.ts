@@ -32,6 +32,7 @@ export default defineNuxtConfig({
     public: {
       openrouterDefaultModel: process.env.OPENROUTER_MODEL,
       groqDefaultModel: process.env.GROQ_MODEL,
+      volcengineVoiceType: process.env.NUXT_VOLCENGINE_VOICE_TYPE,
       elevenlabsDefaultVoiceId:
         process.env.ELEVENLABS_DEFAULT_VOICE_ID || "pNInz6obpgDQGcFmaJgB",
       elevenlabsDefaultModelId:
@@ -112,7 +113,8 @@ export default defineNuxtConfig({
     families: {
       Inter: [400, 700],
       "Crimson Text": [400, 600, 700],
-      "Noto Serif SC": [400, 600, 700],
+      "Noto Serif SC": [400, 700],
+      "Noto Sans SC": [400, 600, 700],
     },
     subsets: ["latin", "chinese-simplified"],
     download: true,

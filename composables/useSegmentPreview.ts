@@ -19,18 +19,24 @@ export interface SegmentPreviewData {
 // Enhanced segment type that the preview composable will work with
 // This combines the parsed script segment with voice assignment and potentially persona details
 export interface PreviewableSegment extends ParsedScriptSegment {
-    voiceId?: string; // Assigned voice ID for this segment's speaker
-    ttsProvider?: string; // TTS provider for this specific segment's voice
-    roleType?: 'host' | 'guest'; // Optional: Role of the speaker for this segment
-    personaId?: number;         // Optional: Persona ID assigned to this segment's speaker
-    // Add other relevant details that might be needed for preview context or API calls
-    // e.g. personaId, roleType, etc. if required by previewSegment API
+    id: string; // Unique ID for the segment row, e.g., segment-0, segment-1
+    originalText: string;
+    currentText: string;
+    // speakerTag should come from ParsedScriptSegment
+    voiceId: string | null; // This will be the voice_model_identifier (effectively assignedVoiceId)
+    audioUrl: string | null; 
+    isLoading: boolean;
+    isEditing: boolean;
+    ttsProvider: string | undefined; // Each segment can have its own provider (effectively assignedVoiceProvider)
+    assignedVoiceName?: string; // For display purposes
+    // Ensure all fields from ParsedScriptSegment are implicitly here (speakerTag, text)
+    roleType: 'host' | 'guest'; // Made required
+    personaId: string | undefined; // Added personaId
 }
 
 export function useSegmentPreview(
     parsedScriptSegments: globalThis.Ref<PreviewableSegment[]>,
-    speakerAssignments: globalThis.Ref<Record<string, string>>,
-    ttsProvider: globalThis.Ref<string> // Needed for some API calls
+    speakerAssignments: globalThis.Ref<Record<string, string>>
 ) {
   const audioStore = usePlaygroundAudioStore();
   const settingsStore = usePlaygroundSettingsStore();
@@ -67,7 +73,7 @@ export function useSegmentPreview(
     const voiceId = speakerAssignments.value[segment.speakerTag] || segment.voiceId; // Ensure voiceId is resolved
     if (!segment.text || !voiceId) {
       toast.error('Missing text or voice assignment for segment preview.');
-      segmentStates.value[index] = { status: 'error', message: 'Missing text or voice assignment.', error: 'No text or voice.' };
+      segmentStates.value[index] = { status: 'error', message: 'Missing text or voice assignment.', error: 'No text or voice.', audioUrl: undefined };
       return;
     }
 
@@ -75,15 +81,26 @@ export function useSegmentPreview(
     isPreviewingSegment.value = index;
 
     // Determine the provider for this specific segment
-    // Prioritize segment's own ttsProvider, fallback to the global ttsProvider ref
-    const providerForThisSegment = segment.ttsProvider || ttsProvider.value;
-    console.info(`[useSegmentPreview] Previewing segment ${index} with provider: ${providerForThisSegment}, voiceId: ${voiceId}`);
+    const providerForThisSegment = segment.ttsProvider;
+
+    if (!providerForThisSegment) {
+      console.error(`[useSegmentPreview] TTS provider for segment '${segment.speakerTag}' (voiceId: ${voiceId}) is missing. Cannot synthesize.`);
+      segmentStates.value[index] = {
+        status: 'error',
+        message: 'TTS Provider missing for this segment.',
+        error: 'TTS provider configuration error for this segment.',
+        audioUrl: undefined
+      };
+      return;
+    }
+
+    console.log(`[useSegmentPreview] Synthesizing segment ${index} for speaker '${segment.speakerTag}' with voice '${voiceId}' using provider '${providerForThisSegment}'`);
 
     try {
         // Use the actual podcastId from the store if available, otherwise generate a temporary one for preview
         const podcastIdToUse = audioStore.podcastId || `preview_session_${settingsStore.podcastSettings.title?.trim().replace(/\s+/g, '_') || Date.now()}`;
   
-        const response = await fetch('/api/podcast/process/synthesize-segments', {
+        const response = await fetch('/api/podcast/process/synthesize', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
@@ -96,13 +113,14 @@ export function useSegmentPreview(
                 speakerName: segment.speakerTag
               }
             ],
-            defaultModelId: settingsStore.podcastSettings.elevenLabsProjectId || 'eleven_multilingual_v2', // Use project ID or fallback
-            voiceSettings: { // Pass global synthesis params from the store
+            defaultModelId: settingsStore.podcastSettings.elevenLabsProjectId || 'eleven_multilingual_v2',
+            voiceSettings: {
               stability: audioStore.synthesisParams.temperature,
               similarity_boost: audioStore.synthesisParams.speed, // Use speed for similarity_boost
               // style: 0, // TODO: Make configurable or part of persona if API supports
               // use_speaker_boost: true // TODO: Make configurable or part of persona if API supports
             },
+            synthesisParams: audioStore.synthesisParams, // Pass global synthesis params from the store
             ttsProvider: providerForThisSegment // Use the determined provider for this segment
           })
         });
@@ -136,7 +154,7 @@ export function useSegmentPreview(
     } catch (error: any) {
       console.error('Segment preview generation failed:', error);
       toast.error('Segment preview failed', { description: error.message });
-      segmentStates.value[index] = { status: 'error', message: 'Preview failed', error: error.message };
+      segmentStates.value[index] = { status: 'error', message: 'Preview failed', error: error.message, audioUrl: undefined };
     } finally {
       isPreviewingSegment.value = null;
     }
@@ -172,7 +190,6 @@ export function useSegmentPreview(
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ // Correctly stringify the entire body object
                 config: {
-                    ttsProvider: ttsProvider.value,
                     speakerAssignments: speakerAssignments.value,
                     segments: payloadSegments
                 },
@@ -214,7 +231,8 @@ export function useSegmentPreview(
                     segmentStates.value[index] = { 
                         status: 'error', 
                         message: segmentResultItem.error || 'Preview failed for this segment', 
-                        error: segmentResultItem.error || 'Unknown error' 
+                        error: segmentResultItem.error || 'Unknown error',
+                        audioUrl: undefined
                     };
                 }
             });
@@ -237,7 +255,7 @@ export function useSegmentPreview(
         toast.error(`Preview all failed: ${error.message}`);
         parsedScriptSegments.value.forEach((_, index) => {
             if (segmentStates.value[index]?.status === 'loading') { // Only update those that were attempted
-                segmentStates.value[index] = { status: 'error', message: 'Preview all failed', error: error.message };
+                segmentStates.value[index] = { status: 'error', message: 'Preview all failed', error: error.message, audioUrl: undefined };
             }
         });
         return false;

@@ -1,5 +1,5 @@
 <template>
-  <div class="grid grid-cols-[repeat(auto-fit,minmax(320px,1fr))] gap-x-10 md:gap-y-20 mt-4 md:px-6">
+  <div class="grid grid-cols-[repeat(auto-fit,minmax(320px,1fr))] gap-x-10 gap-y-20 md:gap-y-20 mt-4 md:px-6">
     <!-- Skeleton loading state -->
     <Card v-if="loading" v-for="n in 3" :key="`skeleton-${n}`"
       class="border rounded-xl overflow-hidden shadow-md min-w-[320px] h-[400px] animate-pulse bg-muted/50">

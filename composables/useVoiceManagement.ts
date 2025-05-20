@@ -1,16 +1,18 @@
-import { ref, watch, computed } from 'vue';
+import { ref, watch, computed, type Ref } from 'vue';
 import { usePlaygroundPersonaStore, type Persona } from '../stores/playgroundPersona';
 import { usePlaygroundScriptStore } from '../stores/playgroundScript';
 import { toast } from 'vue-sonner';
 import type { Tables } from '~/types/supabase';
+import { useRuntimeConfig } from 'nuxt/app'; // Corrected import path
 
 // Duplicating Voice interface here, consider moving to a shared types file if used elsewhere
 export interface Voice {
   id: string;
   name: string;
-  personaId?: number | null;
+  personaId: number | null; // Should be number for persona-derived, null for generic
   description?: string | null;
   avatarUrl?: string | null;
+  provider?: string; // Added to store the provider for this voice
 }
 
 // Define parsedScriptSegments type based on its usage in the original component
@@ -20,17 +22,16 @@ export interface ParsedScriptSegment {
   // Potentially other fields if added by parsing logic not shown here
 }
 
-
 export function useVoiceManagement(
-  scriptContent: globalThis.Ref<string>, // Pass as a ref
-  parsedScriptSegments: globalThis.Ref<ParsedScriptSegment[]>, // Pass as a ref
-  selectedHostPersona: globalThis.Ref<Persona | undefined>, // Pass as a ref
-  selectedGuestPersonas: globalThis.Ref<Persona[]> // Pass as a ref
+  scriptContent: Ref<string>, // Pass as a ref
+  parsedScriptSegments: Ref<ParsedScriptSegment[]>, // Pass as a ref
+  selectedHostPersona: Ref<Persona | undefined>, // Pass as a ref
+  selectedGuestPersonas: Ref<Persona[]> // Pass as a ref
 ) {
   const personaStore = usePlaygroundPersonaStore();
   const scriptStore = usePlaygroundScriptStore();
+  const runtimeConfig = useRuntimeConfig(); // Get runtime config
 
-  const ttsProvider = ref('elevenlabs'); // This is the local ttsProvider for this composable
   const availableVoices = ref<Voice[]>([]);
   const isLoadingVoices = ref(false);
   const speakerAssignments = ref<Record<string, string>>({}); // speakerTag -> voice_id
@@ -58,7 +59,7 @@ export function useVoiceManagement(
     return [];
   });
 
-  async function fetchVoices(provider: string) {
+  async function fetchVoices() { // Removed provider parameter
     isLoadingVoices.value = true;
     try {
       const previousAssignments = { ...speakerAssignments.value };
@@ -69,273 +70,147 @@ export function useVoiceManagement(
       
       let fetchedVoices: Voice[] = [];
 
-      if (provider === 'elevenlabs') {
-        const personaVoices = personaStore.personas
-          .filter(p => p.voice_model_identifier && p.tts_provider === 'elevenlabs')
-          .map(p => ({
-            id: p.voice_model_identifier || '',
-            name: `${p.name} (${p.voice_model_identifier?.split('.')[0] || 'Unknown'})`,
-            personaId: p.persona_id,
-            description: p.description || '',
-            avatarUrl: p.avatar_url || ''
-          }))
-          .filter(v => v.id);
-        
-        fetchedVoices.push(...personaVoices);
+      // Fetch voices from ALL personas, regardless of their provider
+      const personaVoices = personaStore.personas
+        .filter(p => p.voice_model_identifier)
+        .map(p => ({
+          id: p.voice_model_identifier!,
+          name: `${p.name} (${p.voice_model_identifier?.split('.')[0] || 'Unknown'})`,
+          personaId: p.persona_id,
+          description: p.description || '',
+          avatarUrl: p.avatar_url || '',
+          provider: p.tts_provider || undefined // Store the provider
+        }));
+      fetchedVoices.push(...personaVoices);
 
-        if (personaVoices.length < 3) { // Arbitrary threshold, adjust as needed
-          try {
-            const response = await fetch('/api/elevenlabs/voices');
-            if (response.ok) {
-              const data = await response.json();
-              if (data.success && Array.isArray(data.voices)) {
-                const existingIds = new Set(fetchedVoices.map(v => v.id));
-                const apiVoices = data.voices
-                  .filter((voice: any) => !existingIds.has(voice.voice_id || voice.id))
-                  .map((voice: any) => ({
-                    id: voice.voice_id || voice.id,
-                    name: voice.name,
-                    personaId: null,
-                    description: null,
-                    avatarUrl: null
-                  }));
-                fetchedVoices.push(...apiVoices);
-              }
-            }
-          } catch (error) {
-            console.error('Failed to fetch additional ElevenLabs voices:', error);
+      // Add generic voices if needed, e.g., from ElevenLabs API or config, these might not have a specific persona provider
+      // Example for ElevenLabs generic voices (can be adapted for others or made more generic)
+      try {
+        const response = await fetch('/api/elevenlabs/voices');
+        if (response.ok) {
+          const data = await response.json();
+          if (data.success && Array.isArray(data.voices)) {
+            const existingIds = new Set(fetchedVoices.map(v => v.id));
+            const apiVoices = data.voices
+              .filter((voice: any) => !existingIds.has(voice.voice_id || voice.id))
+              .map((voice: any) => ({
+                id: voice.voice_id || voice.id,
+                name: voice.name,
+                personaId: null,
+                description: null,
+                avatarUrl: null,
+                provider: 'elevenlabs' // Mark these as elevenlabs generic
+              }));
+            fetchedVoices.push(...apiVoices);
           }
         }
-      } else if (provider === 'azure') {
-        const personaVoices = personaStore.personas
-          .filter(p => p.voice_model_identifier && p.tts_provider === 'azure')
-          .map(p => ({
-            id: p.voice_model_identifier || '',
-            name: `${p.name} (${p.voice_model_identifier || 'Unknown'})`,
-            personaId: p.persona_id,
-            description: p.description || '',
-            avatarUrl: p.avatar_url || ''
-          }))
-          .filter(v => v.id);
-        fetchedVoices.push(...personaVoices);
-        if (personaVoices.length < 2) { // Arbitrary threshold
-          fetchedVoices.push(
-            {id: 'az_voice1', name: 'Jenny (Female)', personaId: null, description: null, avatarUrl: null},
-            {id: 'az_voice2', name: 'Guy (Male)', personaId: null, description: null, avatarUrl: null}
-          );
-        }
-      } else if (provider === 'openai_tts') {
-        const personaVoices = personaStore.personas
-          .filter(p => p.voice_model_identifier && p.tts_provider === 'openai')
-          .map(p => ({
-            id: p.voice_model_identifier || '',
-            name: `${p.name} (${p.voice_model_identifier || 'Unknown'})`,
-            personaId: p.persona_id,
-            description: p.description || '',
-            avatarUrl: p.avatar_url || ''
-          }))
-          .filter(v => v.id);
-        fetchedVoices.push(...personaVoices);
-        if (personaVoices.length < 2) { // Arbitrary threshold
-          fetchedVoices.push(
-            {id: 'oa_voice1', name: 'Nova (Female)', personaId: null, description: null, avatarUrl: null},
-            {id: 'oa_voice2', name: 'Alloy (Male)', personaId: null, description: null, avatarUrl: null}
-          );
-        }
+      } catch (error) {
+        console.error('Failed to fetch additional ElevenLabs voices:', error);
       }
+      
+      // Example for Volcengine generic voice from runtimeConfig
+      const defaultVolcengineVoiceIdFromConfig = runtimeConfig.public.volcengineVoiceType as string;
+      if (defaultVolcengineVoiceIdFromConfig && !fetchedVoices.some(v => v.id === defaultVolcengineVoiceIdFromConfig)) {
+        fetchedVoices.push({
+          id: defaultVolcengineVoiceIdFromConfig,
+          name: `通用声音 (${defaultVolcengineVoiceIdFromConfig})`,
+          personaId: null, 
+          description: '来自配置的默认火山通用声音',
+          avatarUrl: null,
+          provider: 'volcengine'
+        });
+      }
+
       availableVoices.value = fetchedVoices;
-      tryRestoreVoiceAssignments(previousAssignments);
-      if (Object.keys(speakerAssignments.value).filter(k => speakerAssignments.value[k]).length === 0) {
-        autoAssignVoices();
-      }
+      // Restore previous assignments if the voice still exists or is a persona voice
+      // This part needs careful re-evaluation: if a voiceId is globally unique, direct restore is fine.
+      // If not, need to consider provider context if restoring generic voices.
+      // For now, let's assume assignVoicesToSpeakers will correctly re-assign based on persona.
+      // speakerAssignments.value = previousAssignments; 
+      // assignVoicesToSpeakers(); // Call this to ensure assignments are updated with new voices
+
     } catch (error) {
-      console.error('Failed to fetch voices:', error);
-      toast.error('Failed to load voices');
-      availableVoices.value = [];
+      console.error('Error fetching voices:', error);
+      toast.error('Failed to load voice list.');
     } finally {
       isLoadingVoices.value = false;
     }
   }
 
-  function tryRestoreVoiceAssignments(previousAssignments: Record<string, string>) {
-    if (Object.keys(previousAssignments).length === 0) return;
-    
-    Object.keys(speakerAssignments.value).forEach(speaker => {
-      const previousVoiceId = previousAssignments[speaker];
-      if (!previousVoiceId) return;
-      
-      const matchingVoice = availableVoices.value.find(v => v.id === previousVoiceId);
-      if (matchingVoice) {
-        speakerAssignments.value[speaker] = matchingVoice.id;
+  function findPersonaBySpeakerName(speakerTag: string): Persona | undefined {
+    if (selectedHostPersona.value && selectedHostPersona.value.name === speakerTag) {
+      return selectedHostPersona.value;
+    }
+    return selectedGuestPersonas.value.find(p => p.name === speakerTag);
+  }
+
+  function assignVoicesToSpeakers() {
+    console.info('[useVoiceManagement] Entering assignVoicesToSpeakers.');
+    const localSpeakers = speakersInScript.value; 
+    const localPersonas = personaStore.personas;
+
+    if (localPersonas.length === 0) {
+      console.warn('[useVoiceManagement] Personas not loaded yet. Skipping voice assignment.');
+      return;
+    }
+
+    const newAssignments: Record<string, string> = {};
+
+    localSpeakers.forEach(speaker => {
+      const persona = findPersonaBySpeakerName(speaker);
+      if (persona && persona.voice_model_identifier) {
+        newAssignments[speaker] = persona.voice_model_identifier; // Assign the persona's voice_model_identifier
+        console.log(`[useVoiceManagement] Assigned voice '${persona.voice_model_identifier}' from provider '${persona.tts_provider}' to speaker '${speaker}'.`);
       } else {
-        const nameMatchVoice = availableVoices.value.find(v => 
-          v.name.toLowerCase().includes(speaker.toLowerCase())
-        );
-        if (nameMatchVoice) {
-          speakerAssignments.value[speaker] = nameMatchVoice.id;
+        newAssignments[speaker] = ''; // No voice assigned or persona/voice_model_identifier not found
+        if (persona) {
+          console.warn(`[useVoiceManagement] Persona '${speaker}' found, but no voice_model_identifier. Cannot assign voice.`);
+        } else {
+          console.warn(`[useVoiceManagement] Persona not found for speaker '${speaker}'. Cannot assign voice.`);
         }
       }
     });
-  }
 
-  function assignDefaultVoice(speakerName: string) {
-    if (availableVoices.value.length === 0) return;
-    
-    let voiceIndex = 0;
-    const assignedSpeakerTags = Object.keys(speakerAssignments.value).filter(tag => speakerAssignments.value[tag]);
-
-    if (assignedSpeakerTags.length === 0) {
-      voiceIndex = 0;
-    } else if (availableVoices.value.length > 1) {
-      const usedVoiceIds = new Set(assignedSpeakerTags.map(tag => speakerAssignments.value[tag]));
-      const unusedVoice = availableVoices.value.find(v => !usedVoiceIds.has(v.id));
-      
-      if (unusedVoice) {
-        speakerAssignments.value[speakerName] = unusedVoice.id;
-        console.log(`Assigned unused voice ${unusedVoice.name} to ${speakerName}`);
-        return;
-      }
-      voiceIndex = assignedSpeakerTags.length % availableVoices.value.length;
+    // Update speakerAssignments reactively
+    // Only update if there are actual changes to avoid unnecessary re-renders
+    if (JSON.stringify(speakerAssignments.value) !== JSON.stringify(newAssignments)) {
+      speakerAssignments.value = newAssignments;
     }
     
-    if(availableVoices.value[voiceIndex]) {
-        speakerAssignments.value[speakerName] = availableVoices.value[voiceIndex].id;
-        console.log(`Assigned default voice ${availableVoices.value[voiceIndex].name} to ${speakerName}`);
-    } else {
-        console.warn(`Could not assign default voice to ${speakerName}, voiceIndex out of bounds or availableVoices is empty.`);
-    }
+    console.info('[useVoiceManagement] Final speakerAssignments:', JSON.parse(JSON.stringify(speakerAssignments.value)));
   }
 
-  function autoAssignVoices() {
-    console.log('Starting auto voice assignment...');
-    let assigned_something = false;
+  // Watch for changes that require re-fetching or re-assigning voices
+  // Watch for script content changes to update speakersInScript and re-assign voices
+  watch(scriptContent, () => {
+    // speakersInScript will update, which in turn triggers the watch below
+  }, { deep: true });
 
-    if (scriptStore.validationResult?.structuredData?.voiceMap) {
-      console.log('Voice map from validation:', scriptStore.validationResult.structuredData.voiceMap);
-      const { voiceMap } = scriptStore.validationResult.structuredData;
-      const scriptValidationData = scriptStore.validationResult.structuredData.script;
-      
-      const roleTypeToNameMap: Record<string, string> = {};
-      if (scriptValidationData && Array.isArray(scriptValidationData)) {
-        scriptValidationData.forEach(entry => {
-          roleTypeToNameMap[entry.role] = entry.name; // e.g. host -> "Host_Name_From_Script"
-          roleTypeToNameMap[entry.name] = entry.name; // Allow direct name mapping
-        });
-      }
-
-      parsedScriptSegments.value.forEach(segment => {
-        const speakerName = segment.speakerTag;
-        if (speakerAssignments.value[speakerName]) return; // Already assigned
-
-        let voiceInfo = voiceMap[speakerName];
-        if (!voiceInfo) {
-          const mappedName = roleTypeToNameMap[speakerName] || 
-                             (selectedHostPersona.value?.name === speakerName ? selectedHostPersona.value.name : undefined) ||
-                             (selectedGuestPersonas.value.find(p => p.name === speakerName)?.name);
-          if (mappedName) {
-             voiceInfo = voiceMap[mappedName];
-          }
-        }
-        
-        if (voiceInfo && voiceInfo.voice_model_identifier) {
-          const voiceExistsInProviderList = availableVoices.value.some(v => v.id === voiceInfo.voice_model_identifier);
-          if(voiceExistsInProviderList) {
-            speakerAssignments.value[speakerName] = voiceInfo.voice_model_identifier;
-            console.log(`Assigned voice ${voiceInfo.voice_model_identifier} to ${speakerName} from validation.`);
-            assigned_something = true;
-          } else {
-            console.warn(`Voice ${voiceInfo.voice_model_identifier} for ${speakerName} from validation not in available voices for ${ttsProvider.value}.`);
-            assignDefaultVoice(speakerName); // Fallback if validated voice not available for current provider
-          }
-        } else {
-          assignDefaultVoice(speakerName);
-        }
-      });
-
-    } else { // Fallback if no validation data
-      parsedScriptSegments.value.forEach(segment => {
-        const speakerName = segment.speakerTag;
-        if (speakerAssignments.value[speakerName]) return;
-
-        let matchingPersona: Persona | undefined = undefined;
-        if (selectedHostPersona.value && selectedHostPersona.value.name === speakerName) {
-          matchingPersona = selectedHostPersona.value;
-        } else {
-          matchingPersona = selectedGuestPersonas.value.find(p => p.name === speakerName);
-        }
-        
-        if (matchingPersona?.voice_model_identifier) {
-           const voiceExistsInProviderList = availableVoices.value.some(v => v.id === matchingPersona.voice_model_identifier);
-           if(voiceExistsInProviderList) {
-            speakerAssignments.value[speakerName] = matchingPersona.voice_model_identifier;
-            console.log(`Assigned voice ${matchingPersona.voice_model_identifier} to ${speakerName} from persona data.`);
-            assigned_something = true;
-           } else {
-             console.warn(`Voice ${matchingPersona.voice_model_identifier} for ${speakerName} from persona not in available voices for ${ttsProvider.value}.`);
-             assignDefaultVoice(speakerName);
-           }
-        } else {
-          assignDefaultVoice(speakerName);
-        }
-      });
+  // Initial fetch and re-fetch if personas change (e.g. after initial load or if store is refreshed)
+  watch(() => personaStore.personas, (newPersonas, oldPersonas) => {
+    if (newPersonas.length > 0) {
+      console.log('[useVoiceManagement] Personas loaded or changed. Fetching all voices.');
+      fetchVoices(); // Fetch all voices
     }
-    if (assigned_something) {
-        toast.success('Voices have been automatically assigned based on available data.');
-    }
-    console.log('Voice assignment results:', { ...speakerAssignments.value });
-  }
+  }, { immediate: true, deep: true });
 
-  const onProviderChange = (value: string) => {
-    ttsProvider.value = value;
-    // speakerAssignments.value = {}; // Reset assignments when provider changes? Or try to keep?
-                                    // Current fetchVoices tries to restore.
-    fetchVoices(value);
+  // Automatically assign voices when available voices or script speakers or personas change
+  watch([availableVoices, speakersInScript, () => personaStore.personas], () => {
+    console.log('[useVoiceManagement] availableVoices, speakersInScript, or personas changed. Re-assigning voices.');
+    assignVoicesToSpeakers();
+  }, { deep: true });
+  
+  // Function to get the assigned voice ID for a speaker tag
+  const getVoiceIdForSpeaker = (speakerTag: string) => {
+    return speakerAssignments.value[speakerTag] || '';
   };
 
-  watch(ttsProvider, (newProvider) => {
-    if (!newProvider) {
-      availableVoices.value = [];
-      return;
-    }
-    fetchVoices(newProvider);
-  }, { immediate: true });
-
-
-  // Watchers for re-triggering auto-assignment if relevant data changes
-  watch(
-    () => scriptStore.validationResult,
-    (newResult) => {
-      if (newResult?.structuredData?.voiceMap && Object.keys(speakerAssignments.value).filter(k => speakerAssignments.value[k]).length === 0) {
-         console.log("Validation result changed, re-attempting auto-assignment.");
-         autoAssignVoices();
-      }
-    }, 
-    { deep: true }
-  );
-
-  watch(
-    [parsedScriptSegments, selectedHostPersona, selectedGuestPersonas, availableVoices],
-    () => {
-      // Re-evaluate assignments if the script segments change or personas change,
-      // but only if no assignments have been made yet or if available voices list populates.
-      const noAssignmentsMade = Object.values(speakerAssignments.value).every(v => !v);
-      if (noAssignmentsMade && availableVoices.value.length > 0) {
-        console.log("Relevant data changed (segments, personas, or voices loaded), re-attempting auto-assignment.");
-        autoAssignVoices();
-      }
-    },
-    { deep: true }
-  );
-
-
   return {
-    ttsProvider,
     availableVoices,
     isLoadingVoices,
     speakerAssignments,
-    speakersInScript, // Expose this computed property
-    fetchVoices,
-    autoAssignVoices, // Expose for potential manual trigger
-    onProviderChange
+    speakersInScript,
+    assignVoicesToSpeakers, // Expose if manual trigger is needed
+    getVoiceIdForSpeaker
   };
-} 
+}
