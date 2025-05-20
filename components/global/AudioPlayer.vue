@@ -1,8 +1,12 @@
-ub<template>
-  <div 
-    v-if="audioStore.currentTrack" 
-    class="fixed bottom-0 left-0 right-0 bg-background border-t border-border z-50 shadow-lg transition-transform duration-300"
-    :class="{ 'translate-y-full': isMinimized && !audioStore.isPlaying }"
+<template>
+  <div
+    v-if="audioStore.currentTrack"
+    class="fixed bottom-0 left-0 right-0 bg-background border-t border-border z-50 shadow-lg transition-all duration-300"
+    :class="{
+      'translate-y-full': isMinimized && !audioStore.isPlaying,
+      'md:left-[var(--sidebar-width)]': !isExpanded,
+      'md:left-0': isExpanded
+    }"
   >
     <!-- 音频元素 -->
     <audio
@@ -20,7 +24,16 @@ ub<template>
     ></audio>
 
     <!-- 播放器界面 -->
-    <div class="container mx-auto px-4 py-2">
+    <!-- 展开/收起按钮 (仅在PC端显示) -->
+    <button
+      @click="toggleExpanded"
+      class="absolute top-0 left-0 -translate-y-full hidden md:flex items-center justify-center bg-background border border-border border-b-0 rounded-t-md px-2 py-1 text-xs"
+    >
+      <Icon :name="isExpanded ? 'ph:arrows-in' : 'ph:arrows-out'" class="h-3 w-3 mr-1" />
+      {{ isExpanded ? '收起' : '展开' }}
+    </button>
+
+    <div class="container mx-auto px-4 py-2" :class="{'max-w-full': isExpanded}">
       <!-- 进度条 -->
       <div 
         class="w-full h-1 bg-muted cursor-pointer mb-2 relative group"
@@ -187,6 +200,7 @@ import { Button } from '~/components/ui/button';
 const audioStore = useAudioPlayerStore();
 const audioElement = ref<HTMLAudioElement | null>(null);
 const isMinimized = ref(false);
+const isExpanded = ref(false);
 const isSeeking = ref(false);
 
 // HLS 相关
@@ -280,6 +294,10 @@ function startSeeking() {
 
 function toggleMinimize() {
   isMinimized.value = !isMinimized.value;
+}
+
+function toggleExpanded() {
+  isExpanded.value = !isExpanded.value;
 }
 
 function closePlayer() {

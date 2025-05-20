@@ -14,7 +14,6 @@ interface Props {
   segmentState: SegmentState | undefined;
   audioUrl: string | null; // This is the specific audio URL for this segment's preview attempt
   isGlobalLoading: boolean; // To disable controls when something global is happening
-  personaAvatarUrl?: string | null;
 }
 
 const props = defineProps<Props>();
@@ -27,6 +26,10 @@ const emit = defineEmits([
 
 const audioPlayerElement = ref<HTMLAudioElement | null>(null);
 const isPlaying = ref(false); // Local state reflecting if HTML audio element is playing
+
+const avatarSrc = computed(() => {
+  return props.segment.personaAvatarUrl ? props.segment.personaAvatarUrl : "";
+});
 
 const currentSegmentState = computed(() => props.segmentState);
 const status = computed(() => currentSegmentState.value?.status || 'idle');
@@ -115,9 +118,9 @@ onBeforeUnmount(() => {
 
 <template>
   <Card 
-    class="mb-3 transition-all duration-300 ease-in-out" 
+    class="mb-3 transition-all duration-300 ease-in-out bg-transparent hover:bg-muted/30" 
     :class="{
-      'ring-2 ring-primary shadow-lg': isPreviewingThisSegment, 
+      'ring-2 ring-primary shadow-lg bg-muted/50': isPreviewingThisSegment, 
       'opacity-70': isGlobalLoading && !isPreviewingThisSegment 
     }"
   >
@@ -126,7 +129,7 @@ onBeforeUnmount(() => {
         <!-- Avatar and Speaker Info -->
         <div class="flex-shrink-0 flex flex-col items-center w-full sm:w-auto sm:min-w-[8rem] text-center">
           <Avatar class="w-16 h-16 mb-2 border-2" :class="{'border-primary': isPreviewingThisSegment}">
-            <AvatarImage :src="personaAvatarUrl || segment.personaAvatarUrl || undefined" :alt="segment.speakerTag" />
+            <AvatarImage :src="avatarSrc" :alt="segment.speakerTag" />
             <AvatarFallback>{{ segment.speakerTag.substring(0, 2).toUpperCase() }}</AvatarFallback>
           </Avatar>
           <div class="space-y-1">
@@ -138,15 +141,14 @@ onBeforeUnmount(() => {
 
         <!-- Main Content: Text, Voice Info, Controls -->
         <div class="flex-grow space-y-3 w-full">
-          <!-- Assigned Voice Information -->
-          <div class="p-3 rounded-md bg-muted/50 border">
-            <h4 class="text-xs font-medium text-muted-foreground mb-1">Assigned Voice:</h4>
-            <div v-if="segment.voiceId && segment.assignedVoiceName">
-              <p class="text-sm font-semibold">{{ segment.assignedVoiceName }}</p>
-              <p class="text-xs text-muted-foreground">Provider: {{ segment.ttsProvider || 'N/A' }}</p>
+          <!-- Assigned Voice Information (More subtle) -->
+          <div class="mb-2">
+            <div v-if="segment.voiceId && segment.assignedVoiceName" class="text-sm">
+              <span class="font-semibold">{{ segment.assignedVoiceName }}</span>
+              <span v-if="segment.ttsProvider" class="text-xs text-muted-foreground ml-1">({{ segment.ttsProvider }})</span>
             </div>
             <div v-else>
-              <p class="text-sm text-destructive-foreground bg-destructive p-2 rounded-md">No voice assigned</p>
+              <p class="text-sm text-destructive font-medium">No voice assigned</p>
             </div>
           </div>
           

@@ -34,6 +34,13 @@
       </div>
     </div>
 
+    <!-- Script Language Display -->
+    <div v-if="scriptLanguage" class="flex items-center space-x-2 p-3 border-b bg-muted/10 rounded-md">
+      <Icon name="ph:translate" class="w-5 h-5 text-muted-foreground" />
+      <span class="text-sm font-medium text-muted-foreground">Script Language:</span>
+      <Badge variant="secondary">{{ scriptLanguageDisplayName }}</Badge>
+    </div>
+
     <!-- Speaker Voice Assignment -->
     <div v-if="parsedScriptSegments.length > 0" class="space-y-3">
       <div class="flex items-center justify-between pb-2 border-b">
@@ -92,6 +99,8 @@ import { usePlaygroundScriptStore } from '../../stores/playgroundScript';
 import { useSegmentPreview, type PreviewableSegment } from '../../composables/useSegmentPreview';
 import { useVoiceManagement, type Voice } from '../../composables/useVoiceManagement';
 import SegmentVoiceAssignmentItem from './SegmentVoiceAssignmentItem.vue';
+import { Badge } from '~/components/ui/badge'; // Ensure Badge is imported
+// Icon component is typically auto-imported by Nuxt if placed in components/global or similar
 
 const props = defineProps<{
   scriptContent: string,
@@ -108,6 +117,19 @@ const settingsStore = usePlaygroundSettingsStore();
 const scriptStore = usePlaygroundScriptStore();
 
 const scriptContentRef = toRef(props, 'scriptContent');
+
+const scriptLanguage = computed(() => scriptStore.validationResult?.structuredData?.language);
+
+// Optional: For a more user-friendly display of language names
+const scriptLanguageDisplayName = computed(() => {
+  if (!scriptLanguage.value) return '';
+  try {
+    // @ts-ignore Intl.DisplayNames might not be recognized by older TS configs but works in modern browsers
+    return new Intl.DisplayNames([scriptLanguage.value], { type: 'language' }).of(scriptLanguage.value) || scriptLanguage.value;
+  } catch (e) {
+    return scriptLanguage.value; // Fallback to language code if DisplayNames is not supported or fails
+  }
+});
 
 const parsedScriptSegments = computed(() => {
   if (scriptContentRef.value) {
@@ -199,9 +221,10 @@ const enhancedScriptSegments = computed(() => {
       roleType = 'host';
     }
 
-    const assignedVoiceDetails = availableVoices.value.find(v => v.voice_id === effectiveVoiceId);
+    const assignedVoiceDetails = availableVoices.value.find(v => v.id === effectiveVoiceId);
     if (assignedVoiceDetails) {
-      effectiveVoiceId = assignedVoiceDetails.id;
+      // effectiveVoiceId should already be the correct ID from speakerAssignments
+      // effectiveVoiceId = assignedVoiceDetails.id; // This line was redundant if effectiveVoiceId is already the ID
       effectiveVoiceName = assignedVoiceDetails.name;
       // If a voice is explicitly assigned, its provider should take precedence
       assignedProvider = assignedVoiceDetails.provider || assignedProvider; 
@@ -228,7 +251,7 @@ const enhancedScriptSegments = computed(() => {
       assignedVoiceName: effectiveVoiceId ? effectiveVoiceName : 'Assign Voice',
       roleType: roleType,
       personaId: segmentPersonaId,
-      personaLanguage: persona?.language, 
+      personaLanguage: persona?.language_support && persona.language_support.length > 0 ? persona.language_support[0] : undefined,
       personaAvatarUrl: persona?.avatar_url || undefined
     };
   });

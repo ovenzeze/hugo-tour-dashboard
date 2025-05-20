@@ -188,7 +188,12 @@
                 </div>
                 <div class="flex-1 min-w-0">
                   <div class="flex items-center justify-between">
-                    <span class="text-xs font-medium">{{ segment.speaker || 'Unknown' }}</span>
+                    <div class="flex flex-col">
+                      <span class="text-xs font-medium">{{ segment.speaker || 'Unknown' }}</span>
+                      <span v-if="segment.voice_id" class="text-xs text-muted-foreground">
+                        VoiceID: {{ segment.voice_id }}
+                      </span>
+                    </div>
                     <span class="text-xs opacity-0 group-hover:opacity-100 transition-opacity"
                           :class="podcast.cover_image_url ? 'text-white/70' : 'text-muted-foreground'">
                       {{ formatDuration(getSegmentDuration(segment)) }}
@@ -594,6 +599,7 @@ type SegmentAudio = Database['public']['Tables']['segment_audios']['Row'] & {
 };
 type Segment = Database['public']['Tables']['podcast_segments']['Row'] & {
   segment_audios?: SegmentAudio[];
+  voice_id?: string; // Add voice_id field
 };
 type Podcast = Database['public']['Tables']['podcasts']['Row'] & {
   podcast_segments?: Segment[];
@@ -743,6 +749,12 @@ function hasPlayableSegments(podcast: Podcast): boolean {
     return false;
   }
   for (const segment of podcast.podcast_segments) {
+    // 检查是否有voice_id
+    if (segment.voice_id) {
+      return true; // 有voice_id就可以播放
+    }
+    
+    // 如果没有voice_id，检查是否有可播放的音频URL
     if (segment.segment_audios && segment.segment_audios.length > 0) {
       for (const audio of segment.segment_audios) {
         if (audio.audio_url && audio.audio_url.trim() !== '') {
