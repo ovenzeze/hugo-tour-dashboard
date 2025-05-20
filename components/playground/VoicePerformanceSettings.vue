@@ -199,29 +199,37 @@ const enhancedScriptSegments = computed(() => {
       roleType = 'host';
     }
 
-    if (effectiveVoiceId) {
-      const voice = availableVoices.value.find(v => v.id === effectiveVoiceId);
-      if (voice) {
-        effectiveVoiceName = voice.name;
-        assignedProvider = (voice as any)?.provider || persona?.tts_provider || settingsStore.selectedProvider || 'elevenlabs';
-      } else {
-        effectiveVoiceName = effectiveVoiceId;
-      }
+    const assignedVoiceDetails = availableVoices.value.find(v => v.voice_id === effectiveVoiceId);
+    if (assignedVoiceDetails) {
+      effectiveVoiceId = assignedVoiceDetails.id;
+      effectiveVoiceName = assignedVoiceDetails.name;
+      // If a voice is explicitly assigned, its provider should take precedence
+      assignedProvider = assignedVoiceDetails.provider || assignedProvider; 
+    }
+
+    // Determine personaId for this segment
+    let segmentPersonaId: string | undefined = undefined;
+    if (validationInfo?.personaId) {
+      segmentPersonaId = String(validationInfo.personaId);
     } else if (persona) {
-      effectiveVoiceId = persona.voice_model_identifier || '';
-      effectiveVoiceName = persona.name ? `${persona.name} (Default)` : 'Assign Voice';
-      assignedProvider = persona.tts_provider || settingsStore.selectedProvider || 'elevenlabs';
+      segmentPersonaId = String(persona.persona_id);
     }
 
     return {
-      speakerTag: segment.speakerTag,
-      text: segment.text,
-      assignedVoiceId: effectiveVoiceId,
-      assignedVoiceName: effectiveVoiceName,
-      assignedVoiceProvider: assignedProvider,
-      personaLanguage: persona?.language_support?.[0] || settingsStore.podcastSettings.language || 'en',
+      ...segment,
+      id: `segment-${parsedScriptSegments.value.indexOf(segment)}`,
+      originalText: segment.text,
+      currentText: segment.text,
+      voiceId: effectiveVoiceId || null,
+      audioUrl: null, 
+      isLoading: false,
+      isEditing: false,
+      ttsProvider: assignedProvider,
+      assignedVoiceName: effectiveVoiceId ? effectiveVoiceName : 'Assign Voice',
       roleType: roleType,
-      personaId: persona?.persona_id,
+      personaId: segmentPersonaId,
+      personaLanguage: persona?.language, 
+      personaAvatarUrl: persona?.avatar_url || undefined
     };
   });
 });

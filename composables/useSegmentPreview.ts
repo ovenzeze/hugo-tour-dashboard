@@ -32,6 +32,8 @@ export interface PreviewableSegment extends ParsedScriptSegment {
     // Ensure all fields from ParsedScriptSegment are implicitly here (speakerTag, text)
     roleType: 'host' | 'guest'; // Made required
     personaId: string | undefined; // Added personaId
+    personaLanguage?: string; // Added for language display
+    personaAvatarUrl?: string; // Added for avatar display
 }
 
 export function useSegmentPreview(

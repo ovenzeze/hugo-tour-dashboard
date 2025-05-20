@@ -124,14 +124,15 @@ onBeforeUnmount(() => {
     <CardContent class="p-4">
       <div class="flex flex-col sm:flex-row gap-4 items-start">
         <!-- Avatar and Speaker Info -->
-        <div class="flex-shrink-0 flex flex-col items-center w-full sm:w-24">
+        <div class="flex-shrink-0 flex flex-col items-center w-full sm:w-auto sm:min-w-[8rem] text-center">
           <Avatar class="w-16 h-16 mb-2 border-2" :class="{'border-primary': isPreviewingThisSegment}">
-            <AvatarImage :src="personaAvatarUrl || undefined" :alt="segment.speakerTag" />
+            <AvatarImage :src="personaAvatarUrl || segment.personaAvatarUrl || undefined" :alt="segment.speakerTag" />
             <AvatarFallback>{{ segment.speakerTag.substring(0, 2).toUpperCase() }}</AvatarFallback>
           </Avatar>
-          <div class="text-center">
+          <div class="space-y-1">
             <p class="font-semibold text-sm text-foreground">{{ segment.speakerTag }}</p>
-            <Badge variant="outline" class="text-xs mt-1 capitalize">{{ segment.roleType }}</Badge>
+            <Badge variant="outline" class="text-xs capitalize">{{ segment.roleType }}</Badge>
+            <Badge v-if="segment.personaLanguage" variant="secondary" class="text-xs capitalize block">{{ segment.personaLanguage }}</Badge>
           </div>
         </div>
 
