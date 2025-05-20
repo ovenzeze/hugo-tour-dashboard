@@ -54,10 +54,11 @@ export function useVoiceManagement(
   });
 
   function findPersonaBySpeakerName(speakerTag: string): Persona | undefined {
-    if (selectedHostPersona.value && selectedHostPersona.value.name === speakerTag) {
+    const normalizedSpeakerTag = speakerTag.replace(/\s+/g, '').toLowerCase();
+    if (selectedHostPersona.value && selectedHostPersona.value.name.replace(/\s+/g, '').toLowerCase() === normalizedSpeakerTag) {
       return selectedHostPersona.value;
     }
-    return selectedGuestPersonas.value.find(p => p.name === speakerTag);
+    return selectedGuestPersonas.value.find(p => p.name.replace(/\s+/g, '').toLowerCase() === normalizedSpeakerTag);
   }
 
   function assignVoicesToSpeakers() {
@@ -70,16 +71,52 @@ export function useVoiceManagement(
       return;
     }
 
-    const newAssignments: Record<string, string> = {};
+    // Initialize newAssignments with existing assignments
+    const newAssignments: Record<string, string> = { ...speakerAssignments.value };
 
     localSpeakers.forEach(speaker => {
-      const persona = findPersonaBySpeakerName(speaker);
-      if (persona && persona.voice_model_identifier) {
-        newAssignments[speaker] = persona.voice_model_identifier;
-        console.log(`[useVoiceManagement] Assigned voice '${persona.voice_model_identifier}' to speaker '${speaker}'.`);
+      // Only assign a voice if the speaker doesn't already have one assigned
+      if (!newAssignments[speaker]) {
+        let persona = findPersonaBySpeakerName(speaker);
+
+        // Fallback: If not found in selected personas (via findPersonaBySpeakerName),
+        // try searching directly in all available personas from the store (localPersonas).
+        if (!persona) {
+          const normalizedSpeakerTag = speaker.replace(/\s+/g, '').toLowerCase();
+          const fallbackPersona = localPersonas.find(p => p.name.replace(/\s+/g, '').toLowerCase() === normalizedSpeakerTag);
+          if (fallbackPersona) {
+            persona = fallbackPersona;
+            console.log(`[useVoiceManagement] Found persona for '${speaker}' via fallback search in localPersonas.`);
+          }
+        }
+
+        let voiceId = '';
+
+        if (persona) {
+          if (persona.voice_model_identifier) {
+            voiceId = persona.voice_model_identifier;
+            console.log(`[useVoiceManagement] Assigned voice '${voiceId}' from voice_model_identifier to speaker '${speaker}'.`);
+          } else if (persona.tts_provider === 'volcengine' && persona.description) {
+            // Attempt to parse voice ID from description for Volcengine
+            const match = persona.description.match(/实例ID\/名称:\s*(.+)/);
+            if (match && match[1]) {
+              voiceId = match[1].trim();
+              console.log(`[useVoiceManagement] Parsed and assigned voice '${voiceId}' from description for Volcengine speaker '${speaker}'.`);
+            } else {
+              console.warn(`[useVoiceManagement] For Volcengine speaker '${speaker}' (persona: ${persona.name}), voice_model_identifier is missing and description ('${persona.description}') does not contain a parsable ID using regex /实例ID\\/名称:\\s*(.+)/.`);
+            }
+          }
+        }
+
+        if (voiceId) {
+          newAssignments[speaker] = voiceId;
+        } else {
+          // Keep it as empty string if no persona/voice found or parsed
+          newAssignments[speaker] = '';
+          console.warn(`[useVoiceManagement] No voice assigned for speaker '${speaker}'.`);
+        }
       } else {
-        newAssignments[speaker] = '';
-        console.warn(`[useVoiceManagement] No voice assigned for speaker '${speaker}'.`);
+        console.log(`[useVoiceManagement] Speaker '${speaker}' already has a voice assigned. Skipping automatic assignment.`);
       }
     });
 

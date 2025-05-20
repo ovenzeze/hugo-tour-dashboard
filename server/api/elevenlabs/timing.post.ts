@@ -52,11 +52,13 @@ export default defineEventHandler(async (event) => {
       // For now, let's assume the response object itself might be what we need or contains methods to get data.
       const response: any = await elevenlabs.textToSpeech.convertWithTimestamps(
         voiceId || '21m00Tcm4TlvDq8ikWAM', // Default voiceId
-        text,
-        { // Options object - removing all optional parameters for now
-          // modelId: modelId || 'eleven_multilingual_v2',
-          // voiceSettings,
-          // optimizeStreamingLatency: optimizeStreamingLatency || undefined
+        {
+          text,
+          model_id: modelId || 'eleven_multilingual_v2',
+          voice_settings: voiceSettings,
+        },
+        {
+          optimizeStreamingLatency: optimizeStreamingLatency || undefined
         }
       );
       

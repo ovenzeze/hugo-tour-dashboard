@@ -28,9 +28,9 @@
     </div>
 
     <Combobox v-model="selectedValue" :multiple="multiple">
-      <div class="relative">
+      <div class="relative" ref="comboboxRef">
         <div class="flex items-center">
-          <ComboboxInput 
+          <ComboboxInput
             :id="id"
             :placeholder="placeholder"
             :disabled="disabled"
@@ -39,12 +39,24 @@
             @update:modelValue="searchQuery = $event"
           />
           <div class="absolute right-0 top-0 flex h-9 items-center pr-2">
-            <ComboboxTrigger>
-              <Icon name="ph:caret-down" class="h-4 w-4 opacity-50" />
+            <ComboboxTrigger @click="toggleDropdown">
+              <Icon name="ph:caret-down" class="h-4 w-4 opacity-50 transition-transform duration-200" :class="{ 'rotate-180': isDropdownOpen }" />
             </ComboboxTrigger>
           </div>
         </div>
-        <ComboboxList class="absolute z-50 mt-1.5 max-h-60 w-full overflow-auto rounded-lg border border-slate-700 bg-slate-800/95 text-slate-200 shadow-lg backdrop-blur-sm p-2">
+        <transition
+          enter-active-class="transition ease-out duration-200"
+          enter-from-class="opacity-0 scale-95"
+          enter-to-class="opacity-100 scale-100"
+          leave-active-class="transition ease-in duration-150"
+          leave-from-class="opacity-100 scale-100"
+          leave-to-class="opacity-0 scale-95"
+        >
+          <ComboboxList
+            v-show="isDropdownOpen"
+            class="absolute z-50 mt-1.5 w-full overflow-auto rounded-lg border border-slate-700 bg-slate-800/95 text-slate-200 shadow-lg backdrop-blur-sm p-2"
+            :style="{ maxHeight: dropdownMaxHeight + 'px', top: dropdownPosition === 'top' ? 'auto' : '100%', bottom: dropdownPosition === 'top' ? '100%' : 'auto' }"
+          >
           <ComboboxInput 
             v-if="filterable"
             placeholder="Search personas..."
@@ -58,7 +70,7 @@
               v-for="persona in filteredPersonas" 
               :key="persona.persona_id" 
               :value="persona.persona_id"
-              class="relative flex cursor-default select-none items-center rounded-md px-2 py-2.5 text-sm text-slate-300 outline-none data-[highlighted]:bg-sky-600/30 data-[highlighted]:text-sky-100 data-[disabled]:pointer-events-none data-[disabled]:opacity-50"
+              class="relative flex cursor-default select-none items-center rounded-md px-2 py-2.5 text-sm text-slate-300 outline-none data-[highlighted]:bg-sky-600/30 data-[highlighted]:text-sky-100 data-[disabled]:pointer-events-none data-[disabled]:opacity-50 transition-colors duration-200"
             >
               <div class="flex items-center gap-3 w-full">
                 <Avatar class="h-8 w-8 flex-shrink-0">
@@ -77,12 +89,13 @@
                   </p>
                 </div>
                 <ComboboxItemIndicator>
-                  <Icon name="ph:check" class="h-4 w-4" />
+                  <Icon name="ph:check" class="h-4 w-4 transition-opacity duration-200" />
                 </ComboboxItemIndicator>
               </div>
             </ComboboxItem>
           </ComboboxViewport>
         </ComboboxList>
+        </transition>
       </div>
     </Combobox>
     
@@ -92,7 +105,7 @@
 
 <script setup lang="ts">
 import { cn } from '@/lib/utils';
-import { computed, ref, watch } from 'vue';
+import { computed, ref, watch, onMounted, onUnmounted } from 'vue';
 
 // Import types
 import type { ApiPersona } from '~/pages/personas/index.vue';
@@ -128,11 +141,15 @@ const selectedValue = computed({
   }
 });
 
-import { onMounted } from 'vue';
-
 const personas = ref<ApiPersona[]>([]);
 const loading = ref(false);
 const error = ref<string | null>(null);
+
+// Refs for dropdown positioning
+const comboboxRef = ref<HTMLElement | null>(null);
+const dropdownPosition = ref<'bottom' | 'top'>('bottom');
+const dropdownMaxHeight = ref(300); // 默认最大高度
+const isDropdownOpen = ref(false);
 
 // Fetch personas from API if not provided as prop
 onMounted(async () => {
@@ -153,6 +170,14 @@ onMounted(async () => {
   } else {
     personas.value = props.personas;
   }
+
+  // 添加窗口大小变化监听器
+  window.addEventListener('resize', calculateDropdownPosition);
+});
+
+onUnmounted(() => {
+  // 移除窗口大小变化监听器
+  window.removeEventListener('resize', calculateDropdownPosition);
 });
 
 // Computed property for the selected personas
@@ -192,4 +217,68 @@ const removePersona = (persona: ApiPersona) => {
 watch(selectedValue, () => {
   searchQuery.value = '';
 });
+
+// 计算下拉菜单位置和最大高度
+const calculateDropdownPosition = () => {
+  if (!comboboxRef.value) return;
+
+  const rect = comboboxRef.value.getBoundingClientRect();
+  const windowHeight = window.innerHeight;
+  const spaceBelow = windowHeight - rect.bottom;
+  const spaceAbove = rect.top;
+
+  // 决定下拉菜单应该向上还是向下展开
+  if (spaceBelow < 300 && spaceAbove > spaceBelow) {
+    dropdownPosition.value = 'top';
+    dropdownMaxHeight.value = Math.min(spaceAbove - 10, 300); // 留出10px的间距
+  } else {
+    dropdownPosition.value = 'bottom';
+    dropdownMaxHeight.value = Math.min(spaceBelow - 10, 300); // 留出10px的间距
+  }
+};
+
+// 切换下拉菜单的开关状态
+const toggleDropdown = () => {
+  isDropdownOpen.value = !isDropdownOpen.value;
+  if (isDropdownOpen.value) {
+    calculateDropdownPosition();
+  }
+};
+
+// 监听点击事件，用于关闭下拉菜单
+onMounted(() => {
+  document.addEventListener('click', handleOutsideClick);
+});
+
+onUnmounted(() => {
+  document.removeEventListener('click', handleOutsideClick);
+});
+
+const handleOutsideClick = (event: MouseEvent) => {
+  if (comboboxRef.value && !comboboxRef.value.contains(event.target as Node)) {
+    isDropdownOpen.value = false;
+  }
+};
 </script>
+
+<style scoped>
+.persona-selector {
+  /* 添加任何需要的样式 */
+}
+
+/* 选项的选中状态变化动画 */
+.combobox-item-enter-active,
+.combobox-item-leave-active {
+  transition: background-color 0.2s ease;
+}
+
+.combobox-item-enter-from,
+.combobox-item-leave-to {
+  background-color: transparent;
+}
+
+.combobox-item-enter-to,
+.combobox-item-leave-from {
+  background-color: rgba(14, 165, 233, 0.3); /* sky-600 with 30% opacity */
+}
+</style>

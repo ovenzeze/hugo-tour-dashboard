@@ -82,7 +82,7 @@
 
     <!-- Podcast Detail Drawer/Sheet -->
     <Sheet :open="!!selectedPodcast" @update:open="handleCloseDrawer">
-      <SheetContent side="right" class="w-full sm:max-w-2xl"> {/* Changed sm:max-w-lg to sm:max-w-2xl */}
+      <SheetContent side="right" class="w-full sm:max-w-2xl"> 
         <SheetHeader>
           <SheetTitle>Podcast Details</SheetTitle>
           <SheetDescription>
@@ -138,6 +138,9 @@ const podcastPlayer = usePodcastPlayer();
 // Filtered podcasts based on searchTerm and hideEmptyPodcasts
 const filteredPodcasts = computed<Podcast[]>(() => {
   let result = podcasts.value;
+  console.log('[PodcastsPage] Original podcasts:', JSON.parse(JSON.stringify(podcasts.value)));
+  console.log('[PodcastsPage] Current searchTerm:', searchTerm.value);
+  console.log('[PodcastsPage] Current hideEmptyPodcasts:', hideEmptyPodcasts.value);
 
   // Apply search term filter
   if (searchTerm.value) {
@@ -146,6 +149,7 @@ const filteredPodcasts = computed<Podcast[]>(() => {
       (podcast.title && podcast.title.toLowerCase().includes(lowerSearchTerm)) ||
       (podcast.topic && podcast.topic.toLowerCase().includes(lowerSearchTerm))
     );
+    console.log('[PodcastsPage] Podcasts after searchTerm filter:', JSON.parse(JSON.stringify(result)));
   }
 
   // Apply hide empty podcasts filter
@@ -153,8 +157,10 @@ const filteredPodcasts = computed<Podcast[]>(() => {
     result = result.filter(podcast =>
       podcast.podcast_segments && podcast.podcast_segments.length > 0
     );
+    console.log('[PodcastsPage] Podcasts after hideEmptyPodcasts filter:', JSON.parse(JSON.stringify(result)));
   }
 
+  console.log('[PodcastsPage] Final filteredPodcasts:', JSON.parse(JSON.stringify(result)));
   return result;
 });
 

@@ -29,13 +29,43 @@ export function usePodcastCoverGenerator() {
       });
 
       if (!dalleResponse.ok) {
-        const errorData = await dalleResponse.json().catch(() => ({ error: 'Failed to parse DALL-E error response' }));
-        console.error(`[CoverGenerator] DALL-E API error (${dalleResponse.status}):`, errorData.error || dalleResponse.statusText);
-        // toast.error('Cover Generation Failed', { description: `DALL-E API: ${errorData.error || dalleResponse.statusText}`, duration: 2000 });
+        try {
+          const errorText = await dalleResponse.text();
+          console.error(`[CoverGenerator] DALL-E API error (${dalleResponse.status}):`, errorText);
+          // toast.error('Cover Generation Failed', { description: `DALL-E API: ${dalleResponse.statusText}`, duration: 2000 });
+        } catch (parseError) {
+          console.error(`[CoverGenerator] DALL-E API error (${dalleResponse.status}):`, dalleResponse.statusText);
+          // toast.error('Cover Generation Failed', { description: `DALL-E API: ${dalleResponse.statusText}`, duration: 2000 });
+        }
         return;
       }
 
-      const { imageUrl } = await dalleResponse.json();
+      let imageUrl: string;
+      try {
+        const responseText = await dalleResponse.text();
+        console.log(`[CoverGenerator] Raw API response:`, responseText);
+        
+        // 尝试解析 JSON
+        try {
+          const responseData = JSON.parse(responseText);
+          imageUrl = responseData.imageUrl;
+          if (!imageUrl) {
+            console.error('[CoverGenerator] No imageUrl in response data:', responseData);
+            return;
+          }
+        } catch (jsonError) {
+          // 如果无法解析为 JSON，可能响应直接就是图片 URL
+          if (responseText.trim().startsWith('http')) {
+            imageUrl = responseText.trim();
+          } else {
+            console.error('[CoverGenerator] Failed to parse response as JSON and response is not a URL:', responseText);
+            return;
+          }
+        }
+      } catch (error) {
+        console.error('[CoverGenerator] Failed to read response:', error);
+        return;
+      }
 
       if (!imageUrl) {
         console.error('[CoverGenerator] No imageUrl received from DALL-E API.');

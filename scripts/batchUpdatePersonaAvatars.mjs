@@ -72,8 +72,8 @@ async function getActivePersonas() {
 
 function createImagePrompt(personaName, personaDescription) {
   // Consistent prompt structure, incorporating persona-specific details
-  // Use case: Anthropomorphic guide for a tour/museum context
-  return `anthropomorphic guide, ${personaName}, ${personaDescription}, studio portrait, detailed, high quality, consistent style for a tour guide series.`;
+  // Use case: Modern, realistic, detailed, and friendly tour guide
+  return `Highly realistic portrait of ${personaName}, a modern and friendly tour guide. ${personaDescription}. Detailed facial features with a warm, welcoming smile and kind eyes. Professional attire suitable for a contemporary tour guide. High-quality studio lighting, sharp focus, subtle background. Consistent style for a tour guide series.`;
 }
 
 async function generateImage(prompt) {

@@ -252,8 +252,19 @@ function onLoadedMetadata() {
 
 function onError(e: Event) {
   console.error('Audio playback error:', e);
-  audioStore.setError('Playback error. Please try again later.');
+  audioStore.setError('Playback error for current track.');
   audioStore.setLoading(false);
+  audioStore.isPlaying = false; // Ensure isPlaying is false
+
+  // Attempt to play the next track if available
+  if (audioStore.hasNext) {
+    console.log('Error with current track, attempting to play next.');
+    audioStore.next();
+  } else {
+    // If no next track, or if the error was on the last track
+    console.log('Error with current track, no next track to play or it was the last one.');
+    audioStore.stop(); // Stop playback and clear current track if it's the end of the playlist
+  }
 }
 
 function onProgressBarClick(e: MouseEvent) {

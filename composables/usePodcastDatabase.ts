@@ -17,6 +17,7 @@ export const usePodcastDatabase = () => {
   const fetchPodcasts = async () => {
     loading.value = true;
     error.value = null;
+    console.log('[usePodcastDatabase] Starting fetchPodcasts...');
     try {
       const client = useSupabaseClient<SupabaseClient>();
       const { data, error: dbError } = await client
@@ -24,15 +25,20 @@ export const usePodcastDatabase = () => {
         .select(commonSelectQuery)
         .order('created_at', { ascending: false });
 
+      console.log('[usePodcastDatabase] Raw data from Supabase:', data);
+      console.log('[usePodcastDatabase] Supabase error:', dbError);
+
       if (dbError) {
         throw dbError;
       }
       podcasts.value = data as Podcast[];
+      console.log('[usePodcastDatabase] Parsed podcasts.value:', podcasts.value);
     } catch (e: any) {
       error.value = e.message;
       console.error('Error fetching podcasts:', e);
     } finally {
       loading.value = false;
+      console.log('[usePodcastDatabase] fetchPodcasts finished. Loading:', loading.value, 'Error:', error.value);
     }
   };
 

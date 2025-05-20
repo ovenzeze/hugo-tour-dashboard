@@ -95,7 +95,7 @@ export type VolcengineVoiceType = keyof typeof VOICE_TYPES | string; // Allow cu
 export interface VolcengineSynthesizeParams {
   text: string;
   appId: string;
-  accessToken: string;
+  accessToken: string; // Used for Authorization: Bearer header
   cluster: string;
   voiceType: string; // This is the actual voice_type for the API request
   instanceId: string;
@@ -111,34 +111,38 @@ export interface SynthesizedAudioResult {
   timestamps: FrontendTimestampData | null;
   durationMs?: number | null; // Duration in milliseconds, if available
   error?: string;
+  rawResponse?: any; // Added for detailed error logging
 }
 
 export async function synthesizeSpeechVolcengine(params: VolcengineSynthesizeParams): Promise<SynthesizedAudioResult> {
-  const { 
-    text, 
-    appId, 
-    accessToken, 
-    cluster, 
-    voiceType, 
-    instanceId, 
-    enableTimestamps, 
-    encoding = 'mp3', 
-    speedRatio = 1.0, 
-    volumeRatio = 1.0, 
-    pitchRatio = 1.0 
+  const {
+    text,
+    appId,
+    accessToken,
+    cluster,
+    voiceType, // This is the generic voice type like 'female'
+    instanceId,
+    enableTimestamps,
+    encoding = 'mp3',
+    speedRatio = 1.0,
+    volumeRatio = 1.0,
+    pitchRatio = 1.0
   } = params;
+
+  // Map the generic voiceType to Volcengine specific voice_type
+  const volcengineVoiceType = VOICE_TYPES[voiceType as keyof typeof VOICE_TYPES] || VOICE_TYPES.female; // Default to female if not found
 
   const requestBody: VolcengineTTSApiRequest = {
     app: {
       appid: appId,
-      token: 'M_Access_Token', // CRITICAL: Must be the literal string "M_Access_Token"
+      token: "M_Access_Token",
       cluster: cluster,
     },
     user: {
-      uid: uuidv4(), 
+      uid: uuidv4(),
     },
     audio: {
-      voice_type: voiceType, 
+      voice_type: volcengineVoiceType, // Use the mapped voice type
       encoding: encoding,
       speed_ratio: speedRatio,
       volume_ratio: volumeRatio,
@@ -160,7 +164,7 @@ export async function synthesizeSpeechVolcengine(params: VolcengineSynthesizePar
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'Authorization': `Bearer ${accessToken}`,
+        'Authorization': `Bearer;${accessToken}`,
       },
       body: JSON.stringify(requestBody),
     };
@@ -176,6 +180,7 @@ export async function synthesizeSpeechVolcengine(params: VolcengineSynthesizePar
         timestamps: null,
         durationMs: null,
         error: `API Error ${response.code}: ${response.message}`,
+        rawResponse: response, // Store raw error response
       };
     }
 
@@ -185,11 +190,12 @@ export async function synthesizeSpeechVolcengine(params: VolcengineSynthesizePar
 
     if (!audioBase64) {
       console.error('No audio data found in response or data is not a string:', response.data);
-      return { 
-        audioBuffer: null, 
-        timestamps: null, 
-        durationMs: null, 
-        error: 'No audio data found in response or data is not a string.' 
+      return {
+        audioBuffer: null,
+        timestamps: null,
+        durationMs: null,
+        error: 'No audio data found in response or data is not a string.',
+        rawResponse: response, // Store raw response when audio data is missing
       };
     }
 
@@ -209,11 +215,12 @@ export async function synthesizeSpeechVolcengine(params: VolcengineSynthesizePar
 
   } catch (error: any) {
     console.error('Error synthesizing speech with Volcengine:', error);
-    return { 
-      audioBuffer: null, 
-      timestamps: null, 
-      durationMs: null, 
-      error: `Error synthesizing speech: ${error.message}` 
+    return {
+      audioBuffer: null,
+      timestamps: null,
+      durationMs: null,
+      error: `Error synthesizing speech: ${error.message}`,
+      rawResponse: error, // Store raw error object on catch
     };
   }
 }

@@ -1,6 +1,5 @@
 <template>
   <div>
-    <Toaster richColors />
     <SidebarProvider>
       <div class="relative flex flex-col md:flex-row w-full">
         <!-- 桌面端侧边栏 -->
@@ -63,8 +62,11 @@ const menuGroups = {
   ],
   content: [
         { path: '/playground', label: 'Playground', icon: 'ph:flask' },
+        { path: '/podcasts', label: 'Podcasts', icon: 'ph:microphone' },
 
-    { path: '/podcasts', label: 'Podcasts', icon: 'ph:microphone' },
+    { path: '/audio-player-demo', label: 'Audio Player', icon: 'ph:speaker-high' }
+  ],
+  collections: [
     { path: '/transcripts', label: 'Guide Texts', icon: 'ph:file-text' },
     { path: '/personas', label: 'Personas', icon: 'ph:user-circle' },
   ],
@@ -72,7 +74,6 @@ const menuGroups = {
     { path: '/museums', label: 'Museums', icon: 'ph:buildings' },
     { path: '/galleries', label: 'Galleries', icon: 'ph:images' },
     { path: '/objects', label: 'Objects', icon: 'ph:cube' },
-    { path: '/audio-player-demo', label: '音频播放器', icon: 'ph:speaker-high' }
   ],
   client: [
     { path: '/tour', label: 'Tour', icon: 'ph:map-trifold' },
@@ -84,7 +85,8 @@ const menuGroups = {
     { path: '/preference', label: 'Preference', icon: 'ph:sliders' },
     { path: '/docs', label: 'Docs', icon: 'ph:book' },
     { path: '/debug', label: 'Debug', icon: 'ph:bug' },
-        { path: '/components', label: 'Components', icon: 'ph:puzzle-piece' }
+    { path: '/tts-debug', label: 'TTS Debug', icon: 'ph:speaker-simple-high' }, // 新增 TTS Debug 菜单项
+    { path: '/components', label: 'Components', icon: 'ph:puzzle-piece' }
 
   ]
 };

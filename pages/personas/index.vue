@@ -1,9 +1,14 @@
 <template>
   <div class="p-4 sm:p-6 lg:p-8">
-    <div class="sm:flex sm:items-center">
-      <div class="mt-4 sm:mt-0 sm:ml-16 sm:flex-none">
-        <Button @click="openAddPersonaDialog">
-         <Icon name="ph:plus" class=" h-4 w-4" />Add Persona
+    <div class="flex items-center justify-between mb-6">
+      <div>
+        <h1 class="text-2xl font-semibold tracking-tight">Personas</h1>
+        <p class="text-sm text-muted-foreground mt-1">管理您的角色配置和语音设置</p>
+      </div>
+      <div>
+        <Button @click="openAddPersonaDialog" class="gap-1.5">
+          <Icon name="ph:plus" class="h-4 w-4" />
+          <span>Add Persona</span>
         </Button>
       </div>
     </div>
@@ -31,7 +36,7 @@
       <div v-else-if="error" class="text-center py-4">
         <p class="text-red-500">Failed to load personas: {{ error.message }}</p>
       </div>
-      <div v-else-if="personas && personas.length > 0" class="grid grid-cols-[repeat(auto-fit,minmax(300px,1fr))] gap-6">
+      <div v-else-if="personas && personas.length > 0" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
         <PersonaCard
           v-for="persona in personas"
           :key="persona.persona_id"
@@ -41,15 +46,17 @@
           @view-details="viewPersonaDetails"
         />
       </div>
-      <div v-else class="text-center py-12">
-        <Icon name="ph:users-three" class="mx-auto h-12 w-12 text-gray-400" />
-        <h3 class="mt-2 text-sm font-medium text-gray-900 dark:text-gray-100">No Personas Found</h3>
-        <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">Get started by creating a new persona.</p>
-        <div class="mt-6">
-          <Button @click="openAddPersonaDialog">
-            <Icon name="ph:plus-circle" class="mr-2 h-4 w-4" />
-            Create Persona
-          </Button>
+      <div v-else class="text-center py-16 px-4 border-2 border-dashed border-muted rounded-xl bg-muted/5">
+        <div class="flex flex-col items-center max-w-md mx-auto">
+          <Icon name="ph:users-three" class="h-16 w-16 text-muted-foreground/60" />
+          <h3 class="mt-4 text-lg font-medium">No Personas Found</h3>
+          <p class="mt-2 text-sm text-muted-foreground">创建一个新的角色来开始使用语音合成和对话功能。</p>
+          <div class="mt-6">
+            <Button @click="openAddPersonaDialog" size="lg" class="gap-2">
+              <Icon name="ph:plus-circle" class="h-5 w-5" />
+              <span>Create Persona</span>
+            </Button>
+          </div>
         </div>
       </div>
     </div>
@@ -194,7 +201,6 @@
 <script setup lang="ts">
 import { toTypedSchema } from '@vee-validate/zod';
 import { useForm } from 'vee-validate';
-import { computed, ref, watch } from 'vue';
 import { toast } from 'vue-sonner';
 import * as z from 'zod';
 

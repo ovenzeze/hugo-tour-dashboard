@@ -49,11 +49,13 @@ export default defineEventHandler(async (event) => {
   const elevenLabsStream: AsyncIterable<any> = // Changed type to AsyncIterable<any>
     await elevenlabs.textToSpeech.streamWithTimestamps(
       voiceId || '21m00Tcm4TlvDq8ikWAM', // Default voiceId if not provided
-      text,
-      { // Options object
-        // model_id: modelId || 'eleven_multilingual_v2', // Removed model_id
-        // voiceSettings, // Removed voiceSettings
-        // optimizeStreamingLatency: optimizeStreamingLatency || undefined, // Removed optimizeStreamingLatency
+      {
+        text,
+        model_id: modelId || 'eleven_multilingual_v2',
+        voice_settings: voiceSettings,
+      },
+      {
+        optimizeStreamingLatency: optimizeStreamingLatency || undefined,
         // outputFormat: 'mp3_44100_128' // Example, if you need to specify output format
       }
     );

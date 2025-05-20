@@ -1,30 +1,38 @@
 <template>
   <div class="space-y-4">
     <!-- Top Control Bar -->
-    <div class="flex items-center justify-between p-3 border rounded-md bg-muted/10">
+    <div class="flex items-center justify-between p-3 border rounded-md bg-muted/10" role="region" aria-label="音频设置控制">
       
       <div class="flex-1 flex items-center space-x-4 px-4">
-        <div class="flex items-center gap-2 flex-1">
-          <Label class="whitespace-nowrap text-sm">Temperature: {{ audioStore.synthesisParams.temperature.toFixed(1) }}</Label>
+        <div class="flex items-center gap-2 flex-1" role="group" aria-labelledby="temperature-label">
+          <Label id="temperature-label" class="whitespace-nowrap text-sm" for="temperature-slider">Temperature: {{ audioStore.synthesisParams.temperature.toFixed(1) }}</Label>
           <Slider
+            id="temperature-slider"
             class="flex-1"
             :model-value="audioStore.synthesisParams.temperatureArray"
             @update:model-value="(value: number[] | undefined) => { if (value && value.length > 0) audioStore.updateSynthesisParams({ temperature: value[0] }) }"
             :min="0"
             :max="1"
             :step="0.1"
+            aria-label="Temperature"
+            @keydown.left.prevent="decreaseTemperature"
+            @keydown.right.prevent="increaseTemperature"
           />
         </div>
         
-        <div class="flex items-center gap-2 flex-1">
-          <Label class="whitespace-nowrap text-sm">Speed: {{ audioStore.synthesisParams.speed.toFixed(1) }}x</Label>
+        <div class="flex items-center gap-2 flex-1" role="group" aria-labelledby="speed-label">
+          <Label id="speed-label" class="whitespace-nowrap text-sm" for="speed-slider">Speed: {{ audioStore.synthesisParams.speed.toFixed(1) }}x</Label>
           <Slider
+            id="speed-slider"
             class="flex-1"
             :model-value="audioStore.synthesisParams.speedArray"
             @update:model-value="(value: number[] | undefined) => { if (value && value.length > 0) audioStore.updateSynthesisParams({ speed: value[0] }) }"
             :min="0.5"
             :max="2"
             :step="0.1"
+            aria-label="Speed"
+            @keydown.left.prevent="decreaseSpeed"
+            @keydown.right.prevent="increaseSpeed"
           />
         </div>
       </div>
@@ -42,37 +50,41 @@
     </div>
 
     <!-- Speaker Voice Assignment -->
-    <div v-if="parsedScriptSegments.length > 0" class="space-y-3">
+    <div v-if="parsedScriptSegments.length > 0" class="space-y-3" role="region" aria-labelledby="voice-assignment-heading">
       <div class="flex items-center justify-between pb-2 border-b">
-        <h4 class="font-medium">Voice Assignment</h4>
+        <h4 id="voice-assignment-heading" class="font-medium">Voice Assignment</h4>
       </div>
       
-      <div class="space-y-3 max-h-[400px] overflow-y-auto pr-1">
+      <div class="space-y-3 max-h-[400px] overflow-y-auto pr-1" role="list">
         <SegmentVoiceAssignmentItem
           v-for="(segment, index) in enhancedScriptSegments"
           :key="`segment-item-${index}`"
           :segment="segment"
           :segment-index="index"
           :speaker-assignment="speakerAssignments[segment.speakerTag]"
-          @update:speaker-assignment="value => speakerAssignments[segment.speakerTag] = value || ''"
           :available-voices="[]"
           :is-loading-voices="false"
           :is-previewing-this-segment="isPreviewingSegment === index"
           :is-global-loading="props.isGlobalPreviewLoading"
           :segment-state="segmentStates[index]"
-          :audio-url="segmentPreviews[index]?.audioUrl"
-          @preview-segment="previewSegment(previewableEnhancedSegments[index], index)"
+          :audio-url="segmentPreviews[index]?.audioUrl ?? null"
+          @preview-segment="previewSegment(segment, index)"
           @audio-play="onSegmentPlay(index)"
           @audio-pause-or-end="onSegmentPauseOrEnd(index)"
           :ref="(el: any) => setAudioRef(index, el && el.audioPlayerElement && typeof el.audioPlayerElement.value !== 'undefined' ? el.audioPlayerElement.value : null)"
+          role="listitem"
+          :aria-label="`语音分配项 ${index + 1}: ${segment.speakerTag}`"
+          @keydown.enter="previewSegment(segment, index)"
+          @keydown.space.prevent="previewSegment(segment, index)"
+          tabindex="0"
         />
       </div>
     </div>
 
     <!-- Global Preview Area -->
-    <div v-if="combinedPreviewUrl" class="border rounded-md p-4 space-y-2">
-      <h4 class="font-medium">Full Audio Preview</h4>
-      <audio :src="combinedPreviewUrl" controls class="w-full" />
+    <div v-if="combinedPreviewUrl" class="border rounded-md p-4 space-y-2" role="region" aria-labelledby="full-audio-preview-heading">
+      <h4 id="full-audio-preview-heading" class="font-medium">Full Audio Preview</h4>
+      <audio :src="combinedPreviewUrl" controls class="w-full" aria-label="完整音频预览" @keydown.space.prevent="toggleAudioPlayback" ref="fullAudioPreview" />
     </div>
 
     <!-- Role Information Summary -->
@@ -89,7 +101,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, ref, watch, toRef } from 'vue';
+import { computed, onMounted, ref, watch, toRef, nextTick, onBeforeUnmount } from 'vue';
 import { toast } from 'vue-sonner';
 import { usePlaygroundAudioStore } from '../../stores/playgroundAudio';
 import { usePlaygroundPersonaStore, type Persona } from '../../stores/playgroundPersona';
@@ -221,13 +233,9 @@ const enhancedScriptSegments = computed(() => {
       roleType = 'host';
     }
 
-    const assignedVoiceDetails = availableVoices.value.find(v => v.id === effectiveVoiceId);
-    if (assignedVoiceDetails) {
-      // effectiveVoiceId should already be the correct ID from speakerAssignments
-      // effectiveVoiceId = assignedVoiceDetails.id; // This line was redundant if effectiveVoiceId is already the ID
-      effectiveVoiceName = assignedVoiceDetails.name;
-      // If a voice is explicitly assigned, its provider should take precedence
-      assignedProvider = assignedVoiceDetails.provider || assignedProvider; 
+    // 直接使用 voice_model_identifier 作为名称
+    if (effectiveVoiceId) {
+      effectiveVoiceName = effectiveVoiceId;
     }
 
     // Determine personaId for this segment
@@ -287,13 +295,9 @@ const previewableEnhancedSegments = computed<PreviewableSegment[]>(() => {
 
     const systemAssignedVoiceId = speakerAssignments.value[parserSegment.speakerTag];
 
-    const getVoiceById = (voiceId: string) => {
-      return null;
-    };
-
     if (systemAssignedVoiceId) {
       finalVoiceId = systemAssignedVoiceId;
-      finalVoiceName = getVoiceById(finalVoiceId);
+      finalVoiceName = systemAssignedVoiceId;
     } else if (persona && !finalVoiceId) { // If persona exists but had no default voice, ensure speaker name is used
         // finalVoiceId would be null, finalTtsProvider would be persona's provider or undefined
         // finalVoiceName would be persona's name or speakerTag
@@ -391,7 +395,8 @@ onMounted(() => {
   if (!personaStore.personas.value || personaStore.personas.value.length === 0) {
     personaStore.fetchPersonas();
   }
-  if (availableVoices.value.length === 0) {
+  // 不再检查 availableVoices，因为它已被移除
+  if (false) {
     // Initial fetch of voices if needed, though useVoiceManagement might handle this too.
     // Consider if useVoiceManagement should be the sole responsible party for fetching voices.
   }
@@ -401,7 +406,7 @@ onMounted(() => {
 // Expose methods for parent component (PlaygroundStep2Panel)
 defineExpose({
   isFormValid: canProceed,
-  getSettings: () => ({
+  getPerformanceConfig: () => ({
     speakerAssignments: speakerAssignments.value,
     // Note: synthesisParams are now managed by audioStore, not directly part of these settings
   }),
@@ -417,8 +422,120 @@ defineExpose({
   })
 });
 
+// 新增键盘导航方法
+const decreaseTemperature = () => {
+  const currentTemp = audioStore.synthesisParams.temperature;
+  const newTemp = Math.max(0, currentTemp - 0.1);
+  audioStore.updateSynthesisParams({ temperature: newTemp });
+};
+
+const increaseTemperature = () => {
+  const currentTemp = audioStore.synthesisParams.temperature;
+  const newTemp = Math.min(1, currentTemp + 0.1);
+  audioStore.updateSynthesisParams({ temperature: newTemp });
+};
+
+const decreaseSpeed = () => {
+  const currentSpeed = audioStore.synthesisParams.speed;
+  const newSpeed = Math.max(0.5, currentSpeed - 0.1);
+  audioStore.updateSynthesisParams({ speed: newSpeed });
+};
+
+const increaseSpeed = () => {
+  const currentSpeed = audioStore.synthesisParams.speed;
+  const newSpeed = Math.min(2, currentSpeed + 0.1);
+  audioStore.updateSynthesisParams({ speed: newSpeed });
+};
+
+// 焦点管理
+const focusFirstInteractiveElement = () => {
+  nextTick(() => {
+    const firstInteractiveElement = document.querySelector('#temperature-slider, #speed-slider, audio, button') as HTMLElement;
+    if (firstInteractiveElement) {
+      firstInteractiveElement.focus();
+    }
+  });
+};
+
+// 全局音频预览控制
+const fullAudioPreview = ref<HTMLAudioElement | null>(null);
+
+const toggleAudioPlayback = () => {
+  if (fullAudioPreview.value) {
+    if (fullAudioPreview.value.paused) {
+      fullAudioPreview.value.play();
+    } else {
+      fullAudioPreview.value.pause();
+    }
+  }
+};
+
+// 键盘导航
+const handleKeyNavigation = (event: KeyboardEvent) => {
+  const focusableElements = 'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])';
+  const focusable = Array.from(document.querySelectorAll(focusableElements));
+  const firstFocusable = focusable[0] as HTMLElement;
+  const lastFocusable = focusable[focusable.length - 1] as HTMLElement;
+
+  if (event.key === 'Tab') {
+    if (event.shiftKey) {
+      if (document.activeElement === firstFocusable) {
+        lastFocusable.focus();
+        event.preventDefault();
+      }
+    } else {
+      if (document.activeElement === lastFocusable) {
+        firstFocusable.focus();
+        event.preventDefault();
+      }
+    }
+  }
+};
+
+onMounted(() => {
+  if (!personaStore.personas.value || personaStore.personas.value.length === 0) {
+    personaStore.fetchPersonas();
+  }
+  if (false) {
+    // Initial fetch of voices if needed, though useVoiceManagement might handle this too.
+    // Consider if useVoiceManagement should be the sole responsible party for fetching voices.
+  }
+  emit('update:isValid', canProceed.value);
+  focusFirstInteractiveElement();
+  document.addEventListener('keydown', handleKeyNavigation);
+});
+
+onBeforeUnmount(() => {
+  document.removeEventListener('keydown', handleKeyNavigation);
+});
+
 </script>
 
 <style scoped>
 /* Add any specific styles for this component here */
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border-width: 0;
+}
+
+/* 添加焦点样式 */
+:focus {
+  outline: 2px solid #4a90e2;
+  outline-offset: 2px;
+}
+
+/* 为可交互元素添加悬停效果 */
+button:hover,
+[role="button"]:hover,
+.interactive:hover {
+  opacity: 0.8;
+  transition: opacity 0.2s ease-in-out;
+}
 </style>
