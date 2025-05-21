@@ -30,9 +30,9 @@ export function useClientSafeFunctions() {
     return false;
   };
   
-  const openWindow = (url: string): void => {
+  const openWindow = (url: string, target: string = '_blank', features?: string): void => {
     if (isClient.value && typeof window !== 'undefined') {
-      window.open(url, '_blank');
+      window.open(url, target, features);
     }
   };
   

@@ -39,7 +39,7 @@
               <span class="share-text">WeChat</span>
             </Button>
             <Button variant="outline" @click="shareToWeibo" aria-label="Share to Weibo" title="Share to Weibo" class="share-button">
-              <Icon name="ph:weibo-logo-fill" class="share-icon text-[#e6162d]" />
+              <Icon name="simple-icons:sinaweibo" class="share-icon text-[#e6162d]" />
               <span class="share-text">Weibo</span>
             </Button>
             <Button variant="outline" @click="shareToTwitter" aria-label="Share to Twitter" title="Share to Twitter" class="share-button">

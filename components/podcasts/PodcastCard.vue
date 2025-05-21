@@ -16,7 +16,7 @@
       hoveredPodcastId === Number(podcast.podcast_id) && 'shadow-lg',
       hoveredPodcastId === Number(podcast.podcast_id) ? 'scale-[1.02]' : 'scale-100'
     ]"
-    @click="currentPreviewingId === podcast.podcast_id ? null : emit('select-podcast', podcast.podcast_id)"
+    @click.prevent="currentPreviewingId === podcast.podcast_id ? null : emit('select-podcast', podcast.podcast_id)"
   >
     <!-- Background image with loading state -->
     <div
@@ -24,63 +24,47 @@
       class="absolute inset-0 bg-center bg-cover transition-opacity duration-500 ease-in-out rounded-md"
       :style="{
         backgroundImage: podcast.cover_image_url && typeof podcast.cover_image_url === 'string' ? `url(${podcast.cover_image_url})` : 'none',
-        opacity: imageLoaded[podcast.podcast_id] ? 1 : 0,
+        opacity: imageLoaded[Number(podcast.podcast_id)] ? 1 : 0,
         transition: 'opacity 0.5s ease-in-out',
         zIndex: 0
       }"
     >
       <img
         :src="podcast.cover_image_url && typeof podcast.cover_image_url === 'string' ? podcast.cover_image_url : ''"
-        @load="() => handleImageLoad(podcast.podcast_id)"
+        @load="() => handleImageLoad(Number(podcast.podcast_id))"
         class="hidden"
         alt=""
       />
     </div>
 
-    <!-- Enhanced overlay for better text readability when there's a background image -->
-    <div
-      v-if="podcast.cover_image_url"
-      class="absolute inset-0 transition-all duration-300 ease-in-out"
-      :style="{
-        background: hoveredPodcastId === Number(podcast.podcast_id) 
-          ? 'linear-gradient(to bottom, rgba(0,0,0,0.85) 0%, rgba(0,0,0,0.6) 40%, rgba(0,0,0,0.7) 100%)'
-          : 'linear-gradient(to bottom, rgba(0,0,0,0.2) 0%, rgba(0,0,0,0.05) 30%, rgba(0,0,0,0.2) 100%)',
-        zIndex: 1
-      }"
-    ></div>
+    <!-- 顶部整体渐变遮罩，圆角与卡片一致 -->
+    <div class="absolute inset-x-0 top-0 h-[40%] z-10 rounded-t-xl pointer-events-none card-gradient-overlay"></div>
 
     <!-- Core content always visible -->
-    <CardHeader class="pb-2 relative group z-10">
-      <div class="flex flex-col items-start">
-        <div class="flex justify-between items-start w-full">
-          <!-- 标题区域添加文本阴影效果 -->
-          <CardTitle 
-            class="text-lg font-bold leading-tight text-left transition-all duration-300 ease-in-out"
-            :class="{
-              'text-shadow-lg': podcast.cover_image_url,
-              'scale-105 origin-left opacity-100': hoveredPodcastId === Number(podcast.podcast_id) && podcast.cover_image_url,
-              'opacity-30': hoveredPodcastId !== Number(podcast.podcast_id) && podcast.cover_image_url
-            }"
-          >
-            <span
-              class="line-clamp-2 break-words"
-              :title="podcast.title"
-            >{{ podcast.title || `Podcast #${podcast.podcast_id}` }}</span>
-          </CardTitle>
+    <div :class="[
+      'card-content-fade',
+      hoveredPodcastId === Number(podcast.podcast_id) ? 'opacity-100' : 'opacity-50'
+    ]">
+      <CardHeader class="pb-2 relative z-20">
+        <div class="flex flex-col items-start">
+          <div class="flex justify-between items-start w-full">
+            <CardTitle class="text-lg font-bold leading-tight text-left card-title-shadow">
+              <span class="line-clamp-2 break-words" :title="podcast.title">{{ podcast.title || `Podcast #${podcast.podcast_id}` }}</span>
+            </CardTitle>
 
-          <Button 
-            variant="ghost"
-            size="icon"
-            class="h-7 w-7 transition-opacity duration-300 ease-in-out"
-            :class="[
-              podcast.cover_image_url ? 'text-white hover:bg-white/20' : '',
-              hoveredPodcastId === Number(podcast.podcast_id) ? 'opacity-100' : 'opacity-0'
-            ]"
-            title="Delete Podcast"
-            @click.stop="emit('delete-podcast', podcast.podcast_id)"
-          >
-            <Icon name="ph:trash" class="h-4 w-4" />
-          </Button>
+            <Button 
+              variant="ghost"
+              size="icon"
+              class="h-7 w-7 transition-opacity duration-300 ease-in-out"
+              :class="[
+                podcast.cover_image_url ? 'text-white hover:bg-white/20' : '',
+                hoveredPodcastId === Number(podcast.podcast_id) ? 'opacity-100' : 'opacity-0'
+              ]"
+              title="Delete Podcast"
+              @click.stop="emit('delete-podcast', podcast.podcast_id)"
+            >
+              <Icon name="ph:trash" class="h-4 w-4" />
+            </Button>
         </div>
 
         <!-- 播客基本信息 - 主持人和时长 (始终可见) -->
@@ -117,55 +101,27 @@
             {{ podcast.topic }}
           </span>
         </div>
-      </div>
-    </CardHeader>
-
-    <!-- Extended content on hover - simple opacity change -->
-    <CardContent class="py-2 text-sm relative z-10 flex-1">
-      <div 
-        :class="{
-          'opacity-100 transform translate-y-0': hoveredPodcastId === Number(podcast.podcast_id),
-          'opacity-0 transform translate-y-2': hoveredPodcastId !== Number(podcast.podcast_id)
-        }"
-        class="transition-all duration-300 ease-in-out h-full flex flex-col">
-        <!-- Podcast description -->
-        <CardDescription v-if="podcast.description"
-          :class="podcast.cover_image_url ? 'text-white/90' : 'text-muted-foreground'"
-          class="text-sm line-clamp-2 text-left mb-3">
-          {{ podcast.description }}
-        </CardDescription>
-
-        <!-- 详细信息区域 -->
-        <div class="mb-3">
-          <!-- 嘉宾信息 -->
-          <div v-if="podcast.guest_name" class="flex items-center mb-2">
-            <Icon name="ph:user" class="h-4 w-4 mr-2" :class="podcast.cover_image_url ? 'text-white/70' : 'text-muted-foreground'" />
-            <span class="text-sm truncate" :title="podcast.guest_name">{{ podcast.guest_name }}</span>
-          </div>
-          
-          <!-- 创建时间 -->
-          <div class="flex items-center mb-2">
-            <Icon name="ph:calendar" class="h-4 w-4 mr-2" :class="podcast.cover_image_url ? 'text-white/70' : 'text-muted-foreground'" />
-            <span class="text-xs">{{ formatRelativeTime(podcast.created_at) }}</span>
-          </div>
         </div>
+      </CardHeader>
 
-        <!-- 分段信息展示 -->
-        <div v-if="podcast.podcast_segments && podcast.podcast_segments.length > 0" class="border-t pt-2 mt-auto">
-          <div class="flex items-center justify-between mb-2">
-            <span class="text-sm font-medium">Segments ({{ podcast.podcast_segments.length }})</span>
-            <Button
-              variant="ghost"
-              size="sm"
-              class="h-6 text-xs"
-              @click.stop="toggleSegments(Number(podcast.podcast_id))"
-            >
-              {{ getSegmentVisibility(podcast.podcast_id) ? 'Collapse' : 'Show All' }}
-            </Button>
-          </div>
+      <!-- Extended content on hover - simple opacity change -->
+      <CardContent class="py-2 text-sm relative z-10 flex-1">
+        <div 
+          :class="{
+            'opacity-100 transform translate-y-0': hoveredPodcastId === Number(podcast.podcast_id),
+            'opacity-0 transform translate-y-2': hoveredPodcastId !== Number(podcast.podcast_id)
+          }"
+          class="transition-all duration-300 ease-in-out h-full flex flex-col">
+          <!-- Podcast description -->
+          <CardDescription v-if="podcast.description"
+            :class="podcast.cover_image_url ? 'text-white/90' : 'text-muted-foreground'"
+            class="text-sm line-clamp-2 text-left mb-3">
+            {{ podcast.description }}
+          </CardDescription>
         </div>
-      </div>
-    </CardContent>
+      </CardContent>
+    </div>
+
     <!-- 中央播放/暂停按钮或继续按钮 (二选一) -->
     <div class="z-20 absolute inset-20 flex items-end justify-center">
       <!-- 继续制作按钮 (未完成的播客) -->
@@ -342,7 +298,7 @@
             size="icon"
             class="h-10 w-10 rounded-lg bg-black/10 hover:bg-black/20 dark:bg-white/5 dark:hover:bg-white/10"
             title="Preview share"
-            @click.stop="openSharePreviewModal(Number(podcast.podcast_id))"
+            @click.stop="openSharePreviewModal(podcast.podcast_id)"
             :disabled="!hasPlayableSegments(podcast)"
             :class="podcast.cover_image_url ? 'text-white hover:text-white' : ''"
           >
@@ -358,7 +314,7 @@
             size="icon"
             class="h-10 w-10 rounded-lg bg-black/10 hover:bg-black/20 dark:bg-white/5 dark:hover:bg-white/10"
             title="Share podcast"
-            @click.stop="sharePodcast(Number(podcast.podcast_id))"
+            @click.stop="sharePodcast(podcast.podcast_id)"
             :class="podcast.cover_image_url ? 'text-white hover:text-white' : ''"
           >
             <Icon 
@@ -417,8 +373,8 @@ const emit = defineEmits<{
   (e: 'stop-preview'): void;
   (e: 'generate-cover', podcastId: string): void;
   (e: 'toggle-segments', podcastId: number): void;
-  (e: 'open-share-preview', podcastId: number): void;
-  (e: 'share-podcast', podcastId: number): void;
+  (e: 'open-share-preview', podcastId: string): void;
+  (e: 'share-podcast', podcastId: string): void;
   (e: 'download-podcast', podcastId: string): void;
   (e: 'image-loaded', podcastId: number): void;
 }>();
@@ -489,44 +445,42 @@ function navigateToPlayground(podcastId: number) {
   router.push(`/playground?podcast=${podcastId}`);
 }
 
-function openSharePreviewModal(podcastId: number) {
+function openSharePreviewModal(podcastId: string) {
   emit('open-share-preview', podcastId);
 }
 
-function sharePodcast(podcastId: number) {
+function sharePodcast(podcastId: string) {
   emit('share-podcast', podcastId);
 }
 </script>
 
 <style scoped>
 /* Text shadow effects */
-.text-shadow-sm {
-  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.3);
+.card-content-fade {
+  transition: opacity 0.3s cubic-bezier(.4,0,.2,1);
+}
+.card-gradient-overlay {
+  border-top-left-radius: 0.75rem;
+  border-top-right-radius: 0.75rem;
+  background: linear-gradient(to bottom, rgba(0,0,0,0.7) 0%, rgba(0,0,0,0.05) 100%);
+  transition: background 0.3s cubic-bezier(.4,0,.2,1);
+}
+.card-title-shadow {
+  text-shadow: 0 2px 8px rgba(0,0,0,0.7);
+  transition: text-shadow 0.3s cubic-bezier(.4,0,.2,1);
 }
 
-.text-shadow-md {
-  text-shadow: 0 2px 4px rgba(0, 0, 0, 0.4);
-}
-
-.text-shadow-lg {
-  text-shadow: 0 2px 6px rgba(0, 0, 0, 0.5), 0 4px 8px rgba(0, 0, 0, 0.3);
-}
-
-/* Card hover effect */
+/* 保留按钮阴影等与卡片功能相关的样式 */
 .card-hover-effect {
   transition: all 0.3s ease-in-out;
 }
-
 .card-hover-effect:hover {
   transform: translateY(-4px);
   box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.1), 0 8px 10px -6px rgba(0, 0, 0, 0.1);
 }
-
-/* Button shadow effect */
 .btn-shadow {
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
 }
-
 .btn-shadow:hover {
   box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
 }

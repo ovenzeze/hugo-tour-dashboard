@@ -123,7 +123,7 @@
       <UnifiedPersonaSelector
         id="hostPersonaUnified"
         v-model="editableSettings.hostPersonaId"
-        :personas="props.personas"
+        :personas="availableHostPersonas"
         :selection-mode="'single'"
         placeholder="Select Host Persona"
         class="flex-grow"
@@ -382,9 +382,61 @@ const editableSettings = computed({
   }
 });
 
+// 根据当前选择的语言过滤可用的主持人人物
+const availableHostPersonas = computed(() => {
+  if (!props.personas || props.personas.length === 0) return [];
+  
+  // 如果当前选择的语言是英文，先尝试过滤支持英文的人物
+  const currentLanguage = editableSettings.value.language;
+  if (currentLanguage === 'en') {
+    // 尝试找出支持英文的人物
+    const englishSupportingPersonas = props.personas.filter(p => 
+      p.language_support && 
+      Array.isArray(p.language_support) && 
+      p.language_support.includes('en')
+    );
+    
+    // 如果找到了支持英文的人物，则返回这些人物
+    if (englishSupportingPersonas.length > 0) {
+      console.log(`Found ${englishSupportingPersonas.length} personas supporting English`);
+      return englishSupportingPersonas;
+    }
+    
+    // 如果没有找到支持英文的人物，则返回所有人物作为备选
+    console.log('No personas explicitly supporting English found, returning all personas as fallback');
+  }
+  
+  // 如果不是英文或没有选择语言，或者没有找到支持英文的人物，则显示所有人物
+  return props.personas;
+});
+
 const availableGuestPersonas = computed(() => {
-  if (!props.personas) return [];
-  return props.personas.filter(p => String(p.persona_id) !== String(editableSettings.value.hostPersonaId));
+  if (!props.personas || props.personas.length === 0) return [];
+  
+  // 首先过滤掉已选为主持人的人物
+  let filteredPersonas = props.personas.filter(p => String(p.persona_id) !== String(editableSettings.value.hostPersonaId));
+  
+  // 如果当前选择的语言是英文，先尝试过滤支持英文的人物
+  const currentLanguage = editableSettings.value.language;
+  if (currentLanguage === 'en') {
+    // 尝试找出支持英文的人物
+    const englishSupportingPersonas = filteredPersonas.filter(p => 
+      p.language_support && 
+      Array.isArray(p.language_support) && 
+      p.language_support.includes('en')
+    );
+    
+    // 如果找到了支持英文的人物，则返回这些人物
+    if (englishSupportingPersonas.length > 0) {
+      console.log(`Found ${englishSupportingPersonas.length} guest personas supporting English`);
+      return englishSupportingPersonas;
+    }
+    
+    // 如果没有找到支持英文的人物，则返回所有人物作为备选
+    console.log('No guest personas explicitly supporting English found, returning all filtered personas as fallback');
+  }
+  
+  return filteredPersonas;
 });
 
 watch(() => props.modelValue.hostPersonaId, (newHostId: number | string | undefined) => {
@@ -394,6 +446,52 @@ watch(() => props.modelValue.hostPersonaId, (newHostId: number | string | undefi
       .map((id: string | number | undefined) => Number(id))
       .filter((id: number) => !isNaN(id) && id !== numericNewHostId);
     emit('update:modelValue', { ...editableSettings.value, guestPersonaIds: updatedGuests });
+  }
+});
+
+// 监听语言变化，检查已选择人物的语言支持情况
+watch(() => editableSettings.value.language, (newLanguage: string | undefined) => {
+  if (newLanguage === 'en') {
+    console.log('Language changed to English, checking persona language support');
+    
+    // 先检查是否有任何支持英文的人物
+    const englishSupportingPersonas = props.personas.filter(p => 
+      p.language_support && 
+      Array.isArray(p.language_support) && 
+      p.language_support.includes('en')
+    );
+    
+    // 如果有支持英文的人物，才进行严格过滤
+    if (englishSupportingPersonas.length > 0) {
+      console.log(`Found ${englishSupportingPersonas.length} personas supporting English, will filter selections`);
+      
+      // 检查主持人是否支持英文
+      const hostPersona = props.personas.find(p => String(p.persona_id) === String(editableSettings.value.hostPersonaId));
+      if (hostPersona && (!hostPersona.language_support || !Array.isArray(hostPersona.language_support) || !hostPersona.language_support.includes('en'))) {
+        console.log(`Current host persona ${hostPersona.name} does not support English, resetting selection`);
+        // 如果主持人不支持英文，则重置主持人选择
+        editableSettings.value.hostPersonaId = undefined;
+      }
+      
+      // 检查嘉宾是否支持英文
+      if (editableSettings.value.guestPersonaIds && editableSettings.value.guestPersonaIds.length > 0) {
+        const newGuestIds = editableSettings.value.guestPersonaIds.filter(guestId => {
+          const guestPersona = props.personas.find(p => String(p.persona_id) === String(guestId));
+          return guestPersona && guestPersona.language_support && Array.isArray(guestPersona.language_support) && guestPersona.language_support.includes('en');
+        });
+        
+        if (newGuestIds.length !== editableSettings.value.guestPersonaIds.length) {
+          console.log(`Some guest personas do not support English, filtering guest selections`);
+          editableSettings.value.guestPersonaIds = newGuestIds;
+        }
+      }
+    } else {
+      console.log('No personas explicitly supporting English found, keeping current selections');
+      // 如果没有找到支持英文的人物，则保留当前选择
+    }
+    
+    // 更新表单值
+    emit('update:modelValue', { ...editableSettings.value });
   }
 });
 

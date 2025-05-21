@@ -1,4 +1,4 @@
-// composables/usePodcastDatabase.ts
+ // composables/usePodcastDatabase.ts
 import { ref } from 'vue';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { useSupabaseClient } from '#imports'; // Ensure this is correctly imported for client-side
@@ -11,7 +11,8 @@ export type { Podcast, Segment, SegmentAudio };
 export const usePodcastDatabase = () => {
   const podcasts = ref<Podcast[]>([]);
   const selectedPodcast = ref<Podcast | null>(null);
-  const loading = ref(false);
+  const loading = ref(false); // For general list loading
+  const loadingSelected = ref(false); // For loading individual podcast details
   const error = ref<string | null>(null);
 
   const commonSelectQuery = '*, cover_image_url, podcast_segments(*, segment_audios(*)), host_persona:personas!podcasts_host_persona_id_fkey(*), creator_persona:personas!podcasts_creator_persona_id_fkey(*), guest_persona:personas!podcasts_guest_persona_id_fkey(*)';
@@ -47,7 +48,7 @@ export const usePodcastDatabase = () => {
 
   // Fetch a single podcast with nested segments and segment audios by ID
   const fetchPodcastById = async (podcastId: string) => {
-    loading.value = true;
+    loadingSelected.value = true;
     error.value = null;
     try {
       const client = useSupabaseClient<SupabaseClient>();
@@ -65,7 +66,7 @@ export const usePodcastDatabase = () => {
       error.value = e.message;
       console.error(`Error fetching podcast with ID ${podcastId}:`, e);
     } finally {
-      loading.value = false;
+      loadingSelected.value = false;
     }
   };
 
@@ -228,6 +229,7 @@ export const usePodcastDatabase = () => {
     podcasts,
     selectedPodcast,
     loading,
+    loadingSelected, // Export the new loading state
     error,
     fetchPodcasts,
     fetchPodcastById,

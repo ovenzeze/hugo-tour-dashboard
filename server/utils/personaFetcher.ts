@@ -25,33 +25,87 @@ export async function getPersonasByLanguage(
   consola.info(`[personaFetcher] Fetching up to ${limit} personas for language: ${languageCode}`);
   const supabase = await serverSupabaseClient<Database>(event);
   
-  // Assumption: Your 'personas' table has a 'language_support' array column (string[]).
-  // We will filter personas where this array contains the requested languageCode.
+  // 首先尝试获取支持特定语言的人物
+  consola.info(`[personaFetcher] Attempting to fetch personas with language_support containing: ${languageCode}`);
   const { data, error } = await supabase
     .from('personas')
-    .select('persona_id, name, voice_model_identifier, language_support') // Selected language_support for potential debugging
-    .filter('language_support', 'cs', `{"${languageCode}"}`) // Check if language_support array contains languageCode
-    // .eq('is_active', true) // Optional: if you have an active flag
+    .select('persona_id, name, voice_model_identifier, language_support') 
+    .contains('language_support', [languageCode]) // 正确的语法：检查language_support数组是否包含languageCode
     .limit(limit);
 
   if (error) {
     consola.error('[personaFetcher] Error fetching personas by language. Query was for language_support containing languageCode. Error:', error);
-    return [];
+    
+    // 如果查询出错，尝试获取所有人物作为备选
+    consola.info('[personaFetcher] Attempting to fetch all personas as fallback');
+    const fallbackResult = await supabase
+      .from('personas')
+      .select('persona_id, name, voice_model_identifier, language_support')
+      .limit(limit);
+      
+    if (fallbackResult.error) {
+      consola.error('[personaFetcher] Error fetching all personas as fallback:', fallbackResult.error);
+      return [];
+    }
+    
+    if (!fallbackResult.data || fallbackResult.data.length === 0) {
+      consola.warn('[personaFetcher] No personas found in fallback query');
+      return [];
+    }
+    
+    consola.success(`[personaFetcher] Fetched ${fallbackResult.data.length} personas as fallback`);
+    // 输出每个人物的language_support字段以便调试
+    fallbackResult.data.forEach(p => {
+      consola.info(`[personaFetcher] Persona ${p.name} (ID: ${p.persona_id}) has language_support: ${JSON.stringify(p.language_support)}`);
+    });
+    
+    // 如果有人物数据，则返回处理后的结果
+    return processPersonaData(fallbackResult.data, languageCode);
   }
 
-  // If data is null (which can happen if query targets non-existent columns, even if error is also null sometimes)
-  // or if data is an empty array.
+  // 如果没有找到支持特定语言的人物
   if (!data || data.length === 0) { 
-    consola.warn('[personaFetcher] No personas data returned or data is empty for language:', languageCode);
-    return [];
+    consola.warn(`[personaFetcher] No personas found with language_support containing: ${languageCode}`);
+    
+    // 尝试获取所有人物作为备选
+    consola.info('[personaFetcher] Attempting to fetch all personas as fallback');
+    const fallbackResult = await supabase
+      .from('personas')
+      .select('persona_id, name, voice_model_identifier, language_support')
+      .limit(limit);
+      
+    if (fallbackResult.error || !fallbackResult.data || fallbackResult.data.length === 0) {
+      consola.warn('[personaFetcher] No personas found in fallback query');
+      return [];
+    }
+    
+    consola.success(`[personaFetcher] Fetched ${fallbackResult.data.length} personas as fallback`);
+    // 输出每个人物的language_support字段以便调试
+    fallbackResult.data.forEach(p => {
+      consola.info(`[personaFetcher] Persona ${p.name} (ID: ${p.persona_id}) has language_support: ${JSON.stringify(p.language_support)}`);
+    });
+    
+    // 如果有人物数据，则返回处理后的结果
+    return processPersonaData(fallbackResult.data, languageCode);
   }
   
-  // Ensure the returned data matches the AutoSelectedPersona interface
-  // This map assumes 'data' is an array of objects with the selected fields.
-  // If the select query itself failed due to wrong column names, 'data' might not be what we expect.
-  // The Supabase client might return an empty array and an error object, or data as null.
-  // The check for 'error' above should handle critical DB errors.
+  // 输出找到的支持特定语言的人物信息
+  consola.success(`[personaFetcher] Found ${data.length} personas supporting language: ${languageCode}`);
+  data.forEach(p => {
+    consola.info(`[personaFetcher] Persona ${p.name} (ID: ${p.persona_id}) supports language: ${languageCode}`);
+  });
+  
+  // 处理并返回数据
+  return processPersonaData(data, languageCode);
+}
 
+/**
+ * 处理从数据库获取的人物数据，确保符合AutoSelectedPersona接口要求
+ * @param data 从数据库获取的人物数据
+ * @param languageCode 当前语言代码（用于日志输出）
+ * @returns 处理后的符合AutoSelectedPersona接口的人物数组
+ */
+function processPersonaData(data: any[], languageCode: string): AutoSelectedPersona[] {
   // Define a type for the data structure returned by our specific select query
   type SelectedPersonaFields = {
     persona_id: number;
@@ -61,23 +115,23 @@ export async function getPersonasByLanguage(
   };
 
   const typedData: AutoSelectedPersona[] = (data as SelectedPersonaFields[]).map((p: SelectedPersonaFields) => {
-    // voice_model_identifier can be null in the DB.
-    // AutoSelectedPersona requires a non-null voice_model_identifier.
-    // So, if it's null, or if other essential fields are not of the correct type, we skip this persona.
-    if (typeof p.persona_id !== 'number' || 
-        typeof p.name !== 'string' || 
-        typeof p.voice_model_identifier !== 'string' // This check filters out nulls for voice_model_identifier
-    ) {
-      consola.warn(`[personaFetcher] Persona object from DB (id: ${p.persona_id}, name: ${p.name}) has missing/invalid fields or null voice_model_identifier. Skipping.`);
+    // 如果voice_model_identifier为null，使用默认值
+    const voiceModelId = p.voice_model_identifier || "default_voice_model";
+    
+    // 检查必要字段是否存在且类型正确
+    if (typeof p.persona_id !== 'number' || typeof p.name !== 'string') {
+      consola.warn(`[personaFetcher] Persona object from DB (id: ${p.persona_id}, name: ${p.name}) has missing/invalid essential fields. Skipping.`);
       return null; 
     }
+    
+    // 返回符合AutoSelectedPersona接口的对象
     return {
       persona_id: p.persona_id,
       name: p.name,
-      voice_model_identifier: p.voice_model_identifier, // Now confirmed to be a string
+      voice_model_identifier: voiceModelId,
     };
   }).filter((p): p is AutoSelectedPersona => p !== null); // Type guard to ensure correct type after filter
 
-  consola.success(`[personaFetcher] Fetched and validated ${typedData.length} personas for language ${languageCode}.`);
+  consola.success(`[personaFetcher] Processed and validated ${typedData.length} personas for language ${languageCode}.`);
   return typedData;
 }

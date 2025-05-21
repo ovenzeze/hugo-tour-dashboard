@@ -78,7 +78,7 @@
           aria-label="Share to Weibo"
           title="Share to Weibo"
         >
-          <Icon name="ph:weibo-logo" class="h-5 w-5 text-[#e6162d]"/>Weibo
+          <Icon name="simple-icons:sinaweibo" class="h-5 w-5 text-[#e6162d]"/>Weibo
         </Button>
         <Button
           variant="outline"

@@ -103,8 +103,45 @@ const loadingCovers = ref<Record<number, boolean>>({});
 const isShareModalOpen = ref(false);
 const currentPodcastIdForModal = ref<string | null>(null);
 const currentPodcastForModal = computed(() => {
-  if (!currentPodcastIdForModal.value) return null;
-  return props.podcasts.find(p => String(p.podcast_id) === currentPodcastIdForModal.value) || null;
+  console.log('[PodcastList] Trying to find podcast for modal. currentPodcastIdForModal:', currentPodcastIdForModal.value, '(type:', typeof currentPodcastIdForModal.value, ')');
+  
+  if (!props.podcasts || props.podcasts.length === 0) {
+    console.warn('[PodcastList] props.podcasts is empty or undefined.');
+    return null;
+  }
+
+  // Log all available podcast IDs in the props.podcasts array for comparison
+  // console.log('[PodcastList] Available podcast_ids in props.podcasts:');
+  // props.podcasts.forEach(p => {
+  //   console.log(`  - ID: ${p.podcast_id}, Type: ${typeof p.podcast_id}`);
+  // });
+
+  if (!currentPodcastIdForModal.value) {
+    console.log('[PodcastList] currentPodcastIdForModal.value is null or empty, returning null for currentPodcastForModal.');
+    return null;
+  }
+
+  const foundPodcast = props.podcasts.find(p => {
+    const isMatch = p.podcast_id === currentPodcastIdForModal.value;
+    // if (isMatch) {
+    //   console.log(`[PodcastList] Match found: p.podcast_id (${p.podcast_id}) === currentPodcastIdForModal.value (${currentPodcastIdForModal.value})`);
+    // }
+    return isMatch;
+  });
+
+  if (foundPodcast) {
+    console.log('[PodcastList] Found podcast for modal:', foundPodcast);
+  } else {
+    console.warn(`[PodcastList] Podcast NOT FOUND for ID: ${currentPodcastIdForModal.value}`);
+    // Log all IDs again if not found, to help manual inspection
+    if (props.podcasts.length < 20) { // Avoid flooding console for very large lists
+        console.log('[PodcastList] Available podcast_ids in props.podcasts (when not found):');
+        props.podcasts.forEach(p => {
+            console.log(`  - ID: ${p.podcast_id} (Type: ${typeof p.podcast_id})`);
+        });
+    }
+  }
+  return foundPodcast || null;
 });
 
 // 处理函数
