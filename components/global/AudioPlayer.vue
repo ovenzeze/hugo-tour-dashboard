@@ -17,10 +17,12 @@
       @ended="onEnded"
       @timeupdate="onTimeUpdate"
       @loadedmetadata="onLoadedMetadata"
+      @loadeddata="onLoadedData"
+      @canplaythrough="onCanPlayThrough"
       @waiting="audioStore.setLoading(true)"
-      @canplay="audioStore.setLoading(false)"
+      @canplay="onCanPlay"
       @error="onError"
-      preload="metadata"
+      preload="auto"
     ></audio>
 
     <!-- Player interface -->
@@ -227,14 +229,61 @@ function onPause() {
 }
 
 function onEnded() {
-  audioStore.isPlaying = false;
+  // 获取当前曲目信息便于调试
+  const currentTrackTitle = audioStore.currentTrack?.title;
+  const currentIdx = audioStore.currentIndex;
   
-  // Auto play next track
-  if (audioStore.hasNext) {
-    audioStore.next();
-  } else {
+  console.log(`[AudioPlayer] Track ended: ${currentTrackTitle}`);
+  console.log(`[AudioPlayer] Current index: ${currentIdx}, Playlist length: ${audioStore.playlist.length}`);
+  console.log(`[AudioPlayer] hasNext check: ${audioStore.hasNext ? 'Yes' : 'No'}`);
+  
+  // 打印当前播放列表状态，便于调试
+  console.log('[AudioPlayer] Current playlist:');
+  audioStore.playlist.forEach((track, idx) => {
+    const isCurrent = idx === currentIdx;
+    console.log(`  ${idx}: ${track.title}${isCurrent ? ' (current)' : ''}`);
+  });
+  
+  // 检查是否有下一首曲目可以播放
+  if (audioStore.autoplay && audioStore.hasNext) {
+    console.log('[AudioPlayer] Auto-playing next track...');
+    
+    // 直接播放下一首，不使用 setTimeout
+    try {
+      // 获取下一首曲目的索引
+      const nextIdx = currentIdx + 1;
+      if (nextIdx < audioStore.playlist.length) {
+        const nextTrack = audioStore.playlist[nextIdx];
+        console.log(`[AudioPlayer] Playing next track (index ${nextIdx}): ${nextTrack.title}`);
+        
+        // 使用 audioStore.play 方法来设置当前曲目并开始播放
+        // 不直接修改 ref 对象
+        audioStore.play(nextTrack);
+        
+        // 重置音频元素
+        if (audioElement.value) {
+          audioElement.value.currentTime = 0;
+          audioElement.value.src = nextTrack.url;
+          audioElement.value.load();
+          tryPlayAudio();
+        }
+      }
+    } catch (error) {
+      console.error('[AudioPlayer] Error playing next track:', error);
+      // 如果出错，尝试使用原始方法
+      audioStore.next();
+    }
+  } else if (!audioStore.hasNext) {
+    console.log('[AudioPlayer] No more tracks to play, stopping playback');
+    // 如果没有下一个片段，停止播放
     audioStore.stop();
   }
+  
+  // 打印当前播放列表状态，便于调试
+  console.log('[AudioPlayer] Current playlist:');
+  audioStore.playlist.forEach((track, index) => {
+    console.log(`  ${index}: ${track.title} ${audioStore.currentTrack?.id === track.id ? '(current)' : ''}`);
+  });
 }
 
 function onTimeUpdate() {
@@ -244,9 +293,63 @@ function onTimeUpdate() {
 }
 
 function onLoadedMetadata() {
-  if (audioElement.value) {
-    audioStore.updateDuration(audioElement.value.duration);
-    audioStore.setLoading(false);
+  if (!audioElement.value) return;
+  
+  // Update duration when metadata is loaded
+  const duration = audioElement.value.duration;
+  if (!isNaN(duration) && isFinite(duration)) {
+    audioStore.updateDuration(duration);
+  }
+  console.log('[AudioPlayer] Metadata loaded for:', audioStore.currentTrack?.title);
+}
+
+function onLoadedData() {
+  if (!audioElement.value) return;
+  console.log('[AudioPlayer] Audio data loaded for:', audioStore.currentTrack?.title);
+  
+  // 如果音频数据已加载且播放状态为true，尝试播放
+  if (audioStore.isPlaying) {
+    tryPlayAudio();
+  }
+}
+
+function onCanPlay() {
+  if (!audioElement.value) return;
+  audioStore.setLoading(false);
+  console.log('[AudioPlayer] Audio can play now:', audioStore.currentTrack?.title);
+  
+  // 如果播放状态为true，尝试播放
+  if (audioStore.isPlaying) {
+    tryPlayAudio();
+  }
+}
+
+function onCanPlayThrough() {
+  if (!audioElement.value) return;
+  console.log('[AudioPlayer] Audio can play through without buffering:', audioStore.currentTrack?.title);
+  
+  // 如果播放状态为true，尝试播放
+  if (audioStore.isPlaying) {
+    tryPlayAudio();
+  }
+}
+
+// 尝试播放音频的辅助函数
+function tryPlayAudio() {
+  if (!audioElement.value) return;
+  
+  console.log('[AudioPlayer] Attempting to play audio:', audioStore.currentTrack?.title);
+  const playPromise = audioElement.value.play();
+  
+  if (playPromise !== undefined) {
+    playPromise.catch(err => {
+      console.error('[AudioPlayer] Failed to play audio:', err);
+      // 如果是由于用户交互限制导致的错误，记录下来
+      if (err.name === 'NotAllowedError') {
+        console.warn('[AudioPlayer] Autoplay prevented by browser. User interaction required.');
+      }
+      audioStore.isPlaying = false;
+    });
   }
 }
 
@@ -440,11 +543,24 @@ watch(() => audioStore.currentTrack, async (newTrack) => {
     }
   } else if (audioElement.value) {
     // Regular audio file
+    console.log('[AudioPlayer] Setting up regular audio file:', newTrack.title);
+    
+    // 先暂停当前播放，确保音频元素处于可控状态
+    audioElement.value.pause();
+    
+    // 确保音频元素的src被正确设置
+    audioElement.value.src = newTrack.url;
+    
+    // 设置预加载模式为“自动”，促使浏览器立即加载音频
+    audioElement.value.preload = 'auto';
+    
+    // 强制触发加载
+    audioElement.value.load();
+    
+    // 如果播放状态为true，尝试播放
+    // 注意：实际的播放将在onCanPlay或onLoadedData事件中处理
     if (audioStore.isPlaying) {
-      audioElement.value.play().catch(err => {
-        console.error('Failed to play audio:', err);
-        audioStore.isPlaying = false;
-      });
+      console.log('[AudioPlayer] Track is set to play when ready:', newTrack.title);
     }
   }
 }, { immediate: true });

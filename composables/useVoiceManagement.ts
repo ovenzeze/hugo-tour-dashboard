@@ -1,3 +1,4 @@
+// Fixed import statement
 import { usePlaygroundPersonaStore, type Persona } from '../stores/playgroundPersona';
 import { usePlaygroundScriptStore } from '../stores/playgroundScript';
 import { toast } from 'vue-sonner';
@@ -28,7 +29,7 @@ export function useVoiceManagement(
   const scriptStore = usePlaygroundScriptStore();
   const runtimeConfig = useRuntimeConfig();
 
-  const speakerAssignments = ref<Record<string, string>>({});
+  const speakerAssignments = ref<Record<string, { voiceId: string; provider: string }>>({});
 
   const speakersInScript = computed(() => {
     if (scriptContent.value) {
@@ -38,7 +39,7 @@ export function useVoiceManagement(
       
       uniqueSpeakers.forEach(speaker => {
         if (!(speaker in speakerAssignments.value)) {
-          speakerAssignments.value[speaker] = '';
+          speakerAssignments.value[speaker] = { voiceId: '', provider: '' };
         }
       });
       
@@ -72,11 +73,12 @@ export function useVoiceManagement(
     }
 
     // Initialize newAssignments with existing assignments
-    const newAssignments: Record<string, string> = { ...speakerAssignments.value };
+    const newAssignments: Record<string, { voiceId: string; provider: string }> = { ...speakerAssignments.value };
 
     localSpeakers.forEach(speaker => {
       // Only assign a voice if the speaker doesn't already have one assigned
-      if (!newAssignments[speaker]) {
+      // Check if the voiceId is empty, as newAssignments[speaker] will be an object { voiceId: '', provider: '' } for unassigned speakers
+      if (!newAssignments[speaker] || !newAssignments[speaker].voiceId) {
         let persona = findPersonaBySpeakerName(speaker);
 
         // Fallback: If not found in selected personas (via findPersonaBySpeakerName),
@@ -109,14 +111,50 @@ export function useVoiceManagement(
         }
 
         if (voiceId) {
-          newAssignments[speaker] = voiceId;
+          let provider = '';
+          if (voiceId.includes('_mars_') || voiceId.includes('_volc_')) {
+            provider = 'volcengine';
+          } else if (voiceId.includes('_eleven_')) {
+            provider = 'elevenlabs';
+          } else if (persona && persona.tts_provider) { // Use persona.tts_provider if voiceId doesn't specify
+            provider = persona.tts_provider.replace(/^'|'$/g, ''); // Remove leading/trailing single quotes
+            console.log(`[useVoiceManagement] Using provider '${provider}' from persona.tts_provider for voiceId '${voiceId}' for speaker '${speaker}'.`);
+          } else {
+            // If no rule matches and no persona.tts_provider, provider remains empty.
+            // This aligns with the requirement not to infer or default if not explicitly available.
+            console.warn(`[useVoiceManagement] Could not determine provider for voiceId '${voiceId}' for speaker '${speaker}'. Provider will be empty.`);
+          }
+          newAssignments[speaker] = { voiceId, provider };
         } else {
-          // Keep it as empty string if no persona/voice found or parsed
-          newAssignments[speaker] = '';
+          // Keep it as empty if no persona/voice found or parsed
+          newAssignments[speaker] = { voiceId: '', provider: '' };
           console.warn(`[useVoiceManagement] No voice assigned for speaker '${speaker}'.`);
         }
       } else {
-        console.log(`[useVoiceManagement] Speaker '${speaker}' already has a voice assigned. Skipping automatic assignment.`);
+        // Ensure provider is also considered for "already assigned"
+        const existingAssignment = newAssignments[speaker];
+        if (existingAssignment && existingAssignment.voiceId && !existingAssignment.provider) {
+            // If voiceId exists but provider is missing, try to derive it now
+            let provider = '';
+            const currentVoiceId = existingAssignment.voiceId;
+            if (currentVoiceId.includes('_mars_') || currentVoiceId.includes('_volc_')) {
+                provider = 'volcengine';
+            } else if (currentVoiceId.includes('_eleven_')) {
+                provider = 'elevenlabs';
+            } else {
+                const personaForExisting = findPersonaBySpeakerName(speaker);
+                if (personaForExisting && personaForExisting.tts_provider) {
+                    provider = personaForExisting.tts_provider.replace(/^'|'$/g, ''); // Remove leading/trailing single quotes
+                    console.log(`[useVoiceManagement] Updated missing provider to '${provider}' from persona.tts_provider for existing voiceId '${currentVoiceId}' for speaker '${speaker}'.`);
+                } else {
+                    console.warn(`[useVoiceManagement] Still could not determine provider for existing voiceId '${currentVoiceId}' for speaker '${speaker}'. Provider remains empty.`);
+                }
+            }
+            newAssignments[speaker] = { voiceId: currentVoiceId, provider };
+            console.log(`[useVoiceManagement] Updated assignment for speaker '${speaker}' with derived provider: ${JSON.stringify(newAssignments[speaker])}`);
+        } else {
+            console.log(`[useVoiceManagement] Speaker '${speaker}' already has a voice and provider assigned: ${JSON.stringify(existingAssignment)}. Skipping automatic assignment.`);
+        }
       }
     });
 
@@ -143,14 +181,14 @@ export function useVoiceManagement(
     assignVoicesToSpeakers();
   }, { deep: true });
   
-  const getVoiceIdForSpeaker = (speakerTag: string) => {
-    return speakerAssignments.value[speakerTag] || '';
+  const getVoiceInfoForSpeaker = (speakerTag: string): { voiceId: string, provider: string } => {
+    return speakerAssignments.value[speakerTag] || { voiceId: '', provider: '' };
   };
 
   return {
     speakerAssignments,
     speakersInScript,
     assignVoicesToSpeakers,
-    getVoiceIdForSpeaker
+    getVoiceInfoForSpeaker // Renamed from getVoiceIdForSpeaker
   };
 }

@@ -131,7 +131,7 @@ export async function processPodcastScript(
   const preparedSegments: PreparedSegmentForSynthesis[] = [];
 
   for (const [index, segment] of script.entries()) {
-    consola.info(`[processPodcastScript] Loop iteration ${index}. Current personas state:`, JSON.stringify(personas, null, 2)); // Added log
+    consola.info(`[processPodcastScript] Loop iteration ${index})`); // Added log
     const segmentIndex = index + 1; // 1-based index for logging/errors
     const { speaker, text } = segment;
 

@@ -72,11 +72,13 @@ export async function generateImage(options: GenerateImageOptions): Promise<Gene
     } else if (modelName === "gemini-2.0-flash-preview-image-generation") {
       const model = genAI.getGenerativeModel({ model: modelName, safetySettings });
 
+      const generationConfigForApi: any = {
+        responseModalities: ["IMAGE", "TEXT"], // Corrected: As per API error, model expects IMAGE and TEXT
+      };
+
       const result = await model.generateContent({
-        contents: [{ parts: [{ text: prompt }] }],
-        generationConfig: {
-          responseModalities: ["TEXT", "IMAGE"],
-        },
+        contents: [{ role: "user", parts: [{ text: prompt }] }],
+        generationConfig: generationConfigForApi, // Use the config with explicit modality
       });
 
       const response = result.response;

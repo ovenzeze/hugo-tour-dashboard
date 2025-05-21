@@ -27,6 +27,7 @@ interface RequestBody {
     hostPersona?: Partial<Persona>; 
     guestPersonas?: Partial<Persona>[];
   };
+  voiceMap?: Record<string, { personaId: number; voice_model_identifier: string }>; // Added voiceMap, made optional
   language: string;
   topic?: string;
   host_persona_id?: number; 
@@ -46,6 +47,7 @@ export default defineEventHandler(async (event) => {
       podcastTitle,
       script,
       personas: clientPersonas, 
+      voiceMap, // Destructure voiceMap
       language,
       topic, 
       host_persona_id, 
@@ -59,12 +61,14 @@ export default defineEventHandler(async (event) => {
     } = body;
 
     consola.info('[script.post.ts] Initial client personas received in body:', JSON.stringify(clientPersonas, null, 2)); 
+    consola.info('[script.post.ts] Received voiceMap:', JSON.stringify(voiceMap, null, 2)); // Log voiceMap
 
     if (
       !podcastTitle ||
       !script ||
       !Array.isArray(script) ||
       !language
+      // Removed voiceMap from required validation
     ) {
       throw createError({
         statusCode: 400,

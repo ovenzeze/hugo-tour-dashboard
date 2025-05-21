@@ -13,7 +13,7 @@ export default defineNuxtConfig({
     geminiImageModel: process.env.GEMINI_IMAGE_MODEL,
     volcengine: { // Added Volcengine config block
       appId: process.env.NUXT_VOLCENGINE_APP_ID,
-      accessToken: process.env.NUXT_VOLCENGINE_ACCESS_TOKEN,
+      accessToken: 'AcessToken', // Using Access Token as Access Key ID for Bearer header
       cluster: process.env.NUXT_VOLCENGINE_CLUSTER,
       instanceId: process.env.NUXT_VOLCENGINE_INSTANCE_ID || 'Speech_Synthesis_Default_InstanceID',
     },
@@ -113,8 +113,8 @@ export default defineNuxtConfig({
     families: {
       Inter: [400, 700],
       "Crimson Text": [400, 600, 700],
-      "Noto Serif SC": [400, 700],
-      "Noto Sans SC": [400, 600, 700],
+      "Noto Serif SC": [700, 900], // 标题字体: Bold 700, Black 900
+      "Noto Sans SC": [400], // 文案字体: Regular 400
     },
     subsets: ["latin", "chinese-simplified"],
     download: true,

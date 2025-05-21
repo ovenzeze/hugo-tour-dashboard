@@ -226,9 +226,9 @@ Return only the JSON structure without any additional content or explanations.
 function safelyParseJSON(jsonString: string): any {
   // 1. Handle incomplete Unicode escape sequences
   const fixedJsonString = jsonString.replace(/\\u[0-9a-fA-F]{0,3}([^0-9a-fA-F]|$)/g, (match) => {
-    console.warn(`[safelyParseJSON] Found incomplete Unicode escape: ${match}`);
-    // Replace incomplete Unicode escapes with a known safe character (space)
-    return ' ';
+    console.warn(`[safelyParseJSON] Found incomplete Unicode escape: ${match}. Replacing with \\uFFFD.`);
+    // Replace incomplete Unicode escapes with the Unicode replacement character U+FFFD
+    return '\\uFFFD';
   });
 
   try {

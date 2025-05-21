@@ -43,3 +43,9 @@ export type Podcast = Database['public']['Tables']['podcasts']['Row'] & {
   // cover_image_url is in DB schema but re-iterated here for clarity from usePodcastDatabase
   cover_image_url?: string | null; 
 };
+
+export interface CombineAudioResponse {
+  audioUrl: string;
+  duration?: string;
+  fileSize?: string;
+}

@@ -31,6 +31,7 @@ export const useAudioPlayerStore = defineStore('audioPlayer', () => {
   const isLoading = ref(false);
   const error = ref<string | null>(null);
   const hlsInstance = ref<any | null>(null);
+  const autoplay = ref(true); // 默认开启自动播放功能
 
   // 计算属性
   const progress = computed(() => {
@@ -58,9 +59,13 @@ export const useAudioPlayerStore = defineStore('audioPlayer', () => {
       currentTrack.value = track;
       isLoading.value = true;
       error.value = null;
+      // 设置播放状态为 true，确保自动开始播放
+      isPlaying.value = true;
+      console.log(`[AudioPlayerStore] Playing track: ${track.title}`);
     } else if (currentTrack.value) {
       // 继续播放当前曲目
       isPlaying.value = true;
+      console.log('[AudioPlayerStore] Resuming playback');
     }
   }
 
@@ -78,9 +83,35 @@ export const useAudioPlayerStore = defineStore('audioPlayer', () => {
   }
 
   function next() {
-    if (!hasNext.value) return;
-    const nextTrack = playlist.value[currentIndex.value + 1];
-    play(nextTrack);
+    if (!hasNext.value) {
+      console.log('[AudioPlayerStore] No next track available');
+      return;
+    }
+    
+    // 获取当前索引和下一个索引
+    const currentIdx = currentIndex.value;
+    const nextIdx = currentIdx + 1;
+    
+    // 确保下一个索引有效
+    if (nextIdx >= 0 && nextIdx < playlist.value.length) {
+      const nextTrack = playlist.value[nextIdx];
+      console.log(`[AudioPlayerStore] Playing next track: ${nextTrack.title} (index: ${nextIdx})`);
+      
+      // 记录当前播放的索引，便于调试
+      const previousTrackId = currentTrack.value?.id;
+      
+      // 播放下一个曲目
+      play(nextTrack);
+      
+      // 检查是否成功切换到下一曲
+      if (currentTrack.value?.id === previousTrackId) {
+        console.error(`[AudioPlayerStore] Failed to advance to next track. Still on track ID: ${previousTrackId}`);
+      } else {
+        console.log(`[AudioPlayerStore] Successfully advanced to track index ${nextIdx}`);
+      }
+    } else {
+      console.error(`[AudioPlayerStore] Invalid next index: ${nextIdx} (playlist length: ${playlist.value.length})`);
+    }
   }
 
   function previous() {
@@ -110,7 +141,23 @@ export const useAudioPlayerStore = defineStore('audioPlayer', () => {
   }
 
   function addMultipleToPlaylist(tracks: AudioTrack[]) {
-    tracks.forEach(track => addToPlaylist(track));
+    console.log(`[AudioPlayerStore] Adding ${tracks.length} tracks to playlist`);
+    // 先打印所有要添加的曲目，便于调试
+    tracks.forEach((track, index) => {
+      console.log(`[AudioPlayerStore] Track ${index + 1}/${tracks.length} to add: ${track.title}`);
+    });
+    
+    // 直接将所有曲目添加到播放列表中，而不是使用 addToPlaylist
+    // 这样可以避免可能的重复检查问题
+    const uniqueTracks = tracks.filter(newTrack => 
+      !playlist.value.some(existingTrack => existingTrack.id === newTrack.id)
+    );
+    
+    console.log(`[AudioPlayerStore] Adding ${uniqueTracks.length} unique tracks to playlist`);
+    playlist.value = [...playlist.value, ...uniqueTracks];
+    
+    // 打印播放列表的当前状态
+    console.log(`[AudioPlayerStore] Playlist now has ${playlist.value.length} tracks`);
   }
 
   function removeFromPlaylist(trackId: string) {
@@ -140,6 +187,15 @@ export const useAudioPlayerStore = defineStore('audioPlayer', () => {
 
   function updateCurrentTime(time: number) {
     currentTime.value = time;
+    
+    // 检测是否播放完成，如果播放完成并启用了自动播放，则播放下一首
+    if (duration.value > 0 && time >= duration.value - 0.1 && autoplay.value && hasNext.value) {
+      console.log('[AudioPlayerStore] Track ended, auto-playing next track');
+      // 使用 setTimeout 确保当前曲目完全结束后再播放下一首
+      setTimeout(() => {
+        next();
+      }, 100);
+    }
   }
 
   function updateDuration(newDuration: number) {
@@ -157,6 +213,11 @@ export const useAudioPlayerStore = defineStore('audioPlayer', () => {
   function setError(errorMessage: string | null) {
     error.value = errorMessage;
   }
+  
+  function setAutoplay(value: boolean) {
+    autoplay.value = value;
+    console.log(`[AudioPlayerStore] Autoplay ${value ? 'enabled' : 'disabled'}`);
+  }
 
   return {
     // 状态
@@ -170,6 +231,7 @@ export const useAudioPlayerStore = defineStore('audioPlayer', () => {
     isLoading,
     error,
     hlsInstance,
+    autoplay,
     
     // 计算属性
     progress,
@@ -195,6 +257,7 @@ export const useAudioPlayerStore = defineStore('audioPlayer', () => {
     updateDuration,
     setHlsInstance,
     setLoading,
-    setError
+    setError,
+    setAutoplay
   };
 });

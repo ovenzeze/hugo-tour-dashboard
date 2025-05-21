@@ -153,6 +153,12 @@ export async function generateAndStoreTimedAudioSegmentVolcengine(
     enableTimestamps = true, // Default to true, can be overridden by params
   } = params;
 
+  console.log('[Volcengine Config Debug - timedAudioService] Received Volcengine config parameters:');
+  console.log('[Volcengine Config Debug - timedAudioService] AppId:', appId);
+  console.log('[Volcengine Config Debug - timedAudioService] AccessToken:', accessToken);
+  console.log('[Volcengine Config Debug - timedAudioService] Cluster:', cluster);
+  console.log('[Volcengine Config Debug - timedAudioService] InstanceId:', instanceId);
+
   try {
     const volcengineApiParams: VolcengineSynthesizeParams = {
       text,

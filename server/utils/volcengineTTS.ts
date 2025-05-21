@@ -28,7 +28,7 @@ interface VolcengineRequestConfig {
   operation: 'query'; // 'query' for real-time synthesis
   with_frontend?: 0 | 1; // 1 to get phonemes and word timestamps
   frontend_type?: 'unitTson'; // Required if with_frontend is 1
-  need_timestamps?: 0 | 1; // 1 to enable timestamps in 'addition.frontend'
+  with_timestamp?: 0 | 1; // 1 to enable timestamps in 'addition.frontend'
   instance_id?: string; // Add instance_id to the request payload
 }
 
@@ -82,14 +82,6 @@ interface VolcengineTTSApiResponse {
 const VOLCENGINE_TTS_API_URL = 'https://openspeech.bytedance.com/api/v1/tts';
 
 // Voice type mapping
-const VOICE_TYPES = {
-  female: 'BV001_streaming', // 通用女声 (as per Python script)
-  male: 'BV002_streaming',   // 通用男声 (as per Python script)
-  // Add more voice types as needed from Volcengine documentation
-};
-
-export type VolcengineVoiceType = keyof typeof VOICE_TYPES | string; // Allow custom voice_type strings
-
 // --- Utility Function ---
 
 export interface VolcengineSynthesizeParams {
@@ -120,7 +112,7 @@ export async function synthesizeSpeechVolcengine(params: VolcengineSynthesizePar
     appId,
     accessToken,
     cluster,
-    voiceType, // This is the generic voice type like 'female'
+    voiceType, // This is the actual voice_type to be used in the API request
     instanceId,
     enableTimestamps,
     encoding = 'mp3',
@@ -129,20 +121,17 @@ export async function synthesizeSpeechVolcengine(params: VolcengineSynthesizePar
     pitchRatio = 1.0
   } = params;
 
-  // Map the generic voiceType to Volcengine specific voice_type
-  const volcengineVoiceType = VOICE_TYPES[voiceType as keyof typeof VOICE_TYPES] || VOICE_TYPES.female; // Default to female if not found
-
   const requestBody: VolcengineTTSApiRequest = {
     app: {
       appid: appId,
-      token: "M_Access_Token",
+      token: accessToken, // Use the provided accessToken
       cluster: cluster,
     },
     user: {
       uid: uuidv4(),
     },
     audio: {
-      voice_type: volcengineVoiceType, // Use the mapped voice type
+      voice_type: voiceType, // Directly use the provided voiceType
       encoding: encoding,
       speed_ratio: speedRatio,
       volume_ratio: volumeRatio,
@@ -153,9 +142,10 @@ export async function synthesizeSpeechVolcengine(params: VolcengineSynthesizePar
       text: text,
       text_type: 'plain', 
       operation: 'query',
-      instance_id: instanceId, // CORRECT: instance_id is here
+      instance_id: instanceId,
       with_frontend: enableTimestamps ? 1 : 0,
       frontend_type: enableTimestamps ? 'unitTson' : undefined,
+      with_timestamp: enableTimestamps ? 1 : 0, // Changed from need_timestamps to with_timestamp
     },
   };
 

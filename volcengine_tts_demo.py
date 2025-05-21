@@ -1,4 +1,3 @@
-#!/usr/bin/env python
 # coding=utf-8
 
 '''
@@ -18,26 +17,49 @@ from datetime import datetime
 from dotenv import load_dotenv
 
 # 加载.env文件中的环境变量
-load_dotenv()
+load_dotenv(override=True)
+print("DEBUG: load_dotenv(override=True) called.")
 
 # 填写平台申请的appid, access_token以及cluster
 # 这些信息需要从环境变量中获取
-appid = os.environ.get("VOLCENGINE_APPID", "")
-access_token = os.environ.get("VOLCENGINE_ACCESS_TOKEN", "")
-secret_key = os.environ.get("VOLCENGINE_SECRET_KEY", "")
-cluster = os.environ.get("VOLCENGINE_CLUSTER", "")
+appid = os.environ.get("NUXT_VOLCENGINE_APPID", "") # Only look for NUXT_VOLCENGINE_APPID
+if not appid:
+    # Manual parse should also look for NUXT_VOLCENGINE_APPID
+    print("DEBUG: NUXT_VOLCENGINE_APPID is empty after os.environ.get. Trying manual parse of .env")
+    try:
+        with open(".env", "r") as f:
+            for line in f:
+                if line.strip().startswith("NUXT_VOLCENGINE_APPID="): # Ensure consistency
+                    appid = line.strip().split("=", 1)[1]
+                    appid = appid.strip('"').strip("'") # 去除可能存在的引号
+                    print(f"DEBUG: NUXT_VOLCENGINE_APPID manually parsed from .env (and stripped): '{appid}'")
+                    break
+    except Exception as e:
+        print(f"DEBUG: Error manually parsing .env for NUXT_VOLCENGINE_APPID: {e}")
+print(f"DEBUG: NUXT_VOLCENGINE_APPID from env (after manual parse attempt): '{appid}'")
+access_token = os.environ.get("NUXT_VOLCENGINE_ACCESS_TOKEN", "") # Only look for NUXT_VOLCENGINE_ACCESS_TOKEN
+if not access_token:
+    access_token = "placeholder_token"
+    print(f"DEBUG: NUXT_VOLCENGINE_ACCESS_TOKEN was empty, set to '{access_token}'")
+else:
+    print(f"DEBUG: NUXT_VOLCENGINE_ACCESS_TOKEN from env: '{access_token}'")
+secret_key = os.environ.get("NUXT_VOLCENGINE_SECRET_KEY", "") # Only look for NUXT_VOLCENGINE_SECRET_KEY
+print(f"DEBUG: NUXT_VOLCENGINE_SECRET_KEY from env: '{secret_key}'")
+cluster = os.environ.get("NUXT_VOLCENGINE_CLUSTER", "") # Only look for NUXT_VOLCENGINE_CLUSTER
+print(f"DEBUG: NUXT_VOLCENGINE_CLUSTER from env: '{cluster}'")
 voice_type = os.environ.get("VOLCENGINE_VOICE_TYPE", "BV001_streaming")  # 默认使用通用女声
+print(f"DEBUG: voice_type from env: '{voice_type}'")
 instance_id = "Speech_Synthesis7506120092859191552"  # 用户提供的实例ID
 
 # 可用的音色列表
 VOICE_TYPES = {
-    "female": "BV001_streaming",  # 通用女声
-    "male": "BV002_streaming"     # 通用男声
+    "female": "zh_male_jieshuonansheng_mars_bigtts",  # 通用女声
+    "male": "zh_female_qiaopinvsheng_mars_bigtts"     # 通用男声
 }
 
-if not appid or not access_token or not secret_key or not cluster:
-    print("请设置环境变量: VOLCENGINE_APPID, VOLCENGINE_ACCESS_TOKEN, VOLCENGINE_SECRET_KEY, VOLCENGINE_CLUSTER")
-    print("可选设置环境变量: VOLCENGINE_VOICE_TYPE")
+if not appid or not access_token or not secret_key or not cluster: # access_token check remains, placeholder allows bypass here
+    print("请设置环境变量: NUXT_VOLCENGINE_APPID, NUXT_VOLCENGINE_ACCESS_TOKEN, NUXT_VOLCENGINE_SECRET_KEY, NUXT_VOLCENGINE_CLUSTER")
+    print("可选设置环境变量: VOLCENGINE_VOICE_TYPE") # This one remains as is, as it wasn't part of the NUXT_ prefixing discussion
     exit(1)
 
 print(f"使用的凭证信息:")

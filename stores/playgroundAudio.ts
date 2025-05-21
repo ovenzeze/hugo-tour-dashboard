@@ -136,7 +136,8 @@ export const usePlaygroundAudioStore = defineStore("playgroundAudio", {
     // For synthesizing all segments of a validated script
     async synthesizeAllSegmentsConcurrently(
         validationResult: ValidateScriptResponse | null, // Pass the full validation result
-        podcastSettings: FullPodcastSettings // Pass necessary settings
+        podcastSettings: FullPodcastSettings, // Pass necessary settings
+        speakerAssignments?: Record<string, { voiceId: string, provider?: string }> // Updated type for speakerAssignments
     ) {
       if (this.isSynthesizing) return;
       if (!this.podcastId) {
@@ -154,45 +155,45 @@ export const usePlaygroundAudioStore = defineStore("playgroundAudio", {
       let failedSegments = 0;
       
       const segmentsToProcess = validationResult.structuredData.script;
-      const voiceMap = validationResult.structuredData.voiceMap;
+      const voiceMap = validationResult.structuredData.voiceMap; // Keep voiceMap for persona info
       const totalSegments = segmentsToProcess.length;
 
-      // Determine TTS Provider
-      let ttsProviderForRequest: string | undefined = undefined;
-      const personaStore = usePlaygroundPersonaStore(); // Access persona store
-      if (segmentsToProcess.length > 0 && voiceMap) {
-        for (const segment of segmentsToProcess) {
-          const voiceInfo = segment.name && voiceMap[segment.name] ? voiceMap[segment.name] : undefined;
-          if (voiceInfo && voiceInfo.personaId) {
-            const persona = personaStore.getPersonaById(voiceInfo.personaId);
-            if (persona && persona.tts_provider) {
-              ttsProviderForRequest = persona.tts_provider;
-              break; // Use the provider of the first persona found
-            }
-          }
-        }
-      }
-      if (!ttsProviderForRequest) {
-        toast.warning("Could not determine TTS provider from personas. Defaulting on server might occur.");
-        // Server defaults to 'elevenlabs' if not provided
-      }
+      // TTS Provider will be determined per segment inside processSegment
+      toast.info(`Starting concurrent synthesis for ${totalSegments} segments...`);
 
-      toast.info(`Starting concurrent synthesis for ${totalSegments} segments... (Provider: ${ttsProviderForRequest || 'server-default'})`);
-
-      const CONCURRENCY_LIMIT = 4;
+      const CONCURRENCY_LIMIT = 5; // 并发数为5
+      const MAX_RETRIES = 2; // 最大重试次数
       // Explicitly type seg and index in the map function
-      const processingQueue = [...segmentsToProcess.map((seg: { role: 'host' | 'guest'; name: string; text: string; }, index: number) => ({ segment: seg, index }))];
+      const processingQueue = [...segmentsToProcess.map((seg: { role: 'host' | 'guest'; name: string; text: string; }, index: number) => ({ segment: seg, index, retries: 0 }))];
       const activePromises: Promise<any>[] = [];
 
-      const processSegment = async (segmentWithIndex: { segment: { role: 'host' | 'guest'; name: string; text: string; }, index: number }) => {
-        const { segment, index } = segmentWithIndex;
-        // Ensure voiceMap and segment.name are valid keys for voiceMap
-        const voiceInfo = voiceMap && segment.name && voiceMap[segment.name] ? voiceMap[segment.name] : undefined;
+      const processSegment = async (segmentWithIndex: { segment: { role: 'host' | 'guest'; name: string; text: string; }, index: number, retries: number }) => {
+        const { segment, index, retries } = segmentWithIndex;
         const toastId = `segment-toast-${this.podcastId}-${index}`;
+        
+        const assignment = speakerAssignments && speakerAssignments[segment.name];
+        const finalVoiceId = assignment?.voiceId;
+        const ttsProviderForSegment = assignment?.provider; // 直接使用assignment中的provider，确保数据透传
 
-        if (!voiceInfo || !voiceInfo.voice_model_identifier) {
+        // 详细记录每个片段的处理信息
+        console.log(`[synthesizeAllSegmentsConcurrently] Processing segment ${index + 1}/${totalSegments}:`, {
+          speakerTag: segment.name,
+          role: segment.role,
+          textPreview: segment.text.substring(0, 50) + (segment.text.length > 50 ? '...' : ''),
+          assignment: assignment,
+          finalVoiceId: finalVoiceId,
+          ttsProviderForSegment: ttsProviderForSegment,
+          retries: retries
+        });
+
+        if (!ttsProviderForSegment) {
+            console.warn(`TTS provider for speaker ${segment.name} in segment ${index + 1} is not explicitly set. API might use a default or fail if required.`);
+        }
+
+        if (!finalVoiceId) {
           const errorMsg = `Voice ID not found for speaker: ${segment.name} in segment ${index + 1}. Skipping.`;
           toast.warning(errorMsg, { id: toastId });
+          console.error(`[synthesizeAllSegmentsConcurrently] ${errorMsg}`);
           failedSegments++;
           return;
         }
@@ -200,43 +201,71 @@ export const usePlaygroundAudioStore = defineStore("playgroundAudio", {
         const inputSegment = {
           segmentIndex: index,
           text: segment.text,
-          voiceId: voiceInfo.voice_model_identifier,
+          voiceId: finalVoiceId,
           speakerName: segment.name,
         };
 
         try {
-          toast.loading(`Synthesizing segment ${index + 1}/${totalSegments}: ${segment.name}...`, { id: toastId });
+          toast.loading(`Synthesizing segment ${index + 1}/${totalSegments}: ${segment.name}${retries > 0 ? ` (Retry ${retries})` : ''}...`, { id: toastId });
+          
+          // 记录请求参数，便于调试
+          const requestBody = {
+            podcastId: this.podcastId,
+            segments: [inputSegment],
+            defaultModelId: podcastSettings.elevenLabsProjectId,
+            voiceSettings: {
+              stability: this.synthesisParams.temperature,
+              similarity_boost: this.synthesisParams.speed,
+            },
+            ttsProvider: ttsProviderForSegment, // 使用per-segment provider
+            synthesisParams: this.synthesisParams,
+          };
+          
+          console.log(`[synthesizeAllSegmentsConcurrently] Segment ${index + 1} request:`, JSON.stringify(requestBody, null, 2));
+          
           // @ts-ignore
           const response = await $fetch('/api/podcast/process/synthesize', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: {
-              podcastId: this.podcastId,
-              segments: [inputSegment],
-              defaultModelId: podcastSettings.elevenLabsProjectId, // Use from passed settings
-              voiceSettings: {
-                stability: this.synthesisParams.temperature,
-                similarity_boost: this.synthesisParams.speed, // This was mapped to speed in original store
-              },
-              ttsProvider: ttsProviderForRequest, // Add ttsProvider to the request
-              synthesisParams: this.synthesisParams, // Pass synthesisParams
-            },
+            body: requestBody,
           });
+
+          // 详细记录响应结果
+          console.log(`[synthesizeAllSegmentsConcurrently] Segment ${index + 1} response:`, JSON.stringify(response, null, 2));
 
           // @ts-ignore
           if (response.success && response.generatedSegments && response.generatedSegments[0] && !response.generatedSegments[0].error) {
             toast.success(`Segment ${index + 1} (${segment.name}) synthesized.`, { id: toastId });
+            console.log(`[synthesizeAllSegmentsConcurrently] Segment ${index + 1} (${segment.name}) synthesized successfully.`);
             successfulSegments++;
           } else {
             // @ts-ignore
             const errorMsg = response.generatedSegments?.[0]?.error || response.message || "Unknown synthesis error";
             toast.error(`Failed segment ${index + 1} (${segment.name}): ${errorMsg}`, { id: toastId });
-            failedSegments++;
+            console.error(`[synthesizeAllSegmentsConcurrently] Failed segment ${index + 1} (${segment.name}): ${errorMsg}`);
+            
+            // 如果失败且未达到最大重试次数，则重新加入队列
+            if (retries < MAX_RETRIES) {
+              console.log(`[synthesizeAllSegmentsConcurrently] Retrying segment ${index + 1} (${segment.name}), retry ${retries + 1}/${MAX_RETRIES}`);
+              processingQueue.push({ segment, index, retries: retries + 1 });
+            } else {
+              console.error(`[synthesizeAllSegmentsConcurrently] Segment ${index + 1} (${segment.name}) failed after ${MAX_RETRIES} retries.`);
+              failedSegments++;
+            }
           }
         } catch (error: any) {
           const errorMessage = error.data?.message || error.message || "Network/server error during synthesis";
           toast.error(`Error for segment ${index + 1} (${segment.name}): ${errorMessage}`, { id: toastId });
-          failedSegments++;
+          console.error(`[synthesizeAllSegmentsConcurrently] Error for segment ${index + 1} (${segment.name}):`, error);
+          
+          // 如果失败且未达到最大重试次数，则重新加入队列
+          if (retries < MAX_RETRIES) {
+            console.log(`[synthesizeAllSegmentsConcurrently] Retrying segment ${index + 1} (${segment.name}) after error, retry ${retries + 1}/${MAX_RETRIES}`);
+            processingQueue.push({ segment, index, retries: retries + 1 });
+          } else {
+            console.error(`[synthesizeAllSegmentsConcurrently] Segment ${index + 1} (${segment.name}) failed after ${MAX_RETRIES} retries due to error:`, errorMessage);
+            failedSegments++;
+          }
         }
       };
       
@@ -267,8 +296,13 @@ export const usePlaygroundAudioStore = defineStore("playgroundAudio", {
       } else {
         toast.success(`All ${successfulSegments} segments synthesized successfully!`);
       }
-      // After all segments are synthesized, one might want to fetch the final combined audio URL
-      // This would likely be another action, e.g., fetchFinalPodcastAudio(this.podcastId)
+      
+      // 返回成功生成的segment数量，便于UI显示
+      return {
+        successfulSegments,
+        failedSegments,
+        totalSegments
+      };
     },
     
     // Action to set the final audio URL, e.g., after combining segments or direct synthesis

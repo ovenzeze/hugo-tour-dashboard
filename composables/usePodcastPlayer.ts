@@ -92,17 +92,61 @@ export function usePodcastPlayer() {
     const tracks = createPlaylistFromPodcast(podcast);
     
     if (tracks.length > 0) {
-      // Clear the current playlist
+      console.log(`[PodcastPlayer] Playing podcast ${podcast.podcast_id} with ${tracks.length} segments`);
+      
+      // 打印所有片段信息便于调试
+      tracks.forEach((track, index) => {
+        console.log(`[PodcastPlayer] Track ${index + 1}/${tracks.length}: ${track.title}`);
+      });
+      
+      // 清空当前播放列表
       audioStore.clearPlaylist();
       
-      // Add new tracks to the playlist
+      // 使用我们改进后的 addMultipleToPlaylist 方法添加所有片段
       audioStore.addMultipleToPlaylist(tracks);
       
-      // Start playing the first track
+      // 打印更多调试信息
+      console.log(`[PodcastPlayer] After setup - Playlist has ${audioStore.playlist.length} tracks`);
+      console.log(`[PodcastPlayer] First track: ${audioStore.playlist[0]?.title}`);
+      if (audioStore.playlist.length > 1) {
+        console.log(`[PodcastPlayer] Second track: ${audioStore.playlist[1]?.title}`);
+      }
+      
+      // 检查播放列表是否正确设置
+      console.log(`[PodcastPlayer] Playlist now has ${audioStore.playlist.length} tracks`);
+      
+      // 确保自动播放功能开启
+      if (!audioStore.autoplay && typeof audioStore.setAutoplay === 'function') {
+        console.log('[PodcastPlayer] Enabling autoplay for continuous segment playback');
+        audioStore.setAutoplay(true);
+      }
+      
+      // 更新当前播客ID
+      currentPlayingPodcastId.value = `${podcast.podcast_id}`;
+      
+      // 开始播放第一个音频片段
       audioStore.play(tracks[0]);
       
-      // Update current podcast ID
-      currentPlayingPodcastId.value = `${podcast.podcast_id}`;
+      // 记录播放信息
+      console.log(`[PodcastPlayer] Started playback of podcast ${podcast.podcast_id} with ${tracks.length} segments`);
+      if (tracks.length > 1) {
+        console.log(`[PodcastPlayer] Auto-playing all ${tracks.length} segments in sequence`);
+        
+        // 检查是否有下一首可播放
+        setTimeout(() => {
+          console.log(`[PodcastPlayer] hasNext check: ${audioStore.hasNext ? 'Yes' : 'No'}`);
+          console.log(`[PodcastPlayer] Current index: ${audioStore.currentIndex}`);
+          console.log(`[PodcastPlayer] Playlist length: ${audioStore.playlist.length}`);
+          
+          // 打印当前播放列表状态，便于调试
+          console.log('[PodcastPlayer] Current playlist:');
+          audioStore.playlist.forEach((track, index) => {
+            console.log(`  ${index}: ${track.title} ${audioStore.currentTrack?.id === track.id ? '(current)' : ''}`);
+          });
+        }, 1000);
+      }
+    } else {
+      console.warn(`[PodcastPlayer] No playable segments found for podcast ${podcast.podcast_id}`);
     }
   }
   

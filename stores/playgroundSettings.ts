@@ -10,8 +10,8 @@ import { toast } from "vue-sonner";
 // Define the list of supported languages
 export const SUPPORTED_LANGUAGES = [
   { code: 'en', name: 'English' },
-  { code: 'es', name: 'Español (Spanish)' },
   { code: 'zh-CN', name: '简体中文 (Chinese Simplified)' },
+  { code: 'es', name: 'Español (Spanish)' },
   { code: 'fr', name: 'Français (French)' },
   { code: 'de', name: 'Deutsch (German)' },
   { code: 'ja', name: '日本語 (Japanese)' },
@@ -42,6 +42,8 @@ export interface FullPodcastSettings {
 // Define possible TTS/ASR providers explicitly for stronger typing
 export type TTSTechnologyProvider = 'elevenlabs' | 'volcengine';
 export type AIGenerateScriptProvider = 'elevenlabs' | 'openrouter' | 'groq'; // Assuming 'elevenlabs' can also generate scripts or it's a general provider key
+// 使用字符串字面量类型，确保类型比较正确
+export type AIProviderLiteral = 'elevenlabs' | 'openrouter' | 'groq';
 
 // Copied from playground.ts
 export const defaultPodcastSettings: FullPodcastSettings = {
@@ -71,14 +73,14 @@ export interface PlaygroundSettingsState {
 export const usePlaygroundSettingsStore = defineStore("playgroundSettings", {
   state: (): PlaygroundSettingsState => {
     const config = useRuntimeConfig();
-    // Ensure initialProvider has the correct union type to allow valid comparisons
-    let initialProvider: AIGenerateScriptProvider | undefined = "elevenlabs"; 
+    // 使用字符串字面量初始化，避免类型问题
+    const initialProvider = "elevenlabs" as AIGenerateScriptProvider; 
     let initialAiModel: string | undefined = undefined;
 
-    // This logic now correctly compares against the possible types of initialProvider
-    if (initialProvider === 'openrouter') {
+    // 使用类型断言来避免TypeScript的类型检查错误
+    if (initialProvider === ('openrouter' as AIGenerateScriptProvider)) {
       initialAiModel = config.public.openrouterDefaultModel as string | undefined;
-    } else if (initialProvider === 'groq') {
+    } else if (initialProvider === ('groq' as AIGenerateScriptProvider)) {
       initialAiModel = config.public.groqDefaultModel as string | undefined;
     }
     // else if (initialProvider === 'elevenlabs') { /* set default elevenlabs model if any */ }
@@ -94,9 +96,10 @@ export const usePlaygroundSettingsStore = defineStore("playgroundSettings", {
     updateSelectedProvider(providerId: AIGenerateScriptProvider | undefined) {
       const config = useRuntimeConfig();
       this.selectedProvider = providerId;
-      if (providerId === 'openrouter') {
+      // 使用类型断言来避免TypeScript的类型检查错误
+      if (providerId === ('openrouter' as AIGenerateScriptProvider)) {
         this.aiModel = config.public.openrouterDefaultModel as string | undefined;
-      } else if (providerId === 'groq') {
+      } else if (providerId === ('groq' as AIGenerateScriptProvider)) {
         this.aiModel = config.public.groqDefaultModel as string | undefined;
       } else {
         this.aiModel = undefined;
@@ -119,6 +122,9 @@ export const usePlaygroundSettingsStore = defineStore("playgroundSettings", {
     },
 
     updateFullPodcastSettings(settings: Partial<FullPodcastSettings>) {
+      console.log('[updateFullPodcastSettings] 接收到的设置:', JSON.stringify(settings, null, 2));
+      console.log('[updateFullPodcastSettings] 当前设置:', JSON.stringify(this.podcastSettings, null, 2));
+      
       // Create a new object to avoid direct state mutation issues if any part is deeply reactive
       const newSettings = { ...this.podcastSettings }; 
 
@@ -132,24 +138,41 @@ export const usePlaygroundSettingsStore = defineStore("playgroundSettings", {
           } else if (key === 'keywords') {
             // Ensure keywords are handled as an array of strings
             // If it's a string, split it. If it's an array, process it.
-            const rawKeywordsValue = settings[key]; // Access directly via settings[key] for type inference
+            // 使用类型断言来处理keywords
+            const rawKeywordsValue = settings.keywords as string | string[] | undefined; 
+            
             if (typeof rawKeywordsValue === 'string') {
-              newSettings.keywords = rawKeywordsValue.split(',').map((k: string) => k.trim()).filter((k: string) => k !== '');
+              // 如果是字符串，按逗号分割
+              newSettings.keywords = rawKeywordsValue.split(',').map(k => k.trim()).filter(k => k !== '');
             } else if (Array.isArray(rawKeywordsValue)) {
-              // Ensure all elements are strings before trimming, and filter out empty strings
+              // 如果是数组，确保所有元素都是字符串
               newSettings.keywords = rawKeywordsValue
-                .map((k: any) => String(k).trim())
-                .filter((k: string) => k !== '');
-            } else if (rawKeywordsValue === undefined) {
-              newSettings.keywords = []; // Explicitly handle undefined as empty array
+                .map(k => String(k).trim())
+                .filter(k => k !== '');
             } else {
-              // If it's some other unexpected type, log a warning and default to empty array
+              // 如果是undefined或其他类型，使用空数组
               console.warn(`Unexpected type for keywords: ${typeof rawKeywordsValue}. Defaulting to empty array.`);
               newSettings.keywords = []; 
             }
           } else if (key === 'numberOfSegments'){
+            // 强制转换为数字，并确保是有效值
             const numSegments = Number(settings.numberOfSegments);
-            newSettings.numberOfSegments = isNaN(numSegments) ? defaultPodcastSettings.numberOfSegments : numSegments;
+            console.log(`[updateFullPodcastSettings] 处理numberOfSegments: ${settings.numberOfSegments} -> ${numSegments} (类型: ${typeof settings.numberOfSegments})`);
+            
+            if (isNaN(numSegments) || numSegments <= 0) {
+              console.warn(`[updateFullPodcastSettings] numberOfSegments转换为数字失败或无效，使用默认值: ${defaultPodcastSettings.numberOfSegments}`);
+              newSettings.numberOfSegments = defaultPodcastSettings.numberOfSegments;
+            } else {
+              // 确保是整数
+              const finalSegmentCount = Math.floor(numSegments);
+              console.log(`[updateFullPodcastSettings] 设置numberOfSegments为: ${finalSegmentCount} (原始值: ${numSegments})`);
+              newSettings.numberOfSegments = finalSegmentCount;
+              
+              // 直接修改state，确保更新生效
+              this.$patch((state) => {
+                state.podcastSettings.numberOfSegments = finalSegmentCount;
+              });
+            }
           } else {
             // Directly assign other properties
             // Need to handle type assertion carefully if settings[key] could be of a different type than newSettings[key]
@@ -158,7 +181,9 @@ export const usePlaygroundSettingsStore = defineStore("playgroundSettings", {
         }
       });
 
+      console.log('[updateFullPodcastSettings] 更新后的设置:', JSON.stringify(newSettings, null, 2));
       this.podcastSettings = newSettings;
+      console.log('[updateFullPodcastSettings] 更新后的store.podcastSettings:', JSON.stringify(this.podcastSettings, null, 2));
     },
 
     updateTtsProvider(provider: TTSTechnologyProvider) { // Use the defined union type

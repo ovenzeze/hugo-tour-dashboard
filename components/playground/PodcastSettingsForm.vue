@@ -41,19 +41,30 @@
             <TooltipContent><p>Number of Segments</p></TooltipContent>
           </Tooltip>
         </TooltipProvider>
-        <Select v-model.number="editableSettings.numberOfSegments">
-          <SelectTrigger class="flex-grow">
-            <SelectValue placeholder="Select segments" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem
-              v-for="option in segmentOptions"
-              :key="option"
-              :value="option">
-              {{ option }} segments
-            </SelectItem>
-          </SelectContent>
-        </Select>
+        <div class="flex w-full gap-2">
+          <Input
+            type="number"
+            :value="segmentCountValue"
+            @input="handleSegmentCountInput"
+            min="1"
+            max="100"
+            class="flex-grow hide-spin"
+            placeholder="Enter number of segments"
+          />
+          <Select :value="segmentCountValue" @update:value="handleSegmentCountSelect" class="w-24">
+            <SelectTrigger>
+              <SelectValue placeholder="Select" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem
+                v-for="option in segmentOptions"
+                :key="option"
+                :value="option">
+                {{ option }}
+              </SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
       </div>
     </div>
 
@@ -256,6 +267,52 @@ const podcastLanguageValue = computed({
   }
 });
 
+// 使用ref来存储segment数量，而不是直接绑定到editableSettings
+const segmentCountValue = ref(props.modelValue.numberOfSegments || 10);
+
+// 处理输入框的输入事件
+function handleSegmentCountInput(event: Event) {
+  const target = event.target as HTMLInputElement;
+  const value = parseInt(target.value);
+  
+  // 验证并更新值
+  if (!isNaN(value) && value > 0 && value <= 100) {
+    segmentCountValue.value = value;
+    updateSegmentCount(value);
+  } else if (target.value === '') {
+    // 如果输入框为空，不做任何操作
+  } else {
+    console.warn('[PodcastSettingsForm] 无效的segment数量:', target.value);
+  }
+}
+
+// 处理下拉框的选择事件
+function handleSegmentCountSelect(value: number) {
+  segmentCountValue.value = value;
+  updateSegmentCount(value);
+}
+
+// 更新segment数量到父组件
+function updateSegmentCount(value: number) {
+  console.log('[PodcastSettingsForm] 更新segment数量:', value);
+  
+  // 直接更新props.modelValue的numberOfSegments属性
+  const updatedSettings = {
+    ...props.modelValue,
+    numberOfSegments: value
+  };
+  
+  // 发送更新事件
+  emit('update:modelValue', updatedSettings);
+}
+
+// 监听props.modelValue.numberOfSegments的变化，同步到本地ref
+watch(() => props.modelValue.numberOfSegments, (newValue) => {
+  if (newValue !== segmentCountValue.value) {
+    segmentCountValue.value = newValue || 10;
+  }
+}, { immediate: true });
+
 const editableSettings = computed({
   get: () => {
     return {
@@ -266,19 +323,23 @@ const editableSettings = computed({
     const newSettings = { ...props.modelValue, ...value };
 
     const getProcessedKeywords = (): string[] => {
-      const keywordsValue = newSettings.keywords;
+      // 使用类型断言明确指定keywordsValue的可能类型
+      const keywordsValue = newSettings.keywords as string[] | string | undefined;
+      
       if (Array.isArray(keywordsValue)) {
         return keywordsValue;
       } 
+      
       if (typeof keywordsValue === 'string') {
         return keywordsValue.split(',').map((k: string) => k.trim()).filter(Boolean);
       }
+      
       return [];
     };
-
+    
     const processedValue = {
       ...newSettings,
-      numberOfSegments: Number(newSettings.numberOfSegments) || 1,
+      // 不在这里处理numberOfSegments，而是使用专门的函数
       hostPersonaId: newSettings.hostPersonaId ? Number(newSettings.hostPersonaId) : undefined,
       guestPersonaIds: Array.isArray(newSettings.guestPersonaIds)
         ? newSettings.guestPersonaIds
@@ -287,6 +348,9 @@ const editableSettings = computed({
         : [],
       keywords: getProcessedKeywords(),
     };
+    
+    // 添加日志，查看最终发送的值
+    console.log('[PodcastSettingsForm] 发送更新:', JSON.stringify(processedValue, null, 2));
     
     emit('update:modelValue', processedValue);
   }

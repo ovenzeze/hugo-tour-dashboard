@@ -33,7 +33,7 @@
           @update:main-editor-content="mainEditorContent = $event"
           @clear-error-and-retry="handleClearErrorAndRetry"
         />
-        <PlaygroundStep2Panel
+        <PlaygroundStep2Panel 和
           v-if="currentStepIndex === 2"
           ref="voicePerformanceSettingsRef"
           :script-content="scriptStore.textToSynthesize"
@@ -103,6 +103,7 @@ import PlaygroundFooterActions from '@/components/playground/PlaygroundFooterAct
 // import Step2ConfirmationDialog from '@/components/playground/Step2ConfirmationDialog.vue'; // Replaced by new modal for synthesis
 import PodcastSynthesisModal from '@/components/podcasts/PodcastSynthesisModal.vue';
 import type { ModalStatus, ConfirmData, ProcessingData, SuccessData, ErrorData } from '../components/podcasts/PodcastSynthesisModalTypes';
+import type { CombineAudioResponse } from '~/types/podcast';
 
 import { useRoute, useRouter } from 'vue-router';
 import { toast } from 'vue-sonner';
@@ -209,47 +210,46 @@ const {
 } = usePlaygroundAudio(voicePerformanceSettingsRef, podcastPerformanceConfig, canProceedFromStep2);
 
 
-// Wrapped function to manage global loading state
+// 直接调用audioStore的synthesizeAllSegmentsConcurrently方法，确保数据一路透传
 async function generateAllSegmentsAudioPreview() {
   if (!voicePerformanceSettingsRef.value || !canProceedFromStep2.value) {
     toast.error("Voice configuration incomplete. Please assign voices to all roles/speakers.");
     return;
   }
-  // The original generateAudioPreview from usePlaygroundAudio will be called by the Step2Panel or its child.
-  // This function is for the global "Generate Audio Preview" button.
-  // We need to trigger the preview generation logic within VoicePerformanceSettings,
-  // which in turn uses useSegmentPreview.
-  // Let's assume VoicePerformanceSettings exposes a method like 'triggerAllPreviews'
+
+  if (!audioStore.podcastId) {
+    toast.error("Podcast ID is missing. Cannot synthesize segments. Please ensure script is validated and saved (Step 1).");
+    return;
+  }
 
   isGlobalPreviewLoading.value = true;
   try {
-    // The actual call to generate all previews will be handled by the component method
-    // This is more of a conceptual placeholder for triggering the action
-    // The `generateAudioPreview` prop on PlaygroundFooterActions will call this.
-    // The `PlaygroundStep2Panel` or `VoicePerformanceSettings` should have a method to start all previews.
-    // For now, we'll rely on the existing `generateAudioPreview` from `usePlaygroundAudio`
-    // but it needs to be adapted or called in a way that `useSegmentPreview` updates all states.
-
-    // The `generateAudioPreview` function in `usePlaygroundAudio` already calls
-    // `audioStore.synthesizeAllSegmentsConcurrently`. We need to ensure this
-    // function in the composable updates individual segment states through `useSegmentPreview`.
-    // This might require `usePlaygroundAudio` to interact more directly with `useSegmentPreview`'s states
-    // or for `synthesizeAllSegmentsConcurrently` in the store to emit events that `useSegmentPreview` can listen to.
-
-    // For now, let's assume `voicePerformanceSettingsRef.value.generateAllPreviews()` exists and handles it.
-    // This is a simplification. The actual implementation will be in VoicePerformanceSettings.vue
-    // which calls `previewAllSegments` from `useSegmentPreview`.
-    if (voicePerformanceSettingsRef.value && typeof voicePerformanceSettingsRef.value.generateAudio === 'function') {
-        await voicePerformanceSettingsRef.value.generateAudio(); // This calls previewAllSegments from useSegmentPreview
-    } else {
-        // Fallback or error if the method doesn't exist.
-        // This indicates a need to correctly expose and call the preview all functionality.
-        // The original `generateAudioPreview` from `usePlaygroundAudio` is what's currently wired up.
-        // Let's call the one from usePlaygroundAudio, assuming it's meant for "all segments"
-        const audioComposable = usePlaygroundAudio(voicePerformanceSettingsRef, podcastPerformanceConfig, canProceedFromStep2);
-        await audioComposable.generateAudioPreview();
+    // 获取当前的speakerAssignments
+    const currentSpeakerAssignments = voicePerformanceSettingsRef.value.getPerformanceConfig()?.speakerAssignments;
+    
+    if (!currentSpeakerAssignments) {
+      toast.error("Speaker assignments are missing. Cannot generate audio preview.");
+      return;
     }
 
+    console.log("[generateAllSegmentsAudioPreview] Current speaker assignments:", JSON.stringify(currentSpeakerAssignments, null, 2));
+
+    // 直接调用audioStore的synthesizeAllSegmentsConcurrently方法，传递必要的参数
+    const result = await audioStore.synthesizeAllSegmentsConcurrently(
+      scriptStore.validationResult,
+      settingsStore.podcastSettings,
+      currentSpeakerAssignments
+    );
+    
+    // 显示详细的成功/失败信息
+    if (result) {
+      const { successfulSegments, failedSegments, totalSegments } = result;
+      if (failedSegments === 0) {
+        toast.success(`所有 ${successfulSegments} 个片段都成功生成了音频！`);
+      } else {
+        toast.info(`音频生成完成：${successfulSegments} 个成功，${failedSegments} 个失败，共 ${totalSegments} 个片段。`);
+      }
+    }
   } catch (error) {
     toast.error("Failed to generate all audio previews.");
     console.error("Error in generateAllSegmentsAudioPreview:", error);
@@ -367,40 +367,127 @@ const handleModalClose = () => {
 const handleModalConfirmSynthesis = async () => {
   console.log('Modal confirm synthesis triggered');
   synthesisStatusForModal.value = 'processing';
-  processingDataForModal.value = { progress: 10, currentStage: 'Preparing synthesis parameters...' };
+  processingDataForModal.value = { progress: 0, currentStage: 'Starting synthesis...' };
 
-  // TODO: Implement actual synthesis call
-  // This is where you'd call your backend API to start the synthesis
-  // For now, simulate processing and then success/error
-  await new Promise(resolve => setTimeout(resolve, 2000)); // Simulate network delay
+  // Log values for pre-checks
+  console.log('scriptStore.validationResult:', JSON.stringify(scriptStore.validationResult, null, 2));
+  console.log('podcastPerformanceConfig.value (before checks):', JSON.stringify(podcastPerformanceConfig.value, null, 2));
+  console.log('voicePerformanceSettingsRef.value?.isFormValid (before checks):', voicePerformanceSettingsRef.value?.isFormValid);
+  console.log('audioStore.podcastId (before checks):', audioStore.podcastId);
 
-  // Simulate API call
+  if (!scriptStore.validationResult || !scriptStore.validationResult.success || !scriptStore.validationResult.structuredData?.script?.length) {
+    synthesisStatusForModal.value = 'error';
+    errorDataForModal.value = { errorMessage: 'Script validation data is missing or invalid. Please ensure the script is validated and segments are configured.' };
+    toast.error(`Podcast "${podcastNameForModal.value}" synthesis failed: No valid script segments.`);
+    return;
+  }
+
+  // Check if voicePerformanceSettingsRef and its methods are available
+  if (!voicePerformanceSettingsRef.value || 
+      typeof voicePerformanceSettingsRef.value.getPerformanceConfig !== 'function' ||
+      typeof voicePerformanceSettingsRef.value.isFormValid === 'undefined') {
+    synthesisStatusForModal.value = 'error';
+    errorDataForModal.value = { errorMessage: 'Voice performance settings component is not available.' };
+    toast.error(`Podcast "${podcastNameForModal.value}" synthesis failed: Voice settings component error.`);
+    return;
+  }
+  
+  // Check if the form in VoicePerformanceSettings is valid
+  if (!voicePerformanceSettingsRef.value.isFormValid) {
+    synthesisStatusForModal.value = 'error';
+    errorDataForModal.value = { errorMessage: 'Voice performance settings are incomplete. Please ensure all voices are assigned in Step 2.' };
+    toast.error(`Podcast "${podcastNameForModal.value}" synthesis failed: Voice performance settings incomplete.`);
+    return;
+  }
+
+  // Add check for podcastId
+  if (!audioStore.podcastId) {
+    synthesisStatusForModal.value = 'error';
+    errorDataForModal.value = { errorMessage: 'Podcast ID is missing. Cannot synthesize segments. Please ensure the script has been saved.' };
+    toast.error(`Podcast "${podcastNameForModal.value}" synthesis failed: Podcast ID missing.`);
+    return;
+  }
+
   try {
-    // const synthesisParams = { ... }; // Gather necessary params
-    // const response = await $fetch('/api/podcast/synthesize', { method: 'POST', body: synthesisParams });
+    // Log critical data for debugging
+    console.log('Validation Result Script (inside try):', JSON.stringify(scriptStore.validationResult?.structuredData?.script, null, 2));
     
-    // Simulate progress
-    processingDataForModal.value = { progress: 30, currentStage: 'Sending request to synthesis service...' };
-    await new Promise(resolve => setTimeout(resolve, 2000));
-    processingDataForModal.value = { progress: 60, currentStage: 'Generating audio...' };
-    await new Promise(resolve => setTimeout(resolve, 3000));
-    processingDataForModal.value = { progress: 90, currentStage: 'Processing audio file...' };
-    await new Promise(resolve => setTimeout(resolve, 2000));
+    const currentSpeakerAssignmentsConfig = voicePerformanceSettingsRef.value.getPerformanceConfig();
+    console.log('Current Speaker Assignments Config from getPerformanceConfig():', JSON.stringify(currentSpeakerAssignmentsConfig, null, 2));
 
-    // Simulate success
-    synthesisStatusForModal.value = 'success';
-    successDataForModal.value = {
-      podcastDuration: '5min 30s',
-      fileSize: '12.5 MB'
-    };
-    toast.success(`Podcast "${podcastNameForModal.value}" synthesized successfully!`);
-    // Potentially update audioStore.audioUrl if the synthesis returns a new URL
-    // audioStore.updateFinalAudioUrl(newAudioUrl);
+    // Prepare speakerAssignments in the correct format
+    const formattedSpeakerAssignments: Record<string, { voiceId: string, provider?: string }> = {};
+    if (currentSpeakerAssignmentsConfig?.speakerAssignments) {
+      for (const speaker in currentSpeakerAssignmentsConfig.speakerAssignments) {
+        const assignment = currentSpeakerAssignmentsConfig.speakerAssignments[speaker];
+        if (typeof assignment === 'object' && assignment !== null && 'voiceId' in assignment) {
+          formattedSpeakerAssignments[speaker] = {
+            voiceId: assignment.voiceId,
+            provider: assignment.provider ? assignment.provider.replace(/^'|'$/g, '').replace(/^"|"$/g, '') : undefined
+          };
+        } else {
+          console.warn(`Speaker assignment for ${speaker} is not in the expected format:`, assignment);
+        }
+      }
+    }
+    console.log('Formatted Speaker Assignments for synthesis:', JSON.stringify(formattedSpeakerAssignments, null, 2));
 
-  } catch (error) {
+    // Call the actual synthesis function from the audio store
+    const synthesisResult = await audioStore.synthesizeAllSegmentsConcurrently(
+      scriptStore.validationResult,
+      settingsStore.podcastSettings,
+      formattedSpeakerAssignments // Pass formatted speakerAssignments
+    );
+
+    // 处理合成结果
+    if (synthesisResult) {
+      const { successfulSegments, failedSegments, totalSegments } = synthesisResult;
+      
+      // 更新进度信息
+      processingDataForModal.value = { 
+        progress: Math.round((successfulSegments / totalSegments) * 100), 
+        currentStage: `已生成 ${successfulSegments}/${totalSegments} 个片段${failedSegments > 0 ? `，${failedSegments} 个失败` : ''}` 
+      };
+      
+      if (failedSegments > 0) {
+        // 有失败的片段，但仍然继续处理
+        console.log(`[handleModalConfirmSynthesis] ${failedSegments} segments failed, but continuing with ${successfulSegments} successful segments`);
+      }
+    }
+
+    if (audioStore.synthesisError) {
+      synthesisStatusForModal.value = 'error';
+      errorDataForModal.value = { errorMessage: audioStore.synthesisError };
+      toast.error(`Podcast "${podcastNameForModal.value}" synthesis failed.`);
+    } else {
+      // After successful segment synthesis, trigger the final audio combination
+      // This assumes a backend endpoint to combine the generated segments into a single audio file
+      processingDataForModal.value = { progress: 95, currentStage: 'Combining audio segments...' };
+      const combineResponse = await $fetch<CombineAudioResponse>('/api/podcast/combine-audio', {
+        method: 'POST',
+        body: {
+          podcastId: audioStore.podcastId,
+        },
+      } as any);
+
+      if (combineResponse && combineResponse.audioUrl) {
+        audioStore.setFinalAudioUrl(combineResponse.audioUrl);
+        synthesisStatusForModal.value = 'success';
+        successDataForModal.value = {
+          podcastDuration: combineResponse.duration || 'N/A', // Assuming backend returns duration
+          fileSize: combineResponse.fileSize || 'N/A', // Assuming backend returns file size
+        };
+        toast.success(`Podcast "${podcastNameForModal.value}" synthesized successfully!`);
+      } else {
+        synthesisStatusForModal.value = 'error';
+        errorDataForModal.value = { errorMessage: 'Failed to combine audio segments or retrieve final URL.' };
+        toast.error(`Podcast "${podcastNameForModal.value}" synthesis failed.`);
+      }
+    }
+  } catch (error: any) {
     console.error('Synthesis error:', error);
     synthesisStatusForModal.value = 'error';
-    errorDataForModal.value = { errorMessage: (error as Error).message || 'An unknown error occurred during synthesis.' };
+    errorDataForModal.value = { errorMessage: error.data?.message || error.message || 'An unknown error occurred during synthesis.' };
     toast.error(`Podcast "${podcastNameForModal.value}" synthesis failed.`);
   }
 };
@@ -461,29 +548,141 @@ const handleModalViewHelp = () => {
 };
 
 
-// --- Update PlaygroundFooterActions synthesize-podcast handler ---
-const handleShowSynthesisModal = () => {
-  // Prepare data for the modal
-  // podcastNameForModal.value = settingsStore.podcastSettings.title || 'Untitled Podcast'; // Get from actual settings
-  // For now, let's use a placeholder or the current value
+// --- 简化的合成Podcast按钮处理函数 ---
+const handleShowSynthesisModal = async () => {
+  // 检查是否有音频片段已经生成
+  try {
+    // 直接从API获取当前播客的片段状态，确保数据是最新的
+    if (!audioStore.podcastId) {
+      toast.error("播客ID缺失，请先保存脚本。");
+      return;
+    }
+    
+    const response = await $fetch(`/api/podcast/${audioStore.podcastId}/segments-status`, {
+      method: 'GET'
+    });
+    
+    console.log("[handleShowSynthesisModal] 片段状态:", response);
+    
+    // @ts-ignore - 假设响应包含totalSegments和synthesizedSegments
+    const { totalSegments, synthesizedSegments } = response;
+    
+    if (!synthesizedSegments || synthesizedSegments === 0) {
+      toast.error("请先生成片段的音频预览，再合成完整播客。");
+      return;
+    }
+    
+    if (synthesizedSegments < totalSegments) {
+      toast.warning(`已生成 ${synthesizedSegments}/${totalSegments} 个片段的音频。建议先生成所有片段的音频预览。`);
+      // 显示确认对话框，询问是否继续
+      if (!confirm(`已生成 ${synthesizedSegments}/${totalSegments} 个片段的音频。是否继续合成播客？`)) {
+        return;
+      }
+    }
+    
+    // 更新UI统计信息
+    if (voicePerformanceSettingsRef.value) {
+      voicePerformanceSettingsRef.value.updateSegmentStats(synthesizedSegments, totalSegments);
+    }
+  } catch (error) {
+    console.error("[handleShowSynthesisModal] 获取片段状态失败:", error);
+    // 如果API调用失败，回退到原来的检查逻辑
+    const hasPreviewedSegments = voicePerformanceSettingsRef.value?.areAllSegmentsPreviewed;
+    
+    if (!hasPreviewedSegments) {
+      toast.error("无法确认片段状态，请确保已生成所有片段的音频预览。");
+      return;
+    }
+  }
+  
+  // 获取播客名称
   if (!settingsStore.podcastSettings.title && mainEditorContent.value) {
-      // Try to extract a title from the script if no explicit title is set
-      const firstLine = mainEditorContent.value.split('\n')[0];
-      podcastNameForModal.value = firstLine.length > 50 ? firstLine.substring(0, 47) + '...' : firstLine || 'New Podcast';
+    const firstLine = mainEditorContent.value.split('\n')[0];
+    podcastNameForModal.value = firstLine.length > 50 ? firstLine.substring(0, 47) + '...' : firstLine || 'New Podcast';
   } else {
-      podcastNameForModal.value = settingsStore.podcastSettings.title || 'New Podcast';
+    podcastNameForModal.value = settingsStore.podcastSettings.title || 'New Podcast';
   }
 
-  confirmDataForModal.value = {
-    // These should be calculated or fetched based on script length, voice models, etc.
-    estimatedCost: 'Approx. 0.5 Credits', // Placeholder
-    estimatedTime: 'Approx. 2-5 minutes', // Placeholder
-  };
-  processingDataForModal.value = { progress: 0, currentStage: 'Initializing...', remainingTime: 'Calculating...' }; // Reset processing
-  successDataForModal.value = { podcastDuration: 'N/A', fileSize: 'N/A' }; // Reset success
-  errorDataForModal.value = { errorMessage: 'An unknown error occurred' }; // Reset error
-  synthesisStatusForModal.value = 'confirm'; // Start with the confirm step
-  showSynthesisModal.value = true;
+  // 直接提交任务，不显示确认对话框
+  handleSubmitPodcastSynthesis();
+};
+
+// 导入封面生成相关的composable
+import { usePodcastCoverGenerator } from '@/composables/usePodcastCoverGenerator';
+const { generateAndSavePodcastCover } = usePodcastCoverGenerator();
+
+// 直接提交播客合成任务
+const handleSubmitPodcastSynthesis = async () => {
+  try {
+    const currentSpeakerAssignments = voicePerformanceSettingsRef.value.getPerformanceConfig()?.speakerAssignments;
+    
+    if (!currentSpeakerAssignments) {
+      toast.error("语音分配信息缺失，无法合成播客。");
+      return;
+    }
+    
+    // 检查所有说话者是否都有有效的语音分配
+    const missingVoices: string[] = [];
+    for (const speaker in currentSpeakerAssignments) {
+      const assignment = currentSpeakerAssignments[speaker];
+      if (!assignment || !assignment.voiceId || assignment.voiceId === '') {
+        missingVoices.push(speaker);
+      }
+    }
+    
+    if (missingVoices.length > 0) {
+      toast.error(`以下说话者没有分配语音，无法合成播客：${missingVoices.join(', ')}`);
+      return;
+    }
+    
+    toast.success(`播客"${podcastNameForModal.value}"合成任务已提交，正在后台处理...`);
+    
+    // 格式化speakerAssignments
+    const formattedSpeakerAssignments: Record<string, { voiceId: string, provider?: string }> = {};
+    for (const speaker in currentSpeakerAssignments) {
+      const assignment = currentSpeakerAssignments[speaker];
+      if (typeof assignment === 'object' && assignment !== null && 'voiceId' in assignment) {
+        formattedSpeakerAssignments[speaker] = {
+          voiceId: assignment.voiceId,
+          provider: assignment.provider ? assignment.provider.replace(/^'|'$/g, '').replace(/^"|"$/g, '') : undefined
+        };
+      }
+    }
+    
+    // 生成封面图片
+    if (audioStore.podcastId && settingsStore.podcastSettings.title) {
+      // 调用封面生成API，但不触发刷新
+      generateAndSavePodcastCover(
+        audioStore.podcastId.toString(),
+        settingsStore.podcastSettings.title,
+        settingsStore.podcastSettings.topic
+      )
+        .then(() => {
+          console.log(`[handleSubmitPodcastSynthesis] Cover generation process initiated for podcast ${audioStore.podcastId}.`);
+        })
+        .catch(coverError => {
+          console.error(`[handleSubmitPodcastSynthesis] Error initiating cover generation for podcast ${audioStore.podcastId}:`, coverError);
+        });
+    }
+    
+    // 调用合成API
+    const combineResponse = await $fetch<CombineAudioResponse>('/api/podcast/combine-audio', {
+      method: 'POST',
+      body: {
+        podcastId: audioStore.podcastId,
+      },
+    } as any);
+
+    if (combineResponse && combineResponse.audioUrl) {
+      audioStore.setFinalAudioUrl(combineResponse.audioUrl);
+      toast.success(`播客"${podcastNameForModal.value}"合成完成！`);
+    } else {
+      toast.error(`播客"${podcastNameForModal.value}"合成失败：无法获取最终音频URL。`);
+    }
+  } catch (error: any) {
+    console.error('合成错误:', error);
+    toast.error(`播客"${podcastNameForModal.value}"合成失败：${error.data?.message || error.message || '未知错误'}`);
+  }
 };
 
 </script>

@@ -37,7 +37,7 @@ export interface PreviewableSegment extends ParsedScriptSegment {
 
 export function useSegmentPreview(
     parsedScriptSegments: globalThis.Ref<PreviewableSegment[]>,
-    speakerAssignments: globalThis.Ref<Record<string, string>>
+    speakerAssignments: globalThis.Ref<Record<string, { voiceId: string, provider: string }>> // Updated type
 ) {
   const audioStore = usePlaygroundAudioStore();
   const settingsStore = usePlaygroundSettingsStore();
@@ -91,40 +91,36 @@ export function useSegmentPreview(
   }, { deep: true, immediate: true });
 
   async function previewSegment(segment: PreviewableSegment, index: number) {
-    const voiceId = speakerAssignments.value[segment.speakerTag] || segment.voiceId; // Ensure voiceId is resolved
-    if (!segment.text || !voiceId) {
-      toast.error('Missing text or voice assignment for segment preview.');
-      segmentStates.value[index] = { status: 'error', message: 'Missing text or voice assignment.', error: 'No text or voice.' };
-      if (segmentPreviews.value[index]) {
-        segmentPreviews.value[index].audioUrl = null;
-      } else {
-        segmentPreviews.value[index] = { audioUrl: null, timestamps: [] };
-      }
+    const assignment = speakerAssignments.value[segment.speakerTag] as ({ voiceId: string, provider: string } | undefined);
+
+    if (!segment.text) {
+      toast.error('Missing text for segment preview.');
+      segmentStates.value[index] = { status: 'error', message: 'Missing text for segment.', error: 'No text.' };
+      if (segmentPreviews.value[index]) segmentPreviews.value[index].audioUrl = null; else segmentPreviews.value[index] = { audioUrl: null, timestamps: [] };
       return;
     }
+
+    if (!assignment || !assignment.voiceId || !assignment.provider) {
+      const missingFields = [];
+      if (!assignment) missingFields.push("assignment object");
+      else {
+        if (!assignment.voiceId) missingFields.push("'voiceId' in assignment");
+        if (!assignment.provider) missingFields.push("'provider' in assignment");
+      }
+      const errorDetail = `Missing ${missingFields.join(' and ')} in speakerAssignments for speaker '${segment.speakerTag}'. Cannot synthesize.`;
+      toast.error('Voice assignment incomplete for segment preview.', { description: errorDetail });
+      console.error(`[useSegmentPreview] ${errorDetail}`);
+      segmentStates.value[index] = { status: 'error', message: 'Voice assignment incomplete.', error: errorDetail };
+      if (segmentPreviews.value[index]) segmentPreviews.value[index].audioUrl = null; else segmentPreviews.value[index] = { audioUrl: null, timestamps: [] };
+      return;
+    }
+
+    const { voiceId, provider } = assignment; // provider here is the value from speakerAssignments
 
     segmentStates.value[index] = { status: 'loading', message: 'Generating preview...' };
     isPreviewingSegment.value = index;
 
-    // Determine the provider for this specific segment
-    const providerForThisSegment = segment.ttsProvider;
-
-    if (!providerForThisSegment) {
-      console.error(`[useSegmentPreview] TTS provider for segment '${segment.speakerTag}' (voiceId: ${voiceId}) is missing. Cannot synthesize.`);
-      segmentStates.value[index] = {
-        status: 'error',
-        message: 'TTS Provider missing for this segment.',
-        error: 'TTS provider configuration error for this segment.'
-      };
-      if (segmentPreviews.value[index]) {
-        segmentPreviews.value[index].audioUrl = null;
-      } else {
-        segmentPreviews.value[index] = { audioUrl: null, timestamps: [] };
-      }
-      return;
-    }
-
-    console.log(`[useSegmentPreview] Synthesizing segment ${index} for speaker '${segment.speakerTag}' with voice '${voiceId}' using provider '${providerForThisSegment}'`);
+    console.log(`[useSegmentPreview] Synthesizing segment ${index} for speaker '${segment.speakerTag}' with voice '${voiceId}' using provider '${provider}'`);
 
     try {
         // Use the actual podcastId from the store if available, otherwise generate a temporary one for preview
@@ -151,7 +147,7 @@ export function useSegmentPreview(
               // use_speaker_boost: true // TODO: Make configurable or part of persona if API supports
             },
             synthesisParams: audioStore.synthesisParams, // Pass global synthesis params from the store
-            ttsProvider: providerForThisSegment // Use the determined provider for this segment
+            ttsProvider: provider // Use the provider from speakerAssignments for the API call's ttsProvider field
           })
         });
       if (!response.ok) {
@@ -196,44 +192,74 @@ export function useSegmentPreview(
   }
 
   async function previewAllSegments() {
-    const segmentsToPreview = parsedScriptSegments.value.filter(seg => speakerAssignments.value[seg.speakerTag]);
-    if (segmentsToPreview.length !== parsedScriptSegments.value.length) {
-        toast.error('Please assign voices to all segments before previewing all.');
-        return false;
+    // Ensure all segments have complete voice assignments (voiceId and provider)
+    const allSegmentsAssigned = parsedScriptSegments.value.every(seg => {
+      const assignment = speakerAssignments.value[seg.speakerTag];
+      return assignment && assignment.voiceId && assignment.provider;
+    });
+
+    if (!allSegmentsAssigned) {
+      toast.error('Please ensure all segments have complete voice (ID and provider) assignments before previewing all.');
+      const firstUnassigned = parsedScriptSegments.value.find(seg => {
+        const assignment = speakerAssignments.value[seg.speakerTag];
+        return !assignment || !assignment.voiceId || !assignment.provider;
+      });
+      if (firstUnassigned) {
+        const assignment = speakerAssignments.value[firstUnassigned.speakerTag];
+        const missing = [];
+        if (!assignment) missing.push("assignment object");
+        else {
+            if(!assignment.voiceId) missing.push("'voiceId'");
+            if(!assignment.provider) missing.push("'provider'");
+        }
+        console.warn(`[useSegmentPreview] Preview all aborted: Segment for speaker '${firstUnassigned.speakerTag}' has incomplete assignment (missing ${missing.join(' & ')}).`);
+      }
+      return false;
     }
-    if (segmentsToPreview.length === 0) {
-        toast.info('No segments with assigned voices to preview.');
+
+    if (parsedScriptSegments.value.length === 0) {
+        toast.info('No segments to preview.');
         return false;
     }
 
-    parsedScriptSegments.value.forEach((seg, index) => {
-        if(speakerAssignments.value[seg.speakerTag]) {
-            segmentStates.value[index] = { status: 'loading', message: 'Generating all previews...' };
-        }
+    parsedScriptSegments.value.forEach((_, index) => {
+        segmentStates.value[index] = { status: 'loading', message: 'Generating all previews...' };
     });
     toast.info('Generating all segment previews, please wait...');
 
     try {
-        // This uses the /api/podcast/preview/segments endpoint which takes a different payload
+        // The backend for /api/podcast/preview/segments needs to handle
+        // speakerAssignments: Record<string, { voiceId: string, provider: string }>
+        // It will iterate through segments, look up the speakerTag in speakerAssignments,
+        // and use the corresponding voiceId and provider for synthesis.
+
         const payloadSegments = parsedScriptSegments.value.map(segment => ({
-            speakerTag: segment.speakerTag,
-            text: segment.text
+            speakerTag: segment.speakerTag, // Backend uses this to lookup in speakerAssignments
+            text: segment.text,
+            // voiceId and provider are now sourced from speakerAssignments on the backend
+            // based on speakerTag
         }));
+
+        const requestBody = {
+            config: {
+                // Pass the entire speakerAssignments object.
+                // The backend will use this to find the voiceId and provider for each segment's speakerTag.
+                speakerAssignments: speakerAssignments.value,
+                segments: payloadSegments // Segments now only need speakerTag and text
+            },
+            synthesisParams: {
+                stability: audioStore.synthesisParams.temperature,
+                similarity_boost: audioStore.synthesisParams.speed,
+            }
+        };
+
+        console.log('[useSegmentPreview] previewAllSegments requestBody:', JSON.stringify(requestBody, null, 2));
+
 
         const response = await fetch('/api/podcast/preview/segments', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ // Correctly stringify the entire body object
-                config: {
-                    speakerAssignments: speakerAssignments.value,
-                    segments: payloadSegments
-                },
-                synthesisParams: { // This should be part of the object passed to stringify
-                    stability: audioStore.synthesisParams.temperature,
-                    similarity_boost: audioStore.synthesisParams.speed,
-                    // style and use_speaker_boost can be added if supported by the API
-                }
-            })
+            body: JSON.stringify(requestBody)
         });
 
         if (!response.ok) {

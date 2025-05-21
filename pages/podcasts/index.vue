@@ -3,16 +3,64 @@
     <!-- Top Action Bar and Filters -->
     <div class="w-full flex flex-wrap justify-between items-center gap-4 mb-6 px-6">
       <!-- <h1 class="text-3xl font-bold">Podcasts</h1> -->
-      <div class="flex items-center gap-4">
+      <div class="flex items-center gap-4 flex-wrap">
         <Input
           v-model="searchTerm"
           placeholder="Search by title or topic..."
           class="max-w-xs h-10 min-w-96 opacity-50"
         />
+        
+        <!-- 播客状态筛选 -->
+        <div class="flex items-center space-x-3 border rounded-lg p-2 bg-card">
+          <Label class="text-sm font-medium">Status:</Label>
+          
+          <div class="flex items-center space-x-1">
+            <Button 
+              :variant="podcastStatusFilter === 'all' ? 'default' : 'outline'" 
+              size="sm"
+              @click="podcastStatusFilter = 'all'"
+              class="h-8"
+            >
+              All
+            </Button>
+            
+            <Button 
+              :variant="podcastStatusFilter === 'completed' ? 'default' : 'outline'" 
+              size="sm"
+              @click="podcastStatusFilter = 'completed'"
+              class="h-8"
+            >
+              <Icon name="ph:check-circle" class="mr-1 h-4 w-4 text-green-500" />
+              Completed
+            </Button>
+            
+            <Button 
+              :variant="podcastStatusFilter === 'in-progress' ? 'default' : 'outline'" 
+              size="sm"
+              @click="podcastStatusFilter = 'in-progress'"
+              class="h-8"
+            >
+              <Icon name="ph:hourglass" class="mr-1 h-4 w-4 text-amber-500" />
+              In Progress
+            </Button>
+            
+            <Button 
+              :variant="podcastStatusFilter === 'not-started' ? 'default' : 'outline'" 
+              size="sm"
+              @click="podcastStatusFilter = 'not-started'"
+              class="h-8"
+            >
+              <Icon name="ph:circle-dashed" class="mr-1 h-4 w-4 text-gray-500" />
+              Not Started
+            </Button>
+          </div>
+        </div>
+        
         <div class="flex items-center space-x-2 min-w-44">
           <Switch id="hide-empty-podcasts" v-model:checked="hideEmptyPodcasts" />
           <Label for="hide-empty-podcasts" class="text-sm">Hide Empty Podcasts</Label>
         </div>
+        
         <Button @click="handleCreateNewPodcast" size="lg">
           <Icon name="ph:plus-circle-duotone" class="mr-2 h-5 w-5" />
           New Podcast
@@ -69,7 +117,6 @@
         :podcasts="filteredPodcasts"
         :current-previewing-id="podcastPlayer.currentPlayingPodcastId.value?.toString() || ''"
         :is-audio-playing="!!podcastPlayer.isPlaying.value"
-        :hide-empty-podcasts-toggle="hideEmptyPodcasts"
         @select-podcast="handleSelectPodcast"
         @edit-podcast="handleEditPodcast"
         @delete-podcast="handleDeletePodcast"
@@ -119,6 +166,7 @@ import { usePodcastPlayer } from '~/composables/usePodcastPlayer';
 
 const searchTerm = ref('');
 const hideEmptyPodcasts = ref(true); // New filter state, default true
+const podcastStatusFilter = ref('all'); // 播客状态筛选，默认显示所有
 
 const {
   podcasts,
@@ -135,12 +183,38 @@ const {
 // Initialize podcast player
 const podcastPlayer = usePodcastPlayer();
 
-// Filtered podcasts based on searchTerm and hideEmptyPodcasts
+// 计算播客的状态
+function getPodcastStatus(podcast: Podcast): 'completed' | 'in-progress' | 'not-started' {
+  if (!podcast.podcast_segments || podcast.podcast_segments.length === 0) {
+    return 'not-started'; // 没有片段，未开始状态
+  }
+  
+  // 检查是否所有片段都有音频
+  const allSegmentsHaveAudio = podcast.podcast_segments.every(segment => 
+    segment.segment_audios && segment.segment_audios.length > 0
+  );
+  
+  // 检查是否至少有一个片段有音频
+  const someSegmentsHaveAudio = podcast.podcast_segments.some(segment => 
+    segment.segment_audios && segment.segment_audios.length > 0
+  );
+  
+  if (allSegmentsHaveAudio) {
+    return 'completed'; // 所有片段都有音频，已完成
+  } else if (someSegmentsHaveAudio) {
+    return 'in-progress'; // 部分片段有音频，制作中
+  } else {
+    return 'not-started'; // 没有片段有音频，未开始
+  }
+}
+
+// Filtered podcasts based on searchTerm, hideEmptyPodcasts, and podcastStatusFilter
 const filteredPodcasts = computed<Podcast[]>(() => {
   let result = podcasts.value;
   console.log('[PodcastsPage] Original podcasts:', JSON.parse(JSON.stringify(podcasts.value)));
   console.log('[PodcastsPage] Current searchTerm:', searchTerm.value);
   console.log('[PodcastsPage] Current hideEmptyPodcasts:', hideEmptyPodcasts.value);
+  console.log('[PodcastsPage] Current podcastStatusFilter:', podcastStatusFilter.value);
 
   // Apply search term filter
   if (searchTerm.value) {
@@ -158,6 +232,12 @@ const filteredPodcasts = computed<Podcast[]>(() => {
       podcast.podcast_segments && podcast.podcast_segments.length > 0
     );
     console.log('[PodcastsPage] Podcasts after hideEmptyPodcasts filter:', JSON.parse(JSON.stringify(result)));
+  }
+  
+  // Apply podcast status filter
+  if (podcastStatusFilter.value !== 'all') {
+    result = result.filter(podcast => getPodcastStatus(podcast) === podcastStatusFilter.value);
+    console.log(`[PodcastsPage] Podcasts after ${podcastStatusFilter.value} filter:`, JSON.parse(JSON.stringify(result)));
   }
 
   console.log('[PodcastsPage] Final filteredPodcasts:', JSON.parse(JSON.stringify(result)));
@@ -235,20 +315,14 @@ const handleDeletePodcast = (podcastId: string) => {
 };
 
 const handleGenerateCover = async (podcastId: string) => {
-  console.log('Generating cover for podcast:', podcastId);
+  console.log('[PodcastsPage] Refreshing podcasts after cover generation for podcast:', podcastId);
+  
   try {
-    const response = await $fetch(`/api/podcast/${podcastId}/generate-cover`, {
-      method: 'POST'
-    });
-    
-    console.log('Cover generated successfully:', response);
-    
-    // Refresh podcast data to show the new cover
+    // 只刷新播客数据，不再生成封面
     await fetchPodcasts();
-    
+    console.log('[PodcastsPage] Podcasts refreshed successfully');
   } catch (error) {
-    console.error('Error generating cover:', error);
-    // Optionally show a notification to the user
+    console.error('[PodcastsPage] Error refreshing podcasts:', error);
   }
 };
 </script>

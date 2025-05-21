@@ -61,7 +61,7 @@ async function getActivePersonas() {
   try {
     // Modified to fetch all active personas for forced regeneration
     const res = await client.query(
-      "SELECT persona_id, name, description FROM public.personas WHERE is_active = true;"
+      "SELECT persona_id, name, description FROM public.personas WHERE avatar_url IS NULL;"
     );
     console.log(`Found ${res.rowCount} active personas for forced avatar regeneration.`);
     return res.rows;
@@ -73,7 +73,7 @@ async function getActivePersonas() {
 function createImagePrompt(personaName, personaDescription) {
   // Consistent prompt structure, incorporating persona-specific details
   // Use case: Modern, realistic, detailed, and friendly tour guide
-  return `Highly realistic portrait of ${personaName}, a modern and friendly tour guide. ${personaDescription}. Detailed facial features with a warm, welcoming smile and kind eyes. Professional attire suitable for a contemporary tour guide. High-quality studio lighting, sharp focus, subtle background. Consistent style for a tour guide series.`;
+  return `A highly realistic and natural portrait of ${personaName}, a modern and friendly tour guide. ${personaDescription}. The portrait captures lifelike facial features with subtle imperfections for authenticity, including a warm, welcoming smile and kind, expressive eyes that convey approachability. The tour guide wears professional yet casual attire suitable for a contemporary guide, such as a neat polo shirt or blazer with a name tag, in neutral or earthy tones to reflect a grounded and relatable image. The image is shot with high-quality studio lighting that highlights facial details with soft, natural shadows, maintaining sharp focus on the subject. The background is subtle and minimalistic, such as a softly blurred outdoor setting or a neutral studio backdrop, ensuring the focus remains on the guide. The overall style is consistent with a realistic photography aesthetic, using warm and inviting color tones, designed to fit a cohesive tour guide series for a podcast brand.`;
 }
 
 async function generateImage(prompt) {

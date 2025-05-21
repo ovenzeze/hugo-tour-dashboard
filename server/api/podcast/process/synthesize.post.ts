@@ -78,16 +78,15 @@ export default defineEventHandler(async (event) => {
     const voiceSettings = body.voiceSettings; // Primarily for ElevenLabs
 
     // New TTS Provider selection logic
-    let ttsProvider: 'elevenlabs' | 'volcengine';
-    if (body.ttsProvider) {
-      ttsProvider = body.ttsProvider.toLowerCase() as 'elevenlabs' | 'volcengine'; // Normalize to lowercase
-      console.log(`[synthesize.post.ts] Using ttsProvider from request body: ${ttsProvider} (normalized)`);
-    } else if (body.language?.toLowerCase().startsWith('zh')) {
-      ttsProvider = 'volcengine';
-      console.log(`[synthesize.post.ts] No ttsProvider in body, language is ${body.language}. Defaulting to 'volcengine' for Chinese content.`);
+    let ttsProvider: string; // Changed type to string to accept any provider value
+    if (body.ttsProvider && typeof body.ttsProvider === 'string' && body.ttsProvider.trim() !== '') {
+      ttsProvider = body.ttsProvider.trim(); // Use the provided ttsProvider directly
+      console.log(`[synthesize.post.ts] Using ttsProvider from request body: ${ttsProvider}`);
     } else {
-      ttsProvider = 'elevenlabs';
-      console.log(`[synthesize.post.ts] No ttsProvider in body, language is ${body.language || 'not set'}. Defaulting to 'elevenlabs'.`);
+      throw createError({
+        statusCode: 400,
+        statusMessage: 'Invalid request: "ttsProvider" is required and cannot be empty.',
+      });
     }
     
     // Check for preset voice parameters
@@ -143,16 +142,21 @@ export default defineEventHandler(async (event) => {
 
     // Assemble segments from structured validation data
     if ((!segments || segments.length === 0) && body.script && body.voiceMap) {
+      console.log('[synthesize.post.ts] Assembling segments from structured data. Received voiceMap:', JSON.stringify(body.voiceMap, null, 2));
       // Auto-assemble segments
       segments = body.script.map((seg, idx) => {
         // Prefer name for voiceMap lookup, fallback to role
         const voiceMap = body.voiceMap ?? {};
         let voiceKey = seg.name && voiceMap[seg.name] ? seg.name : seg.role;
         let voice = voiceMap[voiceKey] || voiceMap[seg.role] || {};
+        const voiceId = voice.voice_model_identifier || '';
+        if (!voiceId) {
+          console.warn(`[synthesize.post.ts] No voiceId found for speaker: "${seg.name || seg.role}" (role: "${seg.role}", name: "${seg.name}") in segment ${idx}.`);
+        }
         return {
           segmentIndex: idx,
           text: seg.text,
-          voiceId: voice.voice_model_identifier || '',
+          voiceId: voiceId,
           speakerName: seg.name || seg.role
         };
       });
@@ -214,12 +218,17 @@ for (const segment of validSegments) {
 
       try {
         let segmentResult: TimedAudioSegmentResult | null = null;
+        let actualTtsProvider = ttsProvider; // Use the general ttsProvider by default
+        let actualVoiceId = segment.voiceId; // Use the segment's voiceId by default
 
-        if (ttsProvider === 'volcengine') {
-          if (!runtimeConfig.volcengine.appId || 
-              !runtimeConfig.volcengine.accessToken || 
-              !runtimeConfig.volcengine.cluster ||
-              !runtimeConfig.volcengine.instanceId) { 
+        console.log(`[synthesize.post.ts] Current ttsProvider for segment ${segment.segmentIndex}: ${ttsProvider}`);
+
+        if (actualTtsProvider === 'volcengine') {
+          // Volcengine TTS configuration check (re-enabled)
+          if (!runtimeConfig.volcengine?.appId || 
+              !runtimeConfig.volcengine?.accessToken || 
+              !runtimeConfig.volcengine?.cluster ||
+              !runtimeConfig.volcengine?.instanceId) { 
             console.error('[synthesize.post.ts] Volcengine TTS configuration missing (AppId, AccessToken, Cluster, or InstanceId) for segment:', segment.segmentIndex);
             results.push({ error: 'Volcengine configuration missing.', segmentIndex: segment.segmentIndex, provider: 'volcengine' });
             continue;
@@ -227,16 +236,13 @@ for (const segment of validSegments) {
 
           console.info(`[TTS] [${segment.segmentIndex}] Preparing VolcengineParams for segment. speakerName: '${segment.speakerName}', voiceId: '${segment.voiceId}', textPreview: '${segment.text.slice(0, 30)}${segment.text.length > 30 ? '...' : ''}'`);
 
-const volcConfig: VolcengineParams = {
+          const volcConfig: VolcengineParams = {
             text: segment.text,
-            voiceType: segment.voiceId, // This is the Volcengine voice model ID
-// 日志追踪voiceType传递链路
-// 注意：此处voiceType应与segment.voiceId完全一致，无任何映射
-
+            voiceType: actualVoiceId, // This is the Volcengine voice model ID, potentially overridden
             storageService,
             appId: runtimeConfig.volcengine.appId,
             accessToken: runtimeConfig.volcengine.accessToken,
-            cluster: synthesisParams.volcengineCluster || runtimeConfig.volcengine.cluster, 
+            cluster: runtimeConfig.volcengine.cluster,
             instanceId: runtimeConfig.volcengine.instanceId, 
             publicOutputDirectory,
             storageOutputDirectory,
@@ -247,20 +253,20 @@ const volcConfig: VolcengineParams = {
             pitchRatio: synthesisParams.pitch,
             enableTimestamps: true, // Defaulting to true, can be overridden if added to synthesisParams
           };
-          // console.log('[synthesize.post.ts] Volcengine config prepared:', JSON.stringify(volcConfig, null, 2));
+
+          console.log('[Volcengine Config Debug] Attempting to read Volcengine config from runtimeConfig for segment:', segment.segmentIndex);
+          console.log('[Volcengine Config Debug] AppId from runtimeConfig:', runtimeConfig.volcengine.appId);
+          console.log('[Volcengine Config Debug] AccessToken from runtimeConfig:', runtimeConfig.volcengine.accessToken);
+          console.log('[Volcengine Config Debug] Cluster from runtimeConfig:', runtimeConfig.volcengine.cluster);
+          console.log('[Volcengine Config Debug] InstanceId from runtimeConfig:', runtimeConfig.volcengine.instanceId);
           
           console.info(`[TTS] [${segment.segmentIndex}] Calling generateAndStoreTimedAudioSegmentVolcengine with voiceType: '${volcConfig.voiceType}'`);
-segmentResult = await generateAndStoreTimedAudioSegmentVolcengine(volcConfig);
+          segmentResult = await generateAndStoreTimedAudioSegmentVolcengine(volcConfig);
         } else { // Default to ElevenLabs
           const elevenLabsApiKey = runtimeConfig.elevenlabs?.apiKey;
-          if (!elevenLabsApiKey) {
-            console.error('[synthesize.post.ts] ElevenLabs API key is missing for segment:', segment.segmentIndex);
-            results.push({ error: 'ElevenLabs API key is not configured.', segmentIndex: segment.segmentIndex, provider: 'elevenlabs' });
-            continue;
-          }
           const elevenLabsTTSParams: ElevenLabsParams = {
             text: segment.text,
-            voiceId: segment.voiceId,
+            voiceId: actualVoiceId, // Potentially overridden
             storageService,
             elevenLabsApiKey,
             publicOutputDirectory,
@@ -302,8 +308,8 @@ segmentResult = await generateAndStoreTimedAudioSegmentVolcengine(volcConfig);
               // Save the audio URL and metadata to segment_audios table
               // Construct a more detailed params object for database logging
               const dbAudioParams: Record<string, any> = {
-                ttsProvider: ttsProvider,
-                voiceIdUsed: segment.voiceId, // The actual voiceId/voiceType used for this segment
+                ttsProvider: actualTtsProvider, // Use the determined provider for this segment
+                voiceIdUsed: actualVoiceId,    // Use the determined voiceId for this segment
                 timestampFileUrl: segmentResult.timestampFileUrl,
                 durationMs: segmentResult.durationMs,
                 // Provider-specific settings that were applied
@@ -318,7 +324,7 @@ segmentResult = await generateAndStoreTimedAudioSegmentVolcengine(volcConfig);
                 }),
                 ...(ttsProvider === 'volcengine' && {
                   encoding: synthesisParams.volcengineEncoding || 'mp3',
-                  speedRatio: mergedVoiceSettings.speed, // Mapped from generic speed
+                  speedRatio: synthesisParams.speed, // Mapped from generic speed
                   pitchRatio: synthesisParams.pitch,
                   volumeRatio: synthesisParams.volume,
                 }),
