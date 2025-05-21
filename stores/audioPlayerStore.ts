@@ -33,6 +33,9 @@ export const useAudioPlayerStore = defineStore('audioPlayer', () => {
   const hlsInstance = ref<any | null>(null);
   const autoplay = ref(true); // 默认开启自动播放功能
 
+  // 用于跟踪当前播放的索引
+  const currentTrackIndex = ref(-1);
+  
   // 计算属性
   const progress = computed(() => {
     if (duration.value <= 0) return 0;
@@ -40,8 +43,8 @@ export const useAudioPlayerStore = defineStore('audioPlayer', () => {
   });
 
   const currentIndex = computed(() => {
-    if (!currentTrack.value) return -1;
-    return playlist.value.findIndex(track => track.id === currentTrack.value?.id);
+    // 直接返回存储的索引，而不是每次重新计算
+    return currentTrackIndex.value;
   });
 
   const hasNext = computed(() => {
@@ -59,6 +62,16 @@ export const useAudioPlayerStore = defineStore('audioPlayer', () => {
       currentTrack.value = track;
       isLoading.value = true;
       error.value = null;
+      
+      // 更新当前索引
+      const newIndex = playlist.value.findIndex(t => t.id === track.id);
+      if (newIndex !== -1) {
+        currentTrackIndex.value = newIndex;
+        console.log(`[AudioPlayerStore] Updated currentTrackIndex to ${newIndex}`);
+      } else {
+        console.warn(`[AudioPlayerStore] Could not find track in playlist: ${track.title}`);
+      }
+      
       // 设置播放状态为 true，确保自动开始播放
       isPlaying.value = true;
       console.log(`[AudioPlayerStore] Playing track: ${track.title}`);
@@ -89,28 +102,48 @@ export const useAudioPlayerStore = defineStore('audioPlayer', () => {
     }
     
     // 获取当前索引和下一个索引
-    const currentIdx = currentIndex.value;
+    const currentIdx = currentTrackIndex.value;
     const nextIdx = currentIdx + 1;
+    
+    console.log(`[AudioPlayerStore] Attempting to play next track. Current index: ${currentIdx}, Next index: ${nextIdx}`);
     
     // 确保下一个索引有效
     if (nextIdx >= 0 && nextIdx < playlist.value.length) {
-      const nextTrack = playlist.value[nextIdx];
-      console.log(`[AudioPlayerStore] Playing next track: ${nextTrack.title} (index: ${nextIdx})`);
-      
-      // 记录当前播放的索引，便于调试
-      const previousTrackId = currentTrack.value?.id;
-      
-      // 播放下一个曲目
-      play(nextTrack);
-      
-      // 检查是否成功切换到下一曲
-      if (currentTrack.value?.id === previousTrackId) {
-        console.error(`[AudioPlayerStore] Failed to advance to next track. Still on track ID: ${previousTrackId}`);
-      } else {
-        console.log(`[AudioPlayerStore] Successfully advanced to track index ${nextIdx}`);
+      try {
+        // 获取下一首曲目
+        const nextTrack = playlist.value[nextIdx];
+        
+        console.log(`[AudioPlayerStore] Playing next track: ${nextTrack.title} (index: ${nextIdx})`);
+        
+        // 先更新索引
+        currentTrackIndex.value = nextIdx;
+        console.log(`[AudioPlayerStore] Updated currentTrackIndex to ${nextIdx}`);
+        
+        // 设置自动播放为 true
+        autoplay.value = true;
+        
+        // 设置当前曲目
+        currentTrack.value = nextTrack;
+        
+        // 确保播放状态为 true
+        isPlaying.value = true;
+        
+        // 延迟一下再次确认播放状态
+        setTimeout(() => {
+          if (currentTrack.value?.id === nextTrack.id) {
+            isPlaying.value = true;
+            console.log(`[AudioPlayerStore] Confirmed playing state for: ${nextTrack.title}`);
+          }
+        }, 50);
+        
+        return true;
+      } catch (error) {
+        console.error(`[AudioPlayerStore] Error in next function: ${error}`);
+        return false;
       }
     } else {
       console.error(`[AudioPlayerStore] Invalid next index: ${nextIdx} (playlist length: ${playlist.value.length})`);
+      return false;
     }
   }
 

@@ -49,7 +49,7 @@
             min="1"
             max="100"
             class="flex-grow hide-spin"
-            placeholder="Enter number of segments"
+            是placeholder="Enter number of segments"
           />
           <Select :value="segmentCountValue" @update:value="handleSegmentCountSelect" class="w-24">
             <SelectTrigger>
@@ -230,6 +230,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'; 
 import { Button } from '@/components/ui/button';
 import type { Persona } from '@/stores/playgroundPersona';
+import { usePlaygroundSettingsStore } from '@/stores/playgroundSettings';
 import type { FullPodcastSettings } from '@/stores/playgroundSettings';
 import { SUPPORTED_LANGUAGES } from '@/stores/playgroundSettings';
 
@@ -288,7 +289,25 @@ function handleSegmentCountInput(event: Event) {
 
 // 处理下拉框的选择事件
 function handleSegmentCountSelect(value: number) {
+  console.log('[PodcastSettingsForm] 下拉框选择的segment数量:', value);
   segmentCountValue.value = value;
+  
+  // 添加更多日志，确保值被正确更新
+  console.log('[PodcastSettingsForm] 更新前的segmentCountValue:', segmentCountValue.value);
+  console.log('[PodcastSettingsForm] 更新前的props.modelValue.numberOfSegments:', props.modelValue.numberOfSegments);
+  
+  // 直接更新store，确保值被正确设置
+  const settingsStore = usePlaygroundSettingsStore();
+  console.log('[PodcastSettingsForm] 直接更新store前的numberOfSegments:', settingsStore.podcastSettings.numberOfSegments);
+  
+  // 强制更新store中的值
+  settingsStore.$patch((state) => {
+    state.podcastSettings.numberOfSegments = value;
+  });
+  
+  console.log('[PodcastSettingsForm] 直接更新store后的numberOfSegments:', settingsStore.podcastSettings.numberOfSegments);
+  
+  // 然后再调用updateSegmentCount
   updateSegmentCount(value);
 }
 
@@ -302,8 +321,15 @@ function updateSegmentCount(value: number) {
     numberOfSegments: value
   };
   
+  console.log('[PodcastSettingsForm] 发送更新事件，更新后的设置:', JSON.stringify(updatedSettings, null, 2));
+  
   // 发送更新事件
   emit('update:modelValue', updatedSettings);
+  
+  // 直接修改store中的值，确保更新生效
+  const settingsStore = usePlaygroundSettingsStore();
+  console.log('[PodcastSettingsForm] 直接更新store中的numberOfSegments:', value);
+  settingsStore.updateFullPodcastSettings({ numberOfSegments: value });
 }
 
 // 监听props.modelValue.numberOfSegments的变化，同步到本地ref

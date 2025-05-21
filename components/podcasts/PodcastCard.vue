@@ -43,8 +43,8 @@
       class="absolute inset-0 transition-all duration-300 ease-in-out"
       :style="{
         background: hoveredPodcastId === Number(podcast.podcast_id) 
-          ? 'linear-gradient(to bottom, rgba(0,0,0,0.9) 0%, rgba(0,0,0,0.65) 40%, rgba(0,0,0,0.75) 100%)'
-          : 'linear-gradient(to bottom, rgba(0,0,0,0.7) 0%, rgba(0,0,0,0.3) 30%, rgba(0,0,0,0.7) 100%)',
+          ? 'linear-gradient(to bottom, rgba(0,0,0,0.85) 0%, rgba(0,0,0,0.6) 40%, rgba(0,0,0,0.7) 100%)'
+          : 'linear-gradient(to bottom, rgba(0,0,0,0.2) 0%, rgba(0,0,0,0.05) 30%, rgba(0,0,0,0.2) 100%)',
         zIndex: 1
       }"
     ></div>
@@ -58,7 +58,8 @@
             class="text-lg font-bold leading-tight text-left transition-all duration-300 ease-in-out"
             :class="{
               'text-shadow-lg': podcast.cover_image_url,
-              'scale-105 origin-left': hoveredPodcastId === Number(podcast.podcast_id) && podcast.cover_image_url
+              'scale-105 origin-left opacity-100': hoveredPodcastId === Number(podcast.podcast_id) && podcast.cover_image_url,
+              'opacity-30': hoveredPodcastId !== Number(podcast.podcast_id) && podcast.cover_image_url
             }"
           >
             <span
@@ -67,33 +68,27 @@
             >{{ podcast.title || `Podcast #${podcast.podcast_id}` }}</span>
           </CardTitle>
 
-          <div class="flex flex-row gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-            <Button
-              v-if="!(currentPreviewingId === podcast.podcast_id)"
-              variant="ghost"
-              size="icon"
-              @click.stop="emit('edit-podcast', podcast.podcast_id)"
-              class="h-7 w-7"
-              title="Edit Podcast"
-              :class="podcast.cover_image_url ? 'text-white hover:bg-white/20' : ''"
-            >
-              <Icon name="ph:pencil-simple" class="h-4 w-4" />
-            </Button>
-            <Button
-              variant="ghost"
-              size="icon"
-              @click.stop="emit('delete-podcast', podcast.podcast_id)"
-              class="text-destructive hover:text-destructive h-7 w-7"
-              :class="podcast.cover_image_url ? 'text-white hover:bg-white/20' : ''"
-              title="Delete Podcast"
-            >
-              <Icon name="ph:trash" class="h-4 w-4" />
-            </Button>
-          </div>
+          <Button 
+            variant="ghost"
+            size="icon"
+            class="h-7 w-7 transition-opacity duration-300 ease-in-out"
+            :class="[
+              podcast.cover_image_url ? 'text-white hover:bg-white/20' : '',
+              hoveredPodcastId === Number(podcast.podcast_id) ? 'opacity-100' : 'opacity-0'
+            ]"
+            title="Delete Podcast"
+            @click.stop="emit('delete-podcast', podcast.podcast_id)"
+          >
+            <Icon name="ph:trash" class="h-4 w-4" />
+          </Button>
         </div>
 
         <!-- 播客基本信息 - 主持人和时长 (始终可见) -->
-        <div class="flex items-center justify-between w-full mt-2 text-xs">
+        <div class="flex items-center justify-between w-full mt-2 text-xs transition-all duration-300 ease-in-out"
+          :class="{
+            'opacity-100': hoveredPodcastId === Number(podcast.podcast_id),
+            'opacity-0': hoveredPodcastId !== Number(podcast.podcast_id) && podcast.cover_image_url
+          }">
           <div class="flex items-center" v-if="podcast.host_name">
             <Icon name="ph:microphone" class="h-3.5 w-3.5 mr-1" :class="podcast.cover_image_url ? 'text-white/80' : 'text-muted-foreground'" />
             <span class="truncate max-w-[100px]" :title="podcast.host_name">{{ podcast.host_name }}</span>
@@ -105,11 +100,18 @@
         </div>
 
         <!-- Topic tag always visible -->
-        <div class="flex items-center mt-2 w-full">
+        <div class="flex items-center mt-2 w-full transition-all duration-300 ease-in-out"
+          :class="{
+            'opacity-100': hoveredPodcastId === Number(podcast.podcast_id),
+            'opacity-0': hoveredPodcastId !== Number(podcast.podcast_id) && podcast.cover_image_url
+          }">
           <span
             v-if="podcast.topic"
-            class="px-3 py-1 rounded-full text-xs font-semibold line-clamp-1"
-            :class="podcast.cover_image_url ? 'bg-white/30 text-white' : 'bg-primary/10 text-primary'"
+            class="px-3 py-1 rounded-full text-xs font-semibold line-clamp-1 transition-all duration-300 ease-in-out"
+            :class="[
+              podcast.cover_image_url ? 'text-white' : 'bg-primary/10 text-primary',
+              hoveredPodcastId === Number(podcast.podcast_id) && podcast.cover_image_url ? 'bg-white/30' : 'bg-white/10'
+            ]"
             :title="podcast.topic"
           >
             {{ podcast.topic }}
@@ -164,28 +166,40 @@
         </div>
       </div>
     </CardContent>
-    <!-- 中央播放/暂停按钮 (始终可见) -->
-    <div class="z-20 absolute inset-0 flex items-center justify-center">
-      <!-- 播放按钮 (当前未播放) -->
+    <!-- 中央播放/暂停按钮或继续按钮 (二选一) -->
+    <div class="z-20 absolute inset-20 flex items-end justify-center">
+      <!-- 继续制作按钮 (未完成的播客) -->
       <Button
-        v-if="hasPlayableSegments(podcast) && currentPreviewingId !== podcast.podcast_id"
-        variant="default"
-        size="icon"
-        class="h-16 w-16 rounded-full shadow-lg bg-primary/90 hover:bg-primary transition-all duration-300 ease-in-out"
+        v-if="hasUnsynthesizedSegments(podcast)"
+        variant="outline"
+        class="flex items-center justify-center rounded-lg shadow-md bg-secondary/70 hover:bg-secondary text-white px-4 py-2"
+        @click.stop="navigateToPlayground(Number(podcast.podcast_id))"
+        title="Some segments need audio synthesis"
+      >
+        <Icon name="ph:arrow-square-out" class="mr-2 h-5 w-5" />
+        Continue on Playground
+      </Button>
+      
+      <!-- 播放按钮 (已完成的播客，当前未播放) -->
+      <Button
+        v-else-if="hasPlayableSegments(podcast) && currentPreviewingId !== podcast.podcast_id"
+        variant="outline"
+        class="flex items-center justify-center rounded-lg shadow-md bg-secondary/70 hover:bg-secondary text-white px-4 py-2"
         @click.stop="emit('preview-podcast', podcast.podcast_id)"
       >
-        <Icon name="ph:play-fill" class="h-8 w-8" />
+        <Icon name="ph:play-fill" class="mr-2 h-5 w-5" />
+        Preview
       </Button>
       
       <!-- 停止按钮 (当前正在播放) -->
       <Button
         v-else-if="currentPreviewingId === podcast.podcast_id"
-        variant="destructive"
-        size="icon"
-        class="h-16 w-16 rounded-full shadow-lg bg-destructive/90 hover:bg-destructive transition-all duration-300 ease-in-out"
+        variant="outline"
+        class="flex items-center justify-center rounded-lg shadow-md bg-destructive/70 hover:bg-destructive text-white px-4 py-2"
         @click.stop="emit('stop-preview')"
       >
-        <Icon name="ph:stop-fill" class="h-8 w-8" />
+        <Icon name="ph:stop-fill" class="mr-2 h-5 w-5" />
+        Stop
       </Button>
       
       <!-- 禁用状态 (无可播放内容) -->
@@ -193,12 +207,12 @@
         <Tooltip>
           <TooltipTrigger as-child>
             <Button
-              variant="default"
-              size="icon"
-              class="h-16 w-16 rounded-full shadow-lg bg-muted/80 opacity-50 cursor-not-allowed"
+              variant="outline"
+              class="flex items-center justify-center rounded-lg shadow-md bg-muted/50 text-muted-foreground opacity-50 cursor-not-allowed px-4 py-2"
               disabled
             >
-              <Icon name="ph:play-fill" class="h-8 w-8" />
+              <Icon name="ph:play-fill" class="mr-2 h-5 w-5" />
+              Preview
             </Button>
           </TooltipTrigger>
           <TooltipContent>
@@ -216,19 +230,9 @@
         'opacity-80': hoveredPodcastId !== Number(podcast.podcast_id)
       }"
     >
-      <!-- 主要操作按钮 -->
+      <!-- 主要操作按钮区域 -->
       <div class="flex gap-2 w-full mb-3">
-        <!-- Continue on Playground 按钮 -->
-        <Button
-          v-if="hasUnsynthesizedSegments(podcast)"
-          variant="outline"
-          class="flex-1 flex items-center justify-center rounded-lg shadow-md bg-secondary/70 hover:bg-secondary text-white"
-          @click.stop="navigateToPlayground(Number(podcast.podcast_id))"
-          title="Some segments need audio synthesis"
-        >
-          <Icon name="ph:arrow-square-out" class="mr-2 h-5 w-5" />
-          Continue on Playground
-        </Button>
+        <!-- 留空作为布局占位符 -->
       </div>
       
       <!-- 工具按钮 -->

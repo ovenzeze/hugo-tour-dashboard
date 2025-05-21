@@ -52,6 +52,14 @@
         ></div>
       </div>
 
+      <!-- 播客文本内容区域 (仅在扩展模式下显示) -->
+      <div v-if="isExpanded && audioStore.currentTrack?.meta?.type === 'podcast' && audioStore.currentTrack?.meta?.fullText" class="w-full mb-4 px-2">
+        <div class="bg-muted/30 rounded-lg p-3 max-h-40 overflow-y-auto">
+          <p v-if="audioStore.currentTrack.meta.speaker" class="text-sm font-medium mb-1">{{ audioStore.currentTrack.meta.speaker }}:</p>
+          <p class="text-sm">{{ audioStore.currentTrack.meta.fullText }}</p>
+        </div>
+      </div>
+
       <div class="flex items-center justify-between">
         <!-- Left: Cover and info -->
         <div class="flex items-center space-x-3 flex-1 min-w-0">
@@ -73,6 +81,10 @@
             <h3 class="text-sm font-medium truncate">{{ audioStore.currentTrack.title }}</h3>
             <p v-if="audioStore.currentTrack.artist" class="text-xs text-muted-foreground truncate">
               {{ audioStore.currentTrack.artist }}
+            </p>
+            <!-- 显示播客信息 -->
+            <p v-else-if="audioStore.currentTrack?.meta?.type === 'podcast'" class="text-xs text-muted-foreground truncate">
+              {{ audioStore.currentTrack.meta.fullText ? audioStore.currentTrack.meta.fullText.substring(0, 60) + (audioStore.currentTrack.meta.fullText.length > 60 ? '...' : '') : '' }}
             </p>
           </div>
         </div>
@@ -229,61 +241,16 @@ function onPause() {
 }
 
 function onEnded() {
-  // 获取当前曲目信息便于调试
-  const currentTrackTitle = audioStore.currentTrack?.title;
-  const currentIdx = audioStore.currentIndex;
+  console.log('[AudioPlayer] Track ended');
   
-  console.log(`[AudioPlayer] Track ended: ${currentTrackTitle}`);
-  console.log(`[AudioPlayer] Current index: ${currentIdx}, Playlist length: ${audioStore.playlist.length}`);
-  console.log(`[AudioPlayer] hasNext check: ${audioStore.hasNext ? 'Yes' : 'No'}`);
-  
-  // 打印当前播放列表状态，便于调试
-  console.log('[AudioPlayer] Current playlist:');
-  audioStore.playlist.forEach((track, idx) => {
-    const isCurrent = idx === currentIdx;
-    console.log(`  ${idx}: ${track.title}${isCurrent ? ' (current)' : ''}`);
-  });
-  
-  // 检查是否有下一首曲目可以播放
-  if (audioStore.autoplay && audioStore.hasNext) {
-    console.log('[AudioPlayer] Auto-playing next track...');
-    
-    // 直接播放下一首，不使用 setTimeout
-    try {
-      // 获取下一首曲目的索引
-      const nextIdx = currentIdx + 1;
-      if (nextIdx < audioStore.playlist.length) {
-        const nextTrack = audioStore.playlist[nextIdx];
-        console.log(`[AudioPlayer] Playing next track (index ${nextIdx}): ${nextTrack.title}`);
-        
-        // 使用 audioStore.play 方法来设置当前曲目并开始播放
-        // 不直接修改 ref 对象
-        audioStore.play(nextTrack);
-        
-        // 重置音频元素
-        if (audioElement.value) {
-          audioElement.value.currentTime = 0;
-          audioElement.value.src = nextTrack.url;
-          audioElement.value.load();
-          tryPlayAudio();
-        }
-      }
-    } catch (error) {
-      console.error('[AudioPlayer] Error playing next track:', error);
-      // 如果出错，尝试使用原始方法
-      audioStore.next();
-    }
-  } else if (!audioStore.hasNext) {
-    console.log('[AudioPlayer] No more tracks to play, stopping playback');
-    // 如果没有下一个片段，停止播放
+  // 直接调用 audioStore.next()
+  if (audioStore.hasNext) {
+    console.log('[AudioPlayer] Has next track, calling audioStore.next()');
+    audioStore.next();
+  } else {
+    console.log('[AudioPlayer] No more tracks, stopping playback');
     audioStore.stop();
   }
-  
-  // 打印当前播放列表状态，便于调试
-  console.log('[AudioPlayer] Current playlist:');
-  audioStore.playlist.forEach((track, index) => {
-    console.log(`  ${index}: ${track.title} ${audioStore.currentTrack?.id === track.id ? '(current)' : ''}`);
-  });
 }
 
 function onTimeUpdate() {

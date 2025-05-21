@@ -92,9 +92,15 @@ export function usePlaygroundScript() {
     }, 3000);
     
     try {
-      // 保存用户设置的numberOfSegments值
-      const userSetNumberOfSegments = settingsStore.podcastSettings.numberOfSegments;
-      console.log('[handleToolbarGenerateScript] 保存用户设置的numberOfSegments:', userSetNumberOfSegments);
+      // 1. 提前保存用户设置的值，避免后续被覆盖
+      const userSetNumberOfSegments = parseInt(String(settingsStore.podcastSettings.numberOfSegments), 10) || 10;
+      
+      // 2. 立即强制更新store中的值，确保正确设置
+      settingsStore.$patch((state) => {
+        state.podcastSettings.numberOfSegments = userSetNumberOfSegments;
+      });
+      
+      console.log('[handleToolbarGenerateScript] 已固定用户设置的numberOfSegments:', userSetNumberOfSegments);
       
       // Step 1: Generate metadata
       const hostPersonaId = settingsStore.podcastSettings.hostPersonaId;
@@ -103,37 +109,35 @@ export function usePlaygroundScript() {
         .map(id => personaStore.personas.find(p => p.persona_id === Number(id)))
         .filter(p => p !== undefined) as Persona[];
 
-      // 创建一个新的设置对象，确保numberOfSegments值被正确传递
+      // 3. 创建API请求时使用这个固定值，而不是从store重新获取
       const settingsWithUserSegments = {
         ...settingsStore.podcastSettings,
         numberOfSegments: userSetNumberOfSegments
       };
       console.log('[handleToolbarGenerateScript] 传递给API的设置:', settingsWithUserSegments);
 
-      // 使用修改后的设置对象调用API
+      // Step 1: 生成元数据
       const metaInfo = await scriptStore.generatePodcastMetaInfo?.(settingsWithUserSegments, hostPersona, guestPersonas);
       if (!metaInfo || scriptStore.scriptGenerationError) {
         throw new Error(scriptStore.scriptGenerationError || 'Failed to generate metadata');
       }
       
-      // Optional: Update settingsStore/podcastSettings
-      // 保留用户设置的numberOfSegments，不被AI返回的值覆盖
+      // 4. 更新设置时，强制保留用户的段落数量
       settingsStore.updateFullPodcastSettings({
         title: metaInfo.podcastTitle,
         topic: metaInfo.topic,
         style: metaInfo.style,
         // 确保keywords是字符串数组
         keywords: typeof metaInfo.keywords === 'string' ? metaInfo.keywords.split(',').map(k => k.trim()) : metaInfo.keywords,
-        // 如果用户已经设置了numberOfSegments，则使用用户设置的值
-        numberOfSegments: userSetNumberOfSegments || metaInfo.numberOfSegments,
+        numberOfSegments: userSetNumberOfSegments, // 强制使用用户设置的值
         language: metaInfo.language,
       });
 
       aiScriptStep.value = 2;
       aiScriptStepText.value = step2StatusTexts[0];
 
-      // Step 2: Generate complete script using metadata
-      // 再次确保使用用户设置的numberOfSegments
+      // Step 2: 使用元数据生成完整脚本
+      // 5. 确保传递给第二步的也是用户设置的值
       const metaInfoWithUserSegments = {
         ...metaInfo,
         numberOfSegments: userSetNumberOfSegments
@@ -142,16 +146,14 @@ export function usePlaygroundScript() {
       
       const generatedScriptResponse = await scriptStore.generateScriptFromMeta?.(metaInfoWithUserSegments, hostPersona, guestPersonas);
       if (generatedScriptResponse && !scriptStore.scriptGenerationError) {
-        // Update settingsStore
-        // 保留用户设置的numberOfSegments，不被AI返回的值覆盖
+        // 6. 再次更新设置，但保留用户的段落数量
         settingsStore.updateFullPodcastSettings({
           title: generatedScriptResponse.podcastTitle,
           topic: generatedScriptResponse.topic,
           style: generatedScriptResponse.style,
           // 确保keywords是字符串数组
           keywords: typeof generatedScriptResponse.keywords === 'string' ? generatedScriptResponse.keywords.split(',').map(k => k.trim()) : generatedScriptResponse.keywords,
-          // 如果用户已经设置了numberOfSegments，则使用用户设置的值
-          numberOfSegments: userSetNumberOfSegments || generatedScriptResponse.numberOfSegments,
+          numberOfSegments: userSetNumberOfSegments, // 强制使用用户设置的值
           language: generatedScriptResponse.language,
         });
         toast.success("Script generated successfully!", {
@@ -161,10 +163,10 @@ export function usePlaygroundScript() {
         throw new Error(scriptStore.scriptGenerationError || 'Failed to generate script');
       }
       
-      // 最后，再次强制设置用户的numberOfSegments值
-      console.log('[handleToolbarGenerateScript] 最终强制设置numberOfSegments:', userSetNumberOfSegments);
-      settingsStore.updateFullPodcastSettings({
-        numberOfSegments: userSetNumberOfSegments
+      // 7. 最后，再次确保设置中的段落数量是用户设置的值
+      console.log('[handleToolbarGenerateScript] 最终确认numberOfSegments:', userSetNumberOfSegments);
+      settingsStore.$patch((state) => {
+        state.podcastSettings.numberOfSegments = userSetNumberOfSegments;
       });
     } catch (error) {
       toast.error(`AI script generation failed`, {

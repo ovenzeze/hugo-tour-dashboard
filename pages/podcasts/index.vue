@@ -1,20 +1,20 @@
 <template>
-  <div class="container mx-auto py-10">
+  <div class="container mx-auto py-4 md:py-10">
     <!-- Top Action Bar and Filters -->
-    <div class="w-full flex flex-wrap justify-between items-center gap-4 mb-6 px-6">
-      <!-- <h1 class="text-3xl font-bold">Podcasts</h1> -->
-      <div class="flex items-center gap-4 flex-wrap">
-        <Input
+    <div class="w-full flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-6 px-2 md:px-6">
+      <div class="flex flex-col sm:flex-row w-full md:w-auto items-start sm:items-center gap-4 flex-wrap">
+        <!-- 搜索框 -->
+        <!-- <Input
           v-model="searchTerm"
           placeholder="Search by title or topic..."
-          class="max-w-xs h-10 min-w-96 opacity-50"
-        />
+          class="w-full sm:w-auto sm:max-w-xs h-10 opacity-50"
+        /> -->
         
         <!-- 播客状态筛选 -->
-        <div class="flex items-center space-x-3 border rounded-lg p-2 bg-card">
-          <Label class="text-sm font-medium">Status:</Label>
+        <div class="flex flex-wrap items-center gap-2 border rounded-lg p-2 bg-card w-full">
+          <!-- <Label class="text-sm font-medium mr-2">Status:</Label> -->
           
-          <div class="flex items-center space-x-1">
+          <div class="w-full flex flex-wrap items-center justify-around gap-1">
             <Button 
               :variant="podcastStatusFilter === 'all' ? 'default' : 'outline'" 
               size="sm"
@@ -31,7 +31,7 @@
               class="h-8"
             >
               <Icon name="ph:check-circle" class="mr-1 h-4 w-4 text-green-500" />
-              Completed
+              <span class="hidden sm:inline">Completed</span>
             </Button>
             
             <Button 
@@ -41,7 +41,7 @@
               class="h-8"
             >
               <Icon name="ph:hourglass" class="mr-1 h-4 w-4 text-amber-500" />
-              In Progress
+              <span class="hidden sm:inline">In Progress</span>
             </Button>
             
             <Button 
@@ -51,21 +51,17 @@
               class="h-8"
             >
               <Icon name="ph:circle-dashed" class="mr-1 h-4 w-4 text-gray-500" />
-              Not Started
+              <span class="hidden sm:inline">Not Started</span>
             </Button>
           </div>
         </div>
-        
-        <div class="flex items-center space-x-2 min-w-44">
-          <Switch id="hide-empty-podcasts" v-model:checked="hideEmptyPodcasts" />
-          <Label for="hide-empty-podcasts" class="text-sm">Hide Empty Podcasts</Label>
-        </div>
-        
-        <Button @click="handleCreateNewPodcast" size="lg">
-          <Icon name="ph:plus-circle-duotone" class="mr-2 h-5 w-5" />
-          New Podcast
-        </Button>
       </div>
+      
+      <!-- 创建新播客按钮 -->
+      <!-- <Button @click="handleCreateNewPodcast" size="lg" class="w-full sm:w-auto">
+        <Icon name="ph:plus-circle-duotone" class="mr-2 h-5 w-5" />
+        New Podcast
+      </Button> -->
     </div>
 
     <!-- Conditional Rendering for Content Area -->
@@ -156,7 +152,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from '@/components/ui/sheet';
 import { Skeleton } from '@/components/ui/skeleton';
-import { Switch } from '@/components/ui/switch';
+// import { Switch } from '@/components/ui/switch';
 import { computed, nextTick, onMounted, ref } from 'vue';
 import PodcastDetailDrawer from '~/components/podcasts/PodcastDetailDrawer.vue';
 import PodcastList from '~/components/podcasts/PodcastList.vue';
@@ -165,7 +161,6 @@ import { type Podcast, type Segment, type SegmentAudio } from '~/types/podcast';
 import { usePodcastPlayer } from '~/composables/usePodcastPlayer';
 
 const searchTerm = ref('');
-const hideEmptyPodcasts = ref(true); // New filter state, default true
 const podcastStatusFilter = ref('all'); // 播客状态筛选，默认显示所有
 
 const {
@@ -208,12 +203,11 @@ function getPodcastStatus(podcast: Podcast): 'completed' | 'in-progress' | 'not-
   }
 }
 
-// Filtered podcasts based on searchTerm, hideEmptyPodcasts, and podcastStatusFilter
+// Filtered podcasts based on searchTerm and podcastStatusFilter
 const filteredPodcasts = computed<Podcast[]>(() => {
   let result = podcasts.value;
   console.log('[PodcastsPage] Original podcasts:', JSON.parse(JSON.stringify(podcasts.value)));
   console.log('[PodcastsPage] Current searchTerm:', searchTerm.value);
-  console.log('[PodcastsPage] Current hideEmptyPodcasts:', hideEmptyPodcasts.value);
   console.log('[PodcastsPage] Current podcastStatusFilter:', podcastStatusFilter.value);
 
   // Apply search term filter
@@ -224,14 +218,6 @@ const filteredPodcasts = computed<Podcast[]>(() => {
       (podcast.topic && podcast.topic.toLowerCase().includes(lowerSearchTerm))
     );
     console.log('[PodcastsPage] Podcasts after searchTerm filter:', JSON.parse(JSON.stringify(result)));
-  }
-
-  // Apply hide empty podcasts filter
-  if (hideEmptyPodcasts.value) {
-    result = result.filter(podcast =>
-      podcast.podcast_segments && podcast.podcast_segments.length > 0
-    );
-    console.log('[PodcastsPage] Podcasts after hideEmptyPodcasts filter:', JSON.parse(JSON.stringify(result)));
   }
   
   // Apply podcast status filter

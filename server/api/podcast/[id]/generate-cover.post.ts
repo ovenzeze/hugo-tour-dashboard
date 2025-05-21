@@ -52,40 +52,30 @@ export default defineEventHandler(async (event) => {
 
   // Construct a more direct prompt for the image generation model
   const finalPrompt = `
-Generate a podcast cover image with a 2:3 portrait aspect ratio.
-
-**IMPORTANT: DO NOT INCLUDE ANY TEXT IN THE IMAGE EXCEPT FOR THE WATERMARK SPECIFIED BELOW.**
-
-**Podcast Context (for understanding theme ONLY, DO NOT RENDER ANY OF THIS TEXT IN THE IMAGE):**
-- Title: "${podcastTitle || 'Untitled Podcast'}" (DO NOT INCLUDE THIS TITLE IN THE IMAGE)
-- Core Theme to Visualize: "${podcastThemeDescription}" (DO NOT INCLUDE THIS TEXT IN THE IMAGE)
-
-**Style Guidelines for the Image:**
-- Overall Mood: Modern, engaging, professional, informative, with a distinct artistic feel, suitable for a museum tour or cultural introduction.
-- Artistic Style: Employ a highly artistic, hand-drawn or illustrative style for the imagery. The artwork should be compelling and aesthetically pleasing.
-- Imagery: Feature a high-quality, clear central image directly related to the podcast's core theme. The background should be complementary, adding depth without distraction, and contributing to the overall artistic quality.
-- Text Content: **ABSOLUTELY NO TEXT should be rendered on the image itself, except for the watermark specified below.** The image must be purely visual, conveying the theme without any overlaid text, titles, subtitles, or descriptions.
-- Color Palette: Use a harmonious, artistic, and professional color scheme that enhances the theme, suitable for a hand-drawn style.
-- Composition: Create a balanced, uncluttered design. The composition should be aesthetically pleasing and suitable for use as a background image, meaning it might have areas of lower visual density or a focal point that doesn't occupy the entire canvas, allowing for potential future use where other elements might be overlaid by a user.
-- Watermark: Include ONLY a "Hugo Tour Guide" watermark with these EXACT specifications:
-  * Position: Bottom-right corner, 20 pixels from the right edge and 20 pixels from the bottom edge
-  * Font: Simple sans-serif font (like Helvetica or Arial)
-  * Size: Small and discreet, approximately 14pt
-  * Color: White with 50% opacity or semi-transparent
-  * Style: Simple text, no fancy styling or effects
-  * Text: "Hugo Tour Guide" - exactly this text, no variations
-  * This is the ONLY text that should appear anywhere in the image
-
-- Avoid: 
-  * ANY text other than the specified watermark (NO titles, subtitles, descriptions, etc.)
-  * DO NOT include the podcast title or theme anywhere in the image
-  * DO NOT include any text that describes the content
-  * Overly cluttered designs that would make it unsuitable as a background
-  * Low-resolution imagery
-  * Any AI generator's own watermarks or signatures
-
-Please generate the image now based on these details, focusing on a purely visual, artistic representation of the theme suitable as a background, with ABSOLUTELY NO TEXT except for the "Hugo Tour Guide" watermark in the bottom-right corner exactly as specified.
-`;
+  Generate an image now with a 3:4 portrait aspect ratio. This is a direct request to create an image based on the following specifications.
+  
+  **Theme for Image**: Create a visual representation inspired by "${podcastThemeDescription}". This is an artistic illustration about "${podcastThemeDescription}", expressed purely through imagery.
+  
+  **Style Requirements**:
+  - Mood: Modern, engaging, professional, informative, with an artistic feel for a museum tour or cultural introduction.
+  - Artistic Style: Highly artistic, hand-drawn or illustrative style, compelling and aesthetically pleasing.
+  - Imagery: Clear, high-quality central image connected to the theme, with a complementary background adding depth without distraction.
+  - Color Palette: Harmonious, professional colors enhancing the artistic style.
+  - Composition: Balanced, uncluttered design, suitable as a background with space for potential overlays.
+  
+  **Watermark (Only Allowed Text)**:
+  - Add a "Hugo Tour Guide" watermark exactly as follows:
+    - Position: Bottom-right corner, 20 pixels from right and bottom edges.
+    - Font: Simple sans-serif (like Helvetica or Arial).
+  
+  **Critical Rules**:
+  - NO TEXT in the image except the specified watermark. Do not include any labels or written content.
+  - Avoid cluttered designs, low-resolution imagery, or additional watermarks.
+  
+  Create the image immediately, focusing on a purely visual, artistic depiction of the described theme with only the "Hugo Tour Guide" watermark.
+  `;
+  
+  
   
   // console.log("[generate-cover.post.ts] Constructed finalPrompt:", finalPrompt); // For debugging
 
@@ -97,7 +87,8 @@ Please generate the image now based on these details, focusing on a purely visua
       body: {
         prompt: finalPrompt,
         numberOfImages: 1,
-        aspectRatio: "9:16", // Changed from "2:3" to "9:16"
+        aspectRatio: "3:4", // Changed from "2:3" to "9:16"
+        temperature: 0, // 设置温度为 0，使生成结果更加确定性
       },
     });
 

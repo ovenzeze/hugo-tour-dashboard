@@ -126,12 +126,11 @@
 import QRCodeVue3 from 'qrcode-vue3';
 import { useWindowSize } from '@vueuse/core';
 import { toast } from 'vue-sonner';
-import { usePodcastDatabase, type Podcast } from '~/composables/usePodcastDatabase';
+import type { Podcast } from '~/composables/usePodcastDatabase';
 
 const showWeChatQr = ref(false);
 const shareUrl = computed(() => window?.location?.href || '');
 const route = useRoute();
-const { fetchPodcastById, selectedPodcast } = usePodcastDatabase();
 
 const podcast = ref<Podcast | null>(null);
 const loading = ref(true);
@@ -209,10 +208,12 @@ onMounted(async () => {
     try {
       loading.value = true;
       error.value = null;
-      await fetchPodcastById(podcastId);
-
-      if (selectedPodcast.value) {
-        podcast.value = selectedPodcast.value;
+      
+      // 使用新创建的公共 API 端点获取播客数据
+      const { data: podcastData } = await useFetch(`/api/public/podcast/${podcastId}`);
+      
+      if (podcastData.value) {
+        podcast.value = podcastData.value as Podcast;
         const rawSegments: { idx: number; fullTitle: string; truncatedTitle: string; audioUrl?: string }[] = [];
         if (podcast.value && podcast.value.podcast_segments) {
           podcast.value.podcast_segments.forEach((segment: any) => {

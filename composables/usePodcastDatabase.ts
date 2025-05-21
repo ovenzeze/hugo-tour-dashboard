@@ -3,7 +3,10 @@ import { ref } from 'vue';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { useSupabaseClient } from '#imports'; // Ensure this is correctly imported for client-side
 // Import shared types
-import type { Podcast, Segment, SegmentAudio, Persona } from '~/types/podcast';
+import type { Podcast, Segment, SegmentAudio } from '~/types/podcast';
+
+// Re-export types for use in other files - 不再导出 Persona 以避免重复
+export type { Podcast, Segment, SegmentAudio };
 
 export const usePodcastDatabase = () => {
   const podcasts = ref<Podcast[]>([]);
