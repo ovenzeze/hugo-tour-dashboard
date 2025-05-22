@@ -223,9 +223,9 @@
 <script setup lang="ts">
 import { computed, watch, ref } from 'vue';
 import { Skeleton } from '@/components/ui/skeleton';
-// import UnifiedPersonaSelector from '@/components/UnifiedPersonaSelector.vue'; // Commented out old selector
+import UnifiedPersonaSelector from '@/components/UnifiedPersonaSelector.vue';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Input } from '@/components/ui/input'; 
+import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea'; 
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'; 
 import { Button } from '@/components/ui/button';

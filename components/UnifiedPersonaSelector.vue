@@ -42,6 +42,9 @@
               </Avatar>
               <div class="flex-1 flex flex-col gap-0.5">
                 <p class="font-medium text-sm leading-tight">{{ persona.name }}</p>
+                <p v-if="persona.tts_provider" class="text-xs text-muted-foreground truncate leading-tight">
+                  Provider: {{ persona.tts_provider }}
+                </p>
                 <p v-if="persona.description || persona.voice_description" class="text-xs text-muted-foreground truncate leading-tight">
                   {{ persona.description || persona.voice_description }}
                 </p>
@@ -50,9 +53,9 @@
                     v-for="lang in persona.language_support"
                     :key="lang"
                     variant="secondary"
-                    class="px-1.5 py-0.5 text-xs font-medium border border-border bg-muted/70 text-muted-foreground"
+                    class="px-1.5 py-0.5 text-[0.7rem] font-medium border border-border bg-muted/70 text-muted-foreground"
                   >
-                    {{ lang }}
+                    {{ lang.toUpperCase() }}
                   </Badge>
                 </div>
               </div>
@@ -209,21 +212,38 @@ const getPersonaById = (id: number): PersonaData | undefined => {
   return props.personas.find(p => p.persona_id === id);
 };
 
+const formatLanguagesForDisplay = (languages: string[] | null | undefined): string => {
+  if (!languages || languages.length === 0) return 'N/A';
+  return languages.join(', ');
+};
+
 const selectedDisplayValue = computed(() => {
+  if (selectedInternal.value.length === 0) {
+    // Use props.placeholder if available and no selection, otherwise default to "Auto-assign"
+    return props.placeholder && props.placeholder !== 'Select Persona...' ? props.placeholder : "Persona will be auto-assigned";
+  }
+
   if (props.selectionMode === 'single') {
-    if (selectedInternal.value.length > 0) {
-      const persona = getPersonaById(selectedInternal.value[0]);
-      return persona ? persona.name : props.placeholder;
+    const persona = getPersonaById(selectedInternal.value[0]);
+    if (persona) {
+      const langSupport = formatLanguagesForDisplay(persona.language_support);
+      const providerText = persona.tts_provider ? `Provider: ${persona.tts_provider}` : 'Provider: N/A';
+      const languageText = `Lang: ${langSupport}`;
+      return `${persona.name} (${providerText}, ${languageText})`;
     }
-    return props.placeholder;
+    // Fallback if somehow selected persona not found, though should ideally not happen
+    return props.placeholder || "Persona will be auto-assigned";
   } else { // multiple
-    if (selectedInternal.value.length === 0) {
-      return props.placeholder;
-    }
     if (selectedInternal.value.length === 1) {
       const persona = getPersonaById(selectedInternal.value[0]);
-      return persona ? persona.name : props.placeholder;
+      if (persona) {
+        const langSupport = formatLanguagesForDisplay(persona.language_support);
+        const providerText = persona.tts_provider ? `Provider: ${persona.tts_provider}` : 'Provider: N/A';
+        const languageText = `Lang: ${langSupport}`;
+        return `${persona.name} (${providerText}, ${languageText})`;
+      }
     }
+    // For multiple selections > 1, or if single selected not found in multi-mode (should not happen)
     return `${selectedInternal.value.length} selected`;
   }
 });
