@@ -1,6 +1,6 @@
 import { ref, computed, type Ref, nextTick } from 'vue';
 import { usePlaygroundStore } from '@/stores/playground'; // Main store for resetAll
-import { usePlaygroundUnifiedStore } from '@/stores/playgroundUnified';
+import { usePlaygroundUnifiedStore } from '~/stores/playgroundUnified';
 import { usePersonaCache } from '~/composables/usePersonaCache';
 import type { Persona } from '~/types/persona';
 import { usePodcastCoverGenerator } from './usePodcastCoverGenerator'; // Import

@@ -21,7 +21,7 @@ export interface SynthesisParams {
 // Represents a segment of the podcast script
 export interface ScriptSegment {
   speaker: string;            // Speaker's name (primarily for UI display and script readability)
-  speakerPersonaId: number;   // The unique ID of the Persona for this speaker. This is the core linking ID.
+  speakerPersonaId: number | null; // The unique ID of the Persona for this speaker. Can be null if no persona is matched/assigned.
   text: string;               // The text content of the segment.
 }
 

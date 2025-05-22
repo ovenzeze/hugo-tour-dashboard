@@ -11,4 +11,5 @@ export interface Persona {
     };
     // Add other TTS providers here if needed
   };
+  language_support?: string[] | null; // Added to match data from personaFetcher
 }

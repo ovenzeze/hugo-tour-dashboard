@@ -1,8 +1,7 @@
 import { ref } from 'vue';
 import { toast } from 'vue-sonner';
-import { usePlaygroundSettingsStore } from '~/stores/playgroundSettings';
-import { usePlaygroundScriptStore } from '~/stores/playgroundScript';
-import { usePlaygroundPersonaStore } from '~/stores/playgroundPersona';
+import { usePlaygroundUnifiedStore } from '~/stores/playgroundUnified';
+import { usePersonaCache } from '~/composables/usePersonaCache';
 
 export interface ValidateScriptRequest {
   // Required fields
@@ -58,9 +57,8 @@ export interface ScriptSegment {
 }
 
 export function useScriptValidator() {
-  const settingsStore = usePlaygroundSettingsStore();
-  const scriptStore = usePlaygroundScriptStore();
-  const personaStore = usePlaygroundPersonaStore();
+  const unifiedStore = usePlaygroundUnifiedStore();
+  const personaCache = usePersonaCache();
   const isValidating = ref(false);
   const validationResult = ref<ValidateScriptResponse | null>(null);
   const validationError = ref<string | null>(null);
@@ -99,7 +97,7 @@ export function useScriptValidator() {
 
     try {
         // Validate basic settings
-        const podcastSettings = settingsStore.podcastSettings; // Use settingsStore
+        const podcastSettings = unifiedStore.podcastSettings;
         
         if (!podcastSettings?.title) {
           toast.error('Please set the podcast title');
@@ -111,15 +109,13 @@ export function useScriptValidator() {
           return { success: false, error: 'Please select a host' };
         }
         
-        if (!scriptStore.textToSynthesize) { // Use scriptStore
+        if (!unifiedStore.scriptContent) {
           toast.error('Script content is empty');
           return { success: false, error: 'Script content is empty' };
         }
         
         // Get host information
-        const hostPersona = personaStore.personas.find( // Use personaStore
-          (p) => p.persona_id === Number(podcastSettings.hostPersonaId)
-        );
+        const hostPersona = personaCache.getPersonaById(podcastSettings.hostPersonaId);
         
         if (!hostPersona) {
           toast.error('Selected host not found');
@@ -128,18 +124,17 @@ export function useScriptValidator() {
         
         // Get guest information
         const guestPersonas = podcastSettings.guestPersonaIds
-          .map(id => Number(id))
-          .filter(id => !isNaN(id) && id > 0)
-          .map(id => personaStore.personas.find(p => p.persona_id === id)) // Use personaStore
-          .filter(p => p !== undefined) as any[];
+          .map(id => personaCache.getPersonaById(id))
+          .filter(p => p !== undefined) as any[]; // Cast to any[] as Persona type might not be fully compatible with downstream usage yet
         
         if (guestPersonas.length === 0) {
-          toast.error('Please select at least one guest');
-          return { success: false, error: 'Please select at least one guest' };
+          // Allow no guests for now, or adjust logic as per requirements
+          // toast.error('Please select at least one guest');
+          // return { success: false, error: 'Please select at least one guest' };
         }
         
         // Parse script
-        const scriptSegments = parseScriptToSegments(scriptStore.textToSynthesize); // Use scriptStore
+        const scriptSegments = parseScriptToSegments(unifiedStore.scriptContent);
         
         if (scriptSegments.length === 0) {
           toast.error('Failed to parse script. Please ensure the format is "Speaker: Text content"');
@@ -149,26 +144,27 @@ export function useScriptValidator() {
         // Build request body
         const requestBody: ValidateScriptRequest = {
           title: podcastSettings.title,
-          rawScript: scriptStore.textToSynthesize, // Use scriptStore
+          rawScript: unifiedStore.scriptContent,
           personas: {
             hostPersona: {
               id: hostPersona.persona_id,
-            voice_model_identifier: hostPersona.voice_model_identifier || ''
+              name: hostPersona.name, // Added name
+              voice_model_identifier: hostPersona.voice_model_identifier || ''
+            },
+            guestPersonas: guestPersonas.map(persona => ({
+              id: persona.persona_id,
+              name: persona.name,
+              voice_model_identifier: persona.voice_model_identifier || ''
+            }))
           },
-          guestPersonas: guestPersonas.map(persona => ({
-            id: persona.persona_id,
-            name: persona.name,
-            voice_model_identifier: persona.voice_model_identifier || ''
-          }))
-        },
-        preferences: {
-          style: podcastSettings.style || 'conversational',
-          language: 'en-US',
-          keywords: podcastSettings.keywords || '',
-          numberOfSegments: podcastSettings.numberOfSegments || 3,
-          backgroundMusic: podcastSettings.backgroundMusic
-        }
-      };
+          preferences: {
+            style: podcastSettings.style || 'conversational',
+            language: podcastSettings.language || 'en-US', // Get language from unifiedStore
+            keywords: podcastSettings.keywords ? podcastSettings.keywords.join(', ') : '', // Join keywords array
+            numberOfSegments: podcastSettings.numberOfSegments || 3,
+            backgroundMusic: podcastSettings.backgroundMusic
+          }
+        };
       
       console.log('[DEBUG] API request body (standalone validation):', JSON.stringify(requestBody, null, 2));
       
