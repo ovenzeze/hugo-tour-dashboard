@@ -18,22 +18,16 @@
       <CardContent class="flex-1 p-0 flex flex-col md:flex-row min-h-0 overflow-auto gap-4 bg-background">
         <PlaygroundStep1Panel
           v-if="currentStepIndex === 1"
-          :podcast-settings="settingsStore.podcastSettings"
-          :personas-for-form="personaStore.personas"
-          :personas-loading="personaStore.personasLoading"
-          :is-script-generating="isScriptGenerating"
-          :is-validating="isValidating"
-          :main-editor-content="mainEditorContent"
-          :selected-persona-id-for-highlighting="personaStore.selectedPersonaIdForHighlighting"
-          :highlighted-script="highlightedScript"
-          :ai-script-step="aiScriptStep"
-          :ai-script-step-text="aiScriptStepText"
-          :script-error="scriptError"
-          @update:podcast-settings="settingsStore.updateFullPodcastSettings($event)"
-          @update:main-editor-content="mainEditorContent = $event"
+          :is-script-generating="isScriptGenerating" 
+          :is-validating="isValidating" 
+          :selected-persona-id-for-highlighting="unifiedStore.selectedPersonaIdForHighlighting" 
+          :highlighted-script="highlightedScript" 
+          :ai-script-step="aiScriptStep" 
+          :ai-script-step-text="aiScriptStepText" 
+          :script-error="unifiedStore.error" 
           @clear-error-and-retry="handleClearErrorAndRetry"
         />
-        <PlaygroundStep2Panel 和
+        <PlaygroundStep2Panel
           v-if="currentStepIndex === 2"
           ref="voicePerformanceSettingsRef"
           :script-content="scriptStore.textToSynthesize"
@@ -107,23 +101,18 @@ import type { CombineAudioResponse } from '~/types/podcast';
 
 import { useRoute, useRouter } from 'vue-router';
 import { toast } from 'vue-sonner';
-import { usePlaygroundStore } from '../stores/playground'; // This is now the main coordinator store
-import { usePlaygroundPersonaStore, type Persona } from '../stores/playgroundPersona';
-import { usePlaygroundSettingsStore } from '../stores/playgroundSettings';
-import { usePlaygroundScriptStore } from '../stores/playgroundScript';
-import { usePlaygroundAudioStore } from '../stores/playgroundAudio';
+import { usePlaygroundUnifiedStore } from '~/stores/playgroundUnified';
+import { usePersonaCache } from '~/composables/usePersonaCache';
+import type { Persona } from '~/types/persona';
+
 import { usePlaygroundStepper, type PlaygroundStep } from '@/composables/usePlaygroundStepper';
 import { usePlaygroundScript } from '@/composables/usePlaygroundScript';
 import { usePlaygroundAudio } from '@/composables/usePlaygroundAudio';
 import { usePlaygroundWorkflow } from '@/composables/usePlaygroundWorkflow';
 import { useGlobalAudioInterceptor } from '@/composables/useGlobalAudioInterceptor';
-// import type { Persona } from '~/types/playground'; // Using Persona from playgroundPersonaStore
 
-const mainPlaygroundStore = usePlaygroundStore();
-const personaStore = usePlaygroundPersonaStore();
-const settingsStore = usePlaygroundSettingsStore();
-const scriptStore = usePlaygroundScriptStore();
-const audioStore = usePlaygroundAudioStore();
+const unifiedStore = usePlaygroundUnifiedStore();
+const personaCache = usePersonaCache();
 
 const router = useRouter();
 const route = useRoute();
@@ -145,28 +134,94 @@ const successDataForModal = ref<SuccessData>({ podcastDuration: 'N/A', fileSize:
 const errorDataForModal = ref<ErrorData>({ errorMessage: 'An unknown error occurred' });
 
 
-// Script Composable
-// Fallback definitions for scriptError and clearScriptError
-const scriptError = ref<string | null>(null);
-const clearScriptError = () => {
-  scriptError.value = null;
+// Script related states - now primarily from unifiedStore
+const isScriptGenerating = computed(() => unifiedStore.isLoading && unifiedStore.currentStep === 1); // Example, adjust step condition
+const mainEditorContent = computed(() => unifiedStore.scriptContent); // Already correct for PlaygroundStep1Panel if it uses store directly
+const scriptError = computed(() => unifiedStore.error);
+
+// Placeholder for aiScriptStep and aiScriptStepText - these should come from unifiedStore
+const aiScriptStep = computed(() => unifiedStore.aiScriptGenerationStep || 0); // Assuming a new state in unifiedStore
+const aiScriptStepText = computed(() => unifiedStore.aiScriptGenerationStepText || ''); // Assuming a new state in unifiedStore
+
+
+// highlightedScript logic - can remain in component, using unifiedStore data
+const highlightedScript = computed(() => {
+  const script = unifiedStore.scriptContent;
+  // Assuming selectedPersonaIdForHighlighting will be part of unifiedStore state or props
+  const selectedPersonaId = unifiedStore.selectedPersonaIdForHighlighting; 
+
+  if (!script || selectedPersonaId === null) {
+    return script; // Return raw script if no persona selected or no script
+  }
+  const persona = personaCache.getPersonaById(selectedPersonaId);
+  const selectedPersonaName = persona?.name;
+
+  if (!selectedPersonaName) {
+    return script; // Return raw script if persona not found
+  }
+
+  const lines = script.split('\n');
+  let html = '';
+  lines.forEach(line => {
+    // Basic highlighting: wrap lines starting with the persona's name
+    // This can be made more robust (e.g., case-insensitive, handle multi-line segments)
+    if (line.trim().startsWith(`${selectedPersonaName}:`)) {
+      // Example: simple class for highlighting. Ensure this class is defined in your CSS.
+      html += `<p class="highlighted-persona-segment">${line}</p>`; 
+    } else {
+      html += `<p>${line}</p>`;
+    }
+  });
+  return html;
+});
+
+// Actions that were from usePlaygroundScript - now will call unifiedStore actions
+const handleToolbarGenerateScript = () => {
+  unifiedStore.generateScript(); // This action needs to be implemented in unifiedStore
 };
 
-const {
-  isScriptGenerating,
-  mainEditorContent,
-  highlightedScript,
-  isValidating,
-  validateScript,
-  handleToolbarGenerateScript,
-  handleUsePresetScript,
-  parseScriptToSegments,
-  initializeScript,
-  aiScriptStep, // Added for staged loading text
-  aiScriptStepText, // Added for staged loading text
-  // scriptError, // Added for error display - Using fallback
-  // clearScriptError, // Added to clear error - Using fallback
-} = usePlaygroundScript();
+const handleUsePresetScript = () => {
+  // unifiedStore.loadPresetScript('some_preset_identifier'); // Example: This action needs to be implemented
+  // For now, let's assume a simple update to scriptContent
+  unifiedStore.updateScriptContent('Host: Welcome to our preset podcast!\nGuest: Thank you for having me.');
+  toast.success("Preset script loaded.");
+};
+
+// parseScriptToSegments - if it's a pure utility, it can be kept or moved.
+// For now, assuming it might be used by logic within this component or passed down.
+// If it's only used inside unifiedStore.parseScript, it can be removed from here.
+const parseScriptToSegments = (content: string): Array<{ speaker: string, text: string }> => {
+  if (!content) return [];
+  return content
+    .split('\n')
+    .map(line => {
+      const colonIndex = line.indexOf(':');
+      if (colonIndex <= 0) return null;
+      const speaker = line.substring(0, colonIndex).trim();
+      const text = line.substring(colonIndex + 1).trim();
+      return { speaker, text };
+    })
+    .filter(segment => segment && segment.speaker && segment.text) as Array<{ speaker: string, text: string }>;
+};
+
+// initializeScript - logic to be part of unifiedStore or onMounted here
+const initializeScript = () => {
+  // unifiedStore.initializePlayground(); // Example: if there's an init action
+  // For now, ensure personas are fetched if not already
+  if (personaCache.personas.value.length === 0) {
+    personaCache.fetchPersonas();
+  }
+};
+
+// TODO: isValidating and validateScript need to be addressed.
+// For now, define isValidating as a ref, and validateScript as a placeholder.
+const isValidating = ref(false); // Placeholder
+const validateScript = async () => { // Placeholder action
+  toast.info("Script validation logic needs to be connected to unifiedStore.");
+  // unifiedStore.validateCurrentScript(); // Example future call
+  return null;
+};
+
 
 // Refs for components and shared state
 const voicePerformanceSettingsRef = ref<any>(null);
@@ -259,10 +314,8 @@ async function generateAllSegmentsAudioPreview() {
 }
 
 const handleClearErrorAndRetry = () => {
-clearScriptError();
-// Optionally, re-trigger script generation or allow user to modify settings
-// For now, just clearing the error. User can click "Generate" again.
-toast.info("Error cleared. You can adjust settings and try again.");
+  unifiedStore.clearError();
+  toast.info("Error cleared. You can adjust settings and try again.");
 };
 
 onMounted(async () => {

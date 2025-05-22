@@ -12,8 +12,6 @@
       </div>
       <PodcastSettingsForm
         :model-value="podcastSettings"
-        :personas="personasForForm"
-        :personas-loading="personasLoading"
         @update:model-value="handlePodcastSettingsUpdate"
       />
     </Card>
@@ -280,23 +278,23 @@ onUnmounted(() => {
 </script>
 
 <style scoped>
-/* Simple fade transition */
-.fade-enter-active,
-.fade-leave-active {
-  transition: opacity 0.3s ease;
-}
-.fade-enter-from,
-.fade-leave-to {
-  opacity: 0;
-}
-
+/* Fade transition for success message */
 .fade-fast-enter-active,
 .fade-fast-leave-active {
-  transition: opacity 0.2s ease-out, transform 0.2s ease-out;
+  transition: opacity 0.3s ease;
 }
 .fade-fast-enter-from,
 .fade-fast-leave-to {
   opacity: 0;
-  transform: translateY(-10px);
+}
+
+/* Fade transition for textarea visibility */
+.fade-enter-active,
+.fade-leave-active {
+  transition: opacity 0.5s ease-in-out;
+}
+.fade-enter-from,
+.fade-leave-to {
+  opacity: 0;
 }
 </style>

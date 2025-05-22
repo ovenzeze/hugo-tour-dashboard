@@ -221,7 +221,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, watch, ref } from 'vue';
+import { computed, watch, ref, onMounted } from 'vue';
 import { Skeleton } from '@/components/ui/skeleton';
 import UnifiedPersonaSelector from '@/components/UnifiedPersonaSelector.vue';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -229,17 +229,34 @@ import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea'; 
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'; 
 import { Button } from '@/components/ui/button';
-import type { Persona } from '@/stores/playgroundPersona';
-import { usePlaygroundSettingsStore } from '@/stores/playgroundSettings';
 import type { FullPodcastSettings } from '@/stores/playgroundSettings';
-import { SUPPORTED_LANGUAGES } from '@/stores/playgroundSettings';
+import { usePersonaCache } from '~/composables/usePersonaCache';
+import type { Persona } from '~/types/persona';
+
+// Inline SUPPORTED_LANGUAGES as a temporary measure
+const SUPPORTED_LANGUAGES = [
+  { code: 'en', name: 'English' },
+  { code: 'zh-CN', name: 'Chinese (Simplified)' },
+  { code: 'ja', name: 'Japanese' },
+  { code: 'ko', name: 'Korean' },
+  { code: 'de', name: 'German' },
+  { code: 'fr', name: 'French' },
+  { code: 'es', name: 'Spanish' },
+  // Add other languages as needed
+];
 
 const segmentOptions = ref([5, 10, 20, 30, 40, 50]);
 
+const { personas: cachedPersonas, isLoading: personasLoading, fetchPersonas } = usePersonaCache();
+
+onMounted(() => {
+  if (cachedPersonas.value.length === 0) {
+    fetchPersonas();
+  }
+});
+
 const props = defineProps<{
   modelValue: FullPodcastSettings;
-  personas: Persona[];
-  personasLoading: boolean;
 }>();
 
 const emit = defineEmits<{
@@ -268,15 +285,12 @@ const podcastLanguageValue = computed({
   }
 });
 
-// 使用ref来存储segment数量，而不是直接绑定到editableSettings
 const segmentCountValue = ref(props.modelValue.numberOfSegments || 10);
 
-// 处理输入框的输入事件
 function handleSegmentCountInput(event: Event) {
   const target = event.target as HTMLInputElement;
   const value = parseInt(target.value);
   
-  // 验证并更新值
   if (!isNaN(value) && value > 0 && value <= 100) {
     segmentCountValue.value = value;
     updateSegmentCount(value);
@@ -287,35 +301,16 @@ function handleSegmentCountInput(event: Event) {
   }
 }
 
-// 处理下拉框的选择事件
 function handleSegmentCountSelect(value: number) {
   console.log('[PodcastSettingsForm] 下拉框选择的segment数量:', value);
   segmentCountValue.value = value;
   
-  // 添加更多日志，确保值被正确更新
-  console.log('[PodcastSettingsForm] 更新前的segmentCountValue:', segmentCountValue.value);
-  console.log('[PodcastSettingsForm] 更新前的props.modelValue.numberOfSegments:', props.modelValue.numberOfSegments);
-  
-  // 直接更新store，确保值被正确设置
-  const settingsStore = usePlaygroundSettingsStore();
-  console.log('[PodcastSettingsForm] 直接更新store前的numberOfSegments:', settingsStore.podcastSettings.numberOfSegments);
-  
-  // 强制更新store中的值
-  settingsStore.$patch((state) => {
-    state.podcastSettings.numberOfSegments = value;
-  });
-  
-  console.log('[PodcastSettingsForm] 直接更新store后的numberOfSegments:', settingsStore.podcastSettings.numberOfSegments);
-  
-  // 然后再调用updateSegmentCount
   updateSegmentCount(value);
 }
 
-// 更新segment数量到父组件
 function updateSegmentCount(value: number) {
   console.log('[PodcastSettingsForm] 更新segment数量:', value);
   
-  // 直接更新props.modelValue的numberOfSegments属性
   const updatedSettings = {
     ...props.modelValue,
     numberOfSegments: value
@@ -323,120 +318,37 @@ function updateSegmentCount(value: number) {
   
   console.log('[PodcastSettingsForm] 发送更新事件，更新后的设置:', JSON.stringify(updatedSettings, null, 2));
   
-  // 发送更新事件
   emit('update:modelValue', updatedSettings);
-  
-  // 直接修改store中的值，确保更新生效
-  const settingsStore = usePlaygroundSettingsStore();
-  console.log('[PodcastSettingsForm] 直接更新store中的numberOfSegments:', value);
-  settingsStore.updateFullPodcastSettings({ numberOfSegments: value });
 }
 
-// 监听props.modelValue.numberOfSegments的变化，同步到本地ref
 watch(() => props.modelValue.numberOfSegments, (newValue) => {
   if (newValue !== segmentCountValue.value) {
     segmentCountValue.value = newValue || 10;
   }
 }, { immediate: true });
 
-const editableSettings = computed({
-  get: () => {
-    return {
-      ...props.modelValue,
-    };
-  },
-  set: (value) => {
-    const newSettings = { ...props.modelValue, ...value };
+const editableSettings = ref<FullPodcastSettings>({ ...props.modelValue });
 
-    const getProcessedKeywords = (): string[] => {
-      // 使用类型断言明确指定keywordsValue的可能类型
-      const keywordsValue = newSettings.keywords as string[] | string | undefined;
-      
-      if (Array.isArray(keywordsValue)) {
-        return keywordsValue;
-      } 
-      
-      if (typeof keywordsValue === 'string') {
-        return keywordsValue.split(',').map((k: string) => k.trim()).filter(Boolean);
-      }
-      
-      return [];
-    };
-    
-    const processedValue = {
-      ...newSettings,
-      // 不在这里处理numberOfSegments，而是使用专门的函数
-      hostPersonaId: newSettings.hostPersonaId ? Number(newSettings.hostPersonaId) : undefined,
-      guestPersonaIds: Array.isArray(newSettings.guestPersonaIds)
-        ? newSettings.guestPersonaIds
-          .map((id: string | number | undefined) => Number(id))
-          .filter((id: number) => !isNaN(id) && id > 0)
-        : [],
-      keywords: getProcessedKeywords(),
-    };
-    
-    // 添加日志，查看最终发送的值
-    console.log('[PodcastSettingsForm] 发送更新:', JSON.stringify(processedValue, null, 2));
-    
-    emit('update:modelValue', processedValue);
-  }
-});
+watch(() => props.modelValue, (newValue) => {
+  editableSettings.value = { ...newValue };
+  keywordsForInput.value = newValue.keywords ? newValue.keywords.join(', ') : '';
+}, { deep: true });
 
-// 根据当前选择的语言过滤可用的主持人人物
+watch(editableSettings, (newValue) => {
+  emit('update:modelValue', { ...newValue });
+}, { deep: true });
+
 const availableHostPersonas = computed(() => {
-  if (!props.personas || props.personas.length === 0) return [];
-  
-  // 如果当前选择的语言是英文，先尝试过滤支持英文的人物
-  const currentLanguage = editableSettings.value.language;
-  if (currentLanguage === 'en') {
-    // 尝试找出支持英文的人物
-    const englishSupportingPersonas = props.personas.filter(p => 
-      p.language_support && 
-      Array.isArray(p.language_support) && 
-      p.language_support.includes('en')
-    );
-    
-    // 如果找到了支持英文的人物，则返回这些人物
-    if (englishSupportingPersonas.length > 0) {
-      console.log(`Found ${englishSupportingPersonas.length} personas supporting English`);
-      return englishSupportingPersonas;
-    }
-    
-    // 如果没有找到支持英文的人物，则返回所有人物作为备选
-    console.log('No personas explicitly supporting English found, returning all personas as fallback');
-  }
-  
-  // 如果不是英文或没有选择语言，或者没有找到支持英文的人物，则显示所有人物
-  return props.personas;
+  if (personasLoading.value) return [];
+  return cachedPersonas.value.filter(p => p.persona_type === 'Host' || p.persona_type === 'Both' || !p.persona_type);
 });
 
 const availableGuestPersonas = computed(() => {
-  if (!props.personas || props.personas.length === 0) return [];
-  
-  // 首先过滤掉已选为主持人的人物
-  let filteredPersonas = props.personas.filter(p => String(p.persona_id) !== String(editableSettings.value.hostPersonaId));
-  
-  // 如果当前选择的语言是英文，先尝试过滤支持英文的人物
-  const currentLanguage = editableSettings.value.language;
-  if (currentLanguage === 'en') {
-    // 尝试找出支持英文的人物
-    const englishSupportingPersonas = filteredPersonas.filter(p => 
-      p.language_support && 
-      Array.isArray(p.language_support) && 
-      p.language_support.includes('en')
-    );
-    
-    // 如果找到了支持英文的人物，则返回这些人物
-    if (englishSupportingPersonas.length > 0) {
-      console.log(`Found ${englishSupportingPersonas.length} guest personas supporting English`);
-      return englishSupportingPersonas;
-    }
-    
-    // 如果没有找到支持英文的人物，则返回所有人物作为备选
-    console.log('No guest personas explicitly supporting English found, returning all filtered personas as fallback');
-  }
-  
-  return filteredPersonas;
+  if (personasLoading.value) return [];
+  return cachedPersonas.value.filter(p => 
+    (p.persona_type === 'Guest' || p.persona_type === 'Both' || !p.persona_type) &&
+    p.persona_id !== editableSettings.value.hostPersonaId
+  );
 });
 
 watch(() => props.modelValue.hostPersonaId, (newHostId: number | string | undefined) => {
@@ -449,34 +361,28 @@ watch(() => props.modelValue.hostPersonaId, (newHostId: number | string | undefi
   }
 });
 
-// 监听语言变化，检查已选择人物的语言支持情况
 watch(() => editableSettings.value.language, (newLanguage: string | undefined) => {
   if (newLanguage === 'en') {
     console.log('Language changed to English, checking persona language support');
     
-    // 先检查是否有任何支持英文的人物
-    const englishSupportingPersonas = props.personas.filter(p => 
+    const englishSupportingPersonas = cachedPersonas.value.filter(p => 
       p.language_support && 
       Array.isArray(p.language_support) && 
       p.language_support.includes('en')
     );
     
-    // 如果有支持英文的人物，才进行严格过滤
     if (englishSupportingPersonas.length > 0) {
       console.log(`Found ${englishSupportingPersonas.length} personas supporting English, will filter selections`);
       
-      // 检查主持人是否支持英文
-      const hostPersona = props.personas.find(p => String(p.persona_id) === String(editableSettings.value.hostPersonaId));
+      const hostPersona = cachedPersonas.value.find(p => String(p.persona_id) === String(editableSettings.value.hostPersonaId));
       if (hostPersona && (!hostPersona.language_support || !Array.isArray(hostPersona.language_support) || !hostPersona.language_support.includes('en'))) {
         console.log(`Current host persona ${hostPersona.name} does not support English, resetting selection`);
-        // 如果主持人不支持英文，则重置主持人选择
         editableSettings.value.hostPersonaId = undefined;
       }
       
-      // 检查嘉宾是否支持英文
       if (editableSettings.value.guestPersonaIds && editableSettings.value.guestPersonaIds.length > 0) {
         const newGuestIds = editableSettings.value.guestPersonaIds.filter(guestId => {
-          const guestPersona = props.personas.find(p => String(p.persona_id) === String(guestId));
+          const guestPersona = cachedPersonas.value.find(p => String(p.persona_id) === String(guestId));
           return guestPersona && guestPersona.language_support && Array.isArray(guestPersona.language_support) && guestPersona.language_support.includes('en');
         });
         
@@ -487,15 +393,13 @@ watch(() => editableSettings.value.language, (newLanguage: string | undefined) =
       }
     } else {
       console.log('No personas explicitly supporting English found, keeping current selections');
-      // 如果没有找到支持英文的人物，则保留当前选择
     }
     
-    // 更新表单值
     emit('update:modelValue', { ...editableSettings.value });
   }
 });
 
-watch(() => props.personas, (loadedPersonas) => {
+watch(() => cachedPersonas.value, (loadedPersonas) => {
   if (loadedPersonas && loadedPersonas.length > 0) {
     const currentModel = props.modelValue;
     let newHostId = currentModel.hostPersonaId ? String(currentModel.hostPersonaId) : undefined;

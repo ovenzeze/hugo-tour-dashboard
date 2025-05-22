@@ -65,4 +65,4 @@ export const usePlaygroundPersonaStore = defineStore("playgroundPersona", {
       return state.personas.map(p => ({ label: p.name, value: p.persona_id }));
     }
   }
-});
+}); 

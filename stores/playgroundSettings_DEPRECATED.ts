@@ -74,7 +74,7 @@ export const usePlaygroundSettingsStore = defineStore("playgroundSettings", {
   state: (): PlaygroundSettingsState => {
     const config = useRuntimeConfig();
     // 使用字符串字面量初始化，避免类型问题
-    const initialProvider = "elevenlabs" as AIGenerateScriptProvider; 
+    const initialProvider = "elevenlabs" as AIGenerateScriptProvider;
     let initialAiModel: string | undefined = undefined;
 
     // 使用类型断言来避免TypeScript的类型检查错误
@@ -87,7 +87,7 @@ export const usePlaygroundSettingsStore = defineStore("playgroundSettings", {
 
     return {
       podcastSettings: { ...defaultPodcastSettings },
-      createPodcast: true, 
+      createPodcast: true,
       selectedProvider: initialProvider, // Correctly typed initialProvider is assigned
       aiModel: initialAiModel,
     };
@@ -124,9 +124,9 @@ export const usePlaygroundSettingsStore = defineStore("playgroundSettings", {
     updateFullPodcastSettings(settings: Partial<FullPodcastSettings>) {
       console.log('[updateFullPodcastSettings] 接收到的设置:', JSON.stringify(settings, null, 2));
       console.log('[updateFullPodcastSettings] 当前设置:', JSON.stringify(this.podcastSettings, null, 2));
-      
+
       // Create a new object to avoid direct state mutation issues if any part is deeply reactive
-      const newSettings = { ...this.podcastSettings }; 
+      const newSettings = { ...this.podcastSettings };
 
       // Iterate over the keys of the incoming settings object
       (Object.keys(settings) as Array<keyof FullPodcastSettings>).forEach(key => {
@@ -139,8 +139,8 @@ export const usePlaygroundSettingsStore = defineStore("playgroundSettings", {
             // Ensure keywords are handled as an array of strings
             // If it's a string, split it. If it's an array, process it.
             // 使用类型断言来处理keywords
-            const rawKeywordsValue = settings.keywords as string | string[] | undefined; 
-            
+            const rawKeywordsValue = settings.keywords as string | string[] | undefined;
+
             if (typeof rawKeywordsValue === 'string') {
               // 如果是字符串，按逗号分割
               newSettings.keywords = rawKeywordsValue.split(',').map(k => k.trim()).filter(k => k !== '');
@@ -152,13 +152,13 @@ export const usePlaygroundSettingsStore = defineStore("playgroundSettings", {
             } else {
               // 如果是undefined或其他类型，使用空数组
               console.warn(`Unexpected type for keywords: ${typeof rawKeywordsValue}. Defaulting to empty array.`);
-              newSettings.keywords = []; 
+              newSettings.keywords = [];
             }
           } else if (key === 'numberOfSegments'){
             // 强制转换为数字，并确保是有效值
             const numSegments = Number(settings.numberOfSegments);
             console.log(`[updateFullPodcastSettings] 处理numberOfSegments: ${settings.numberOfSegments} -> ${numSegments} (类型: ${typeof settings.numberOfSegments})`);
-            
+
             if (isNaN(numSegments) || numSegments <= 0) {
               console.warn(`[updateFullPodcastSettings] numberOfSegments转换为数字失败或无效，使用默认值: ${defaultPodcastSettings.numberOfSegments}`);
               newSettings.numberOfSegments = defaultPodcastSettings.numberOfSegments;
@@ -167,7 +167,7 @@ export const usePlaygroundSettingsStore = defineStore("playgroundSettings", {
               const finalSegmentCount = Math.floor(numSegments);
               console.log(`[updateFullPodcastSettings] 设置numberOfSegments为: ${finalSegmentCount} (原始值: ${numSegments})`);
               newSettings.numberOfSegments = finalSegmentCount;
-              
+
               // 直接修改state，确保更新生效
               this.$patch((state) => {
                 state.podcastSettings.numberOfSegments = finalSegmentCount;
@@ -241,4 +241,4 @@ export const usePlaygroundSettingsStore = defineStore("playgroundSettings", {
         return state.podcastSettings.guestPersonaIds.map(id => typeof id === 'string' ? parseInt(id, 10) : id).filter(id => id !== undefined) as number[];
     }
   }
-});
+}); 

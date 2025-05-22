@@ -86,7 +86,7 @@
         <!-- Topic tag always visible -->
         <div class="flex items-center mt-2 w-full transition-all duration-300 ease-in-out"
           :class="{
-            'opacity-100': hoveredPodcastId === Number(podcast.podcast_id),
+            'opacity-80': hoveredPodcastId === Number(podcast.podcast_id),
             'opacity-0': hoveredPodcastId !== Number(podcast.podcast_id) && podcast.cover_image_url
           }">
           <span
