@@ -1,6 +1,5 @@
 import { ref, reactive, watch } from 'vue'; // Added watch
-import { usePlaygroundAudioStore } from '../stores/playgroundAudio';
-import { usePlaygroundSettingsStore } from '../stores/playgroundSettings';
+import { usePlaygroundUnifiedStore } from '../stores/playgroundUnified';
 import { toast } from 'vue-sonner';
 import type { ParsedScriptSegment, Voice } from './useVoiceManagement'; // Assuming interfaces are exported
 
@@ -39,8 +38,7 @@ export function useSegmentPreview(
     parsedScriptSegments: globalThis.Ref<PreviewableSegment[]>,
     speakerAssignments: globalThis.Ref<Record<string, { voiceId: string, provider: string }>> // Updated type
 ) {
-  const audioStore = usePlaygroundAudioStore();
-  const settingsStore = usePlaygroundSettingsStore();
+  const unifiedStore = usePlaygroundUnifiedStore();
 
   const isPreviewingSegment = ref<number | null>(null); // Index of the segment being previewed
   const segmentPreviews = ref<Record<number, SegmentPreviewData>>({}); // Index -> { audioUrl, timestamps }
@@ -124,7 +122,7 @@ export function useSegmentPreview(
 
     try {
         // Use the actual podcastId from the store if available, otherwise generate a temporary one for preview
-        const podcastIdToUse = audioStore.podcastId || `preview_session_${settingsStore.podcastSettings.title?.trim().replace(/\s+/g, '_') || Date.now()}`;
+        const podcastIdToUse = unifiedStore.podcastId || `preview_session_${unifiedStore.podcastSettings.title?.trim().replace(/\s+/g, '_') || Date.now()}`;
   
         const response = await fetch('/api/podcast/process/synthesize', {
           method: 'POST',
@@ -139,14 +137,14 @@ export function useSegmentPreview(
                 speakerName: segment.speakerTag
               }
             ],
-            defaultModelId: settingsStore.podcastSettings.elevenLabsProjectId || 'eleven_multilingual_v2',
+            defaultModelId: unifiedStore.podcastSettings.elevenLabsProjectId || 'eleven_multilingual_v2',
             voiceSettings: {
-              stability: audioStore.synthesisParams.temperature,
-              similarity_boost: audioStore.synthesisParams.speed, // Use speed for similarity_boost
+              stability: unifiedStore.synthesisParams.temperature,
+              similarity_boost: unifiedStore.synthesisParams.speed, // Use speed for similarity_boost
               // style: 0, // TODO: Make configurable or part of persona if API supports
               // use_speaker_boost: true // TODO: Make configurable or part of persona if API supports
             },
-            synthesisParams: audioStore.synthesisParams, // Pass global synthesis params from the store
+            synthesisParams: unifiedStore.synthesisParams, // Pass global synthesis params from the store
             ttsProvider: provider // Use the provider from speakerAssignments for the API call's ttsProvider field
           })
         });
@@ -248,116 +246,103 @@ export function useSegmentPreview(
                 segments: payloadSegments // Segments now only need speakerTag and text
             },
             synthesisParams: {
-                stability: audioStore.synthesisParams.temperature,
-                similarity_boost: audioStore.synthesisParams.speed,
-            }
+                // Take from the unifiedStore
+                temperature: unifiedStore.synthesisParams.temperature,
+                speed: unifiedStore.synthesisParams.speed,
+                stability: unifiedStore.synthesisParams.stability,
+                similarity_boost: unifiedStore.synthesisParams.similarity_boost
+            },
+            podcastId: unifiedStore.podcastId || `preview_session_${unifiedStore.podcastSettings.title?.trim().replace(/\s+/g, '_') || Date.now()}`
         };
 
-        console.log('[useSegmentPreview] previewAllSegments requestBody:', JSON.stringify(requestBody, null, 2));
-
-
+        // Call the backend
         const response = await fetch('/api/podcast/preview/segments', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(requestBody)
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(requestBody)
         });
 
         if (!response.ok) {
-            const errorText = await response.text();
-            throw new Error(`Preview all generation failed: ${response.statusText} - ${errorText}`);
+          const errorText = await response.text();
+          throw new Error(`API Error (${response.status}): ${errorText || response.statusText}`);
         }
 
-        const result = await response.json();
-
-        if (result.segments && Array.isArray(result.segments)) {
-            let successCount = 0;
-            result.segments.forEach((segmentResultItem: any, index: number) => {
-                // Assuming the order of segments in response matches parsedScriptSegments
-                if (segmentResultItem.status === 'success' && segmentResultItem.audio) {
-                    const binary = atob(segmentResultItem.audio);
-                    const bytes = new Uint8Array(binary.length);
-                    for (let i = 0; i < binary.length; i++) {
-                        bytes[i] = binary.charCodeAt(i);
-                    }
-                    const audioBlob = new Blob([bytes], { type: segmentResultItem.contentType || 'audio/mpeg' });
-                    const audioUrl = URL.createObjectURL(audioBlob);
-
-                    segmentPreviews.value[index] = {
-                        audioUrl,
-                        timestamps: segmentResultItem.timestamps || []
-                    };
-                    segmentStates.value[index] = { status: 'success', message: 'Preview successful' };
-                    successCount++;
+        const contentType = response.headers.get('content-type');
+        if (contentType && contentType.includes('application/json')) {
+          const data = await response.json();
+          
+          if (data.success) {
+            // Update all segment previews with their URLs
+            if (data.segmentPreviews && Array.isArray(data.segmentPreviews)) {
+              data.segmentPreviews.forEach((preview: any, idx: number) => {
+                if (preview && preview.audioUrl) {
+                  segmentPreviews.value[idx] = {
+                    audioUrl: preview.audioUrl,
+                    timestamps: preview.timestampUrl ? fetch(preview.timestampUrl).then(r => r.json()).catch(() => []) : []
+                  };
+                  segmentStates.value[idx] = { status: 'success', message: 'Preview successful' };
                 } else {
-                    segmentStates.value[index] = { 
-                        status: 'error', 
-                        message: segmentResultItem.error || 'Preview failed for this segment', 
-                        error: segmentResultItem.error || 'Unknown error'
-                    };
+                  segmentStates.value[idx] = { status: 'error', message: 'Preview failed', error: preview?.error || 'Unknown error' };
                 }
-            });
-
-            if (successCount > 0 && result.segments.length > 0) {
-                // Set combined preview to the first successful segment for simplicity
-                const firstSuccessIndex = result.segments.findIndex((s:any) => s.status === 'success');
-                if (firstSuccessIndex !== -1 && segmentPreviews.value[firstSuccessIndex]) {
-                    combinedPreviewUrl.value = segmentPreviews.value[firstSuccessIndex].audioUrl;
-                }
+              });
             }
-            toast.success(`Successfully previewed ${successCount}/${result.segments.length} audio segments`);
-            return successCount > 0;
+            
+            // If there's a combined preview URL, update that too
+            if (data.combinedPreviewUrl) {
+              combinedPreviewUrl.value = data.combinedPreviewUrl;
+            }
+            
+            toast.success('All segment previews generated successfully.');
+            return true;
+          } else {
+            throw new Error(data.message || 'API returned unsuccessful response.');
+          }
         } else {
-            throw new Error('Server did not return expected preview segments array.');
+          const responseText = await response.text();
+          throw new Error(`Unexpected server response. Expected JSON, got: ${contentType}. Response: ${responseText.substring(0, 200)}...`);
         }
-
     } catch (error: any) {
-        console.error('Preview all segments failed:', error);
-        toast.error(`Preview all failed: ${error.message}`);
-        parsedScriptSegments.value.forEach((_, index) => {
-            if (segmentStates.value[index]?.status === 'loading') { // Only update those that were attempted
-                segmentStates.value[index] = { status: 'error', message: 'Preview all failed', error: error.message };
-            }
-        });
-        return false;
+      console.error('All segments preview generation failed:', error);
+      toast.error('Failed to generate all previews', { description: error.message });
+      
+      // Update all segments to error state
+      parsedScriptSegments.value.forEach((_, index) => {
+        segmentStates.value[index] = { status: 'error', message: 'Preview failed', error: error.message };
+      });
+      
+      return false;
     }
   }
 
-  // Functions for audio playback control, to be used by SegmentVoiceAssignmentItem via parent
   const onSegmentPlay = (playedIndex: number) => {
-    audioPlayingState.value[playedIndex] = true;
-    Object.entries(audioRefs.value).forEach(([indexStr, audioEl]) => {
-      const currentIndex = Number(indexStr);
-      if (audioEl && currentIndex !== playedIndex && !audioEl.paused) {
-        audioEl.pause();
-        audioPlayingState.value[currentIndex] = false;
+    // When a segment is played, ensure all other segments are paused
+    Object.keys(audioRefs.value).forEach(indexStr => {
+      const index = parseInt(indexStr, 10);
+      if (index !== playedIndex && audioRefs.value[index]) {
+        audioRefs.value[index]?.pause();
       }
     });
+    audioPlayingState.value[playedIndex] = true;
   };
 
   const onSegmentPauseOrEnd = (pausedIndex: number) => {
     audioPlayingState.value[pausedIndex] = false;
   };
 
-  // Expose function to register audio refs from child components
   const setAudioRef = (index: number, el: HTMLAudioElement | null) => {
-    if (el) {
-        audioRefs.value[index] = el;
-    } else {
-        delete audioRefs.value[index]; // Clean up if element is destroyed
-    }
+    audioRefs.value[index] = el;
   };
 
   return {
-    isPreviewingSegment,
     segmentPreviews,
-    segmentStates,
     combinedPreviewUrl,
-    audioPlayingState, // Expose if needed by parent for UI updates
+    segmentStates,
+    isPreviewingSegment,
     previewSegment,
     previewAllSegments,
+    setAudioRef,
     onSegmentPlay,
     onSegmentPauseOrEnd,
-    setAudioRef,
-    initializeSegmentStates // Expose if manual re-init is needed
+    audioPlayingState
   };
 }

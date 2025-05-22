@@ -30,15 +30,15 @@
         <PlaygroundStep2Panel
           v-if="currentStepIndex === 2"
           ref="voicePerformanceSettingsRef"
-          :script-content="scriptStore.textToSynthesize"
+          :script-content="unifiedStore.scriptContent"
           :synth-progress="{
             synthesized: (voicePerformanceSettingsRef as any)?.synthesizedSegmentsCount || 0,
             total: (voicePerformanceSettingsRef as any)?.totalSegmentsCount || 0
           }"
-          :audio-url="audioStore.audioUrl"
+          :audio-url="unifiedStore.audioUrl"
           :podcast-performance-config="podcastPerformanceConfig"
           :is-global-preview-loading="isGlobalPreviewLoading"
-          @update:script-content="scriptStore.updateTextToSynthesize($event)"
+          @update:script-content="unifiedStore.updateScriptContent($event)"
           class="flex-1 min-h-0"
         />
       </CardContent>
@@ -47,14 +47,14 @@
         :current-step-index="currentStepIndex"
         :is-generating-overall="isGeneratingOverall"
         :is-script-generating="isScriptGenerating"
-        :is-synthesizing="audioStore.isSynthesizing"
+        :is-synthesizing="unifiedStore.isSynthesizing"
         :is-validating="isValidating"
         :is-processing-next-step="isProcessingWorkflowStep"
         :can-proceed-from-step2="canProceedFromStep2"
         :is-generating-audio-preview="isGlobalPreviewLoading"
         :is-podcast-generation-allowed="canGeneratePodcast"
-        :text-to-synthesize="scriptStore.textToSynthesize"
-        :audio-url="audioStore.audioUrl"
+        :text-to-synthesize="unifiedStore.scriptContent"
+        :audio-url="unifiedStore.audioUrl"
         @previous-step="handlePreviousStep"
         @reset="resetPodcastView"
         @use-preset-script="handleUsePresetScript"
@@ -272,7 +272,7 @@ async function generateAllSegmentsAudioPreview() {
     return;
   }
 
-  if (!audioStore.podcastId) {
+  if (!unifiedStore.podcastId) {
     toast.error("Podcast ID is missing. Cannot synthesize segments. Please ensure script is validated and saved (Step 1).");
     return;
   }
@@ -289,12 +289,18 @@ async function generateAllSegmentsAudioPreview() {
 
     console.log("[generateAllSegmentsAudioPreview] Current speaker assignments:", JSON.stringify(currentSpeakerAssignments, null, 2));
 
-    // 直接调用audioStore的synthesizeAllSegmentsConcurrently方法，传递必要的参数
-    const result = await audioStore.synthesizeAllSegmentsConcurrently(
-      scriptStore.validationResult,
-      settingsStore.podcastSettings,
+    // 直接调用 unifiedStore 的方法，传递必要的参数
+    // TODO: Implement synthesizeAudioPreviewForAllSegments in unifiedStore with appropriate logic
+    const result = await unifiedStore.synthesizeAudioPreviewForAllSegments( // unifiedStore
+      unifiedStore.validationResult, // unifiedStore
+      unifiedStore.podcastSettings, // unifiedStore
       currentSpeakerAssignments
     );
+    // const result = await audioStore.synthesizeAllSegmentsConcurrently(
+    //   scriptStore.validationResult,
+    //   settingsStore.podcastSettings,
+    //   currentSpeakerAssignments
+    // );
     
     // 显示详细的成功/失败信息
     if (result) {
@@ -319,7 +325,7 @@ const handleClearErrorAndRetry = () => {
 };
 
 onMounted(async () => {
-  await personaStore.fetchPersonas();
+  // await personaStore.fetchPersonas(); // Removed: Handled by initializeScript or personaCache directly
   await initializeScript(); // This composable might need updates too
   // Global audio interceptor is handled by its own onMounted/onUnmounted
 });
@@ -339,20 +345,17 @@ const getCurrentStepTitle = computed(() => {
   return step ? step.title : 'Podcast Creation';
 });
 
-watch(() => settingsStore.createPodcast, () => {
+watch(() => unifiedStore.createPodcastTrigger, () => {
   if (currentStepIndex.value !== 2) {
     goToStep(1);
-    mainPlaygroundStore.resetAllPlaygroundState(); // Use the new reset action
+    unifiedStore.resetPlaygroundState();
     if(podcastPerformanceConfig.value) podcastPerformanceConfig.value = null;
   }
 }, { immediate: true });
 
 const isGeneratingOverall = computed(() => {
-  return scriptStore.isGeneratingScript ||
-         audioStore.isSynthesizing ||
-         isScriptGenerating.value || // This is from usePlaygroundScript composable
+  return unifiedStore.isLoading || // unifiedStore.isLoading should cover script generation and synthesis
          isValidating.value ||       // This is from usePlaygroundScript composable
-         isGeneratingAudioPreview.value || // This is from usePlaygroundAudio composable (individual segment)
          isGlobalPreviewLoading.value || // Global preview loading state
          isProcessingWorkflowStep.value;
 });
@@ -385,22 +388,25 @@ async function onSynthesizeAudioForPodcast(payload: { useTimestamps: boolean, sy
       .map((segment: any) => segment.timestamps)
       .flat();
     if (timestamps.length > 0) {
-      audioStore.saveSegmentTimestamps(timestamps);
+      // unifiedStore.saveSegmentTimestamps(timestamps); // TODO: Implement in unifiedStore if needed
+      console.warn("unifiedStore.saveSegmentTimestamps needs to be implemented if segment timestamps are used directly from here.")
     }
   }
   // synthesizeAllSegmentsConcurrently now takes arguments
-  await audioStore.synthesizeAllSegmentsConcurrently(scriptStore.validationResult, settingsStore.podcastSettings);
-  if (!audioStore.synthesisError) {
+  // await audioStore.synthesizeAllSegmentsConcurrently(scriptStore.validationResult, settingsStore.podcastSettings);
+  // TODO: Replace with unifiedStore action, potentially passing structured data
+  await unifiedStore.synthesizeAudio(); // Placeholder for new unified action. May need arguments.
+  if (!unifiedStore.error) { // Assuming error state in unifiedStore
     toast.success("Podcast audio synthesized successfully!");
   }
 }
 
 function handlePlayCurrentAudio() {
-  if (!audioStore.audioUrl) {
+  if (!unifiedStore.audioUrl) { // unifiedStore
     toast.error('No audio available to play');
     return;
   }
-  const audio = new Audio(audioStore.audioUrl);
+  const audio = new Audio(unifiedStore.audioUrl); // unifiedStore
   audio.play().catch(error => {
     toast.error('Playback failed: ' + (error as Error).message);
   });
@@ -423,12 +429,12 @@ const handleModalConfirmSynthesis = async () => {
   processingDataForModal.value = { progress: 0, currentStage: 'Starting synthesis...' };
 
   // Log values for pre-checks
-  console.log('scriptStore.validationResult:', JSON.stringify(scriptStore.validationResult, null, 2));
+  console.log('unifiedStore.scriptValidationResult:', JSON.stringify(unifiedStore.validationResult, null, 2)); // unifiedStore
   console.log('podcastPerformanceConfig.value (before checks):', JSON.stringify(podcastPerformanceConfig.value, null, 2));
   console.log('voicePerformanceSettingsRef.value?.isFormValid (before checks):', voicePerformanceSettingsRef.value?.isFormValid);
-  console.log('audioStore.podcastId (before checks):', audioStore.podcastId);
+  console.log('unifiedStore.podcastId (before checks):', unifiedStore.podcastId); // unifiedStore
 
-  if (!scriptStore.validationResult || !scriptStore.validationResult.success || !scriptStore.validationResult.structuredData?.script?.length) {
+  if (!unifiedStore.validationResult || !unifiedStore.validationResult.success || !unifiedStore.validationResult.structuredData?.script?.length) { // unifiedStore
     synthesisStatusForModal.value = 'error';
     errorDataForModal.value = { errorMessage: 'Script validation data is missing or invalid. Please ensure the script is validated and segments are configured.' };
     toast.error(`Podcast "${podcastNameForModal.value}" synthesis failed: No valid script segments.`);
@@ -454,7 +460,7 @@ const handleModalConfirmSynthesis = async () => {
   }
 
   // Add check for podcastId
-  if (!audioStore.podcastId) {
+  if (!unifiedStore.podcastId) { // unifiedStore
     synthesisStatusForModal.value = 'error';
     errorDataForModal.value = { errorMessage: 'Podcast ID is missing. Cannot synthesize segments. Please ensure the script has been saved.' };
     toast.error(`Podcast "${podcastNameForModal.value}" synthesis failed: Podcast ID missing.`);
@@ -463,7 +469,7 @@ const handleModalConfirmSynthesis = async () => {
 
   try {
     // Log critical data for debugging
-    console.log('Validation Result Script (inside try):', JSON.stringify(scriptStore.validationResult?.structuredData?.script, null, 2));
+    console.log('Validation Result Script (inside try):', JSON.stringify(unifiedStore.validationResult?.structuredData?.script, null, 2)); // unifiedStore
     
     const currentSpeakerAssignmentsConfig = voicePerformanceSettingsRef.value.getPerformanceConfig();
     console.log('Current Speaker Assignments Config from getPerformanceConfig():', JSON.stringify(currentSpeakerAssignmentsConfig, null, 2));
@@ -486,11 +492,17 @@ const handleModalConfirmSynthesis = async () => {
     console.log('Formatted Speaker Assignments for synthesis:', JSON.stringify(formattedSpeakerAssignments, null, 2));
 
     // Call the actual synthesis function from the audio store
-    const synthesisResult = await audioStore.synthesizeAllSegmentsConcurrently(
-      scriptStore.validationResult,
-      settingsStore.podcastSettings,
-      formattedSpeakerAssignments // Pass formatted speakerAssignments
-    );
+    // TODO: Replace with unifiedStore action and ensure parameters are correct
+    const synthesisResult = await unifiedStore.synthesizeAudio({ // Placeholder for new unified action, arguments might differ
+      validationResult: unifiedStore.validationResult, // unifiedStore
+      podcastSettings: unifiedStore.podcastSettings, // unifiedStore
+      speakerAssignments: formattedSpeakerAssignments
+    });
+    // const synthesisResult = await audioStore.synthesizeAllSegmentsConcurrently(
+    //   scriptStore.validationResult,
+    //   settingsStore.podcastSettings,
+    //   formattedSpeakerAssignments // Pass formatted speakerAssignments
+    // );
 
     // 处理合成结果
     if (synthesisResult) {
@@ -508,23 +520,24 @@ const handleModalConfirmSynthesis = async () => {
       }
     }
 
-    if (audioStore.synthesisError) {
+    if (unifiedStore.error) { // unifiedStore, assuming error state
       synthesisStatusForModal.value = 'error';
-      errorDataForModal.value = { errorMessage: audioStore.synthesisError };
+      errorDataForModal.value = { errorMessage: unifiedStore.error }; // unifiedStore
       toast.error(`Podcast "${podcastNameForModal.value}" synthesis failed.`);
     } else {
       // After successful segment synthesis, trigger the final audio combination
       // This assumes a backend endpoint to combine the generated segments into a single audio file
       processingDataForModal.value = { progress: 95, currentStage: 'Combining audio segments...' };
+      // TODO: This $fetch should likely be part of a unifiedStore action e.g., unifiedStore.combineAudio()
       const combineResponse = await $fetch<CombineAudioResponse>('/api/podcast/combine-audio', {
         method: 'POST',
         body: {
-          podcastId: audioStore.podcastId,
+          podcastId: unifiedStore.podcastId, // unifiedStore
         },
       } as any);
 
       if (combineResponse && combineResponse.audioUrl) {
-        audioStore.setFinalAudioUrl(combineResponse.audioUrl);
+        unifiedStore.setFinalAudioUrl(combineResponse.audioUrl); // unifiedStore (action to be created)
         synthesisStatusForModal.value = 'success';
         successDataForModal.value = {
           podcastDuration: combineResponse.duration || 'N/A', // Assuming backend returns duration
@@ -606,12 +619,12 @@ const handleShowSynthesisModal = async () => {
   // 检查是否有音频片段已经生成
   try {
     // 直接从API获取当前播客的片段状态，确保数据是最新的
-    if (!audioStore.podcastId) {
+    if (!unifiedStore.podcastId) { // unifiedStore
       toast.error("播客ID缺失，请先保存脚本。");
       return;
     }
     
-    const response = await $fetch(`/api/podcast/${audioStore.podcastId}/segments-status`, {
+    const response = await $fetch(`/api/podcast/${unifiedStore.podcastId}/segments-status`, { // unifiedStore
       method: 'GET'
     });
     
@@ -649,11 +662,11 @@ const handleShowSynthesisModal = async () => {
   }
   
   // 获取播客名称
-  if (!settingsStore.podcastSettings.title && mainEditorContent.value) {
+  if (!unifiedStore.podcastSettings.title && mainEditorContent.value) { // unifiedStore
     const firstLine = mainEditorContent.value.split('\n')[0];
     podcastNameForModal.value = firstLine.length > 50 ? firstLine.substring(0, 47) + '...' : firstLine || 'New Podcast';
   } else {
-    podcastNameForModal.value = settingsStore.podcastSettings.title || 'New Podcast';
+    podcastNameForModal.value = unifiedStore.podcastSettings.title || 'New Podcast'; // unifiedStore
   }
 
   // 直接提交任务，不显示确认对话框
@@ -703,31 +716,32 @@ const handleSubmitPodcastSynthesis = async () => {
     }
     
     // 生成封面图片
-    if (audioStore.podcastId && settingsStore.podcastSettings.title) {
+    if (unifiedStore.podcastId && unifiedStore.podcastSettings.title) { // unifiedStore
       // 调用封面生成API，但不触发刷新
       generateAndSavePodcastCover(
-        audioStore.podcastId.toString(),
-        settingsStore.podcastSettings.title,
-        settingsStore.podcastSettings.topic
+        unifiedStore.podcastId.toString(), // unifiedStore
+        unifiedStore.podcastSettings.title, // unifiedStore
+        unifiedStore.podcastSettings.topic // unifiedStore
       )
         .then(() => {
-          console.log(`[handleSubmitPodcastSynthesis] Cover generation process initiated for podcast ${audioStore.podcastId}.`);
+          console.log(`[handleSubmitPodcastSynthesis] Cover generation process initiated for podcast ${unifiedStore.podcastId}.`); // unifiedStore
         })
         .catch(coverError => {
-          console.error(`[handleSubmitPodcastSynthesis] Error initiating cover generation for podcast ${audioStore.podcastId}:`, coverError);
+          console.error(`[handleSubmitPodcastSynthesis] Error initiating cover generation for podcast ${unifiedStore.podcastId}:`, coverError); // unifiedStore
         });
     }
     
     // 调用合成API
+    // TODO: This $fetch should likely be part of a unifiedStore action e.g., unifiedStore.combineAudio()
     const combineResponse = await $fetch<CombineAudioResponse>('/api/podcast/combine-audio', {
       method: 'POST',
       body: {
-        podcastId: audioStore.podcastId,
+        podcastId: unifiedStore.podcastId, // unifiedStore
       },
     } as any);
 
     if (combineResponse && combineResponse.audioUrl) {
-      audioStore.setFinalAudioUrl(combineResponse.audioUrl);
+      unifiedStore.setFinalAudioUrl(combineResponse.audioUrl); // unifiedStore (action to be created)
       toast.success(`播客"${podcastNameForModal.value}"合成完成！`);
     } else {
       toast.error(`播客"${podcastNameForModal.value}"合成失败：无法获取最终音频URL。`);

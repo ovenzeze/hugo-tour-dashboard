@@ -2,11 +2,15 @@
 
 import { defineStore } from "pinia";
 import { toast } from "vue-sonner";
-// Import the new stores
-import { usePlaygroundPersonaStore } from "./playgroundPersona";
-import { usePlaygroundSettingsStore } from "./playgroundSettings";
-import { usePlaygroundScriptStore } from "./playgroundScript";
-import { usePlaygroundAudioStore } from "./playgroundAudio";
+// 更新引入
+import { usePlaygroundUnifiedStore } from "./playgroundUnified";
+import { usePersonaCache } from "~/composables/usePersonaCache";
+
+// 移除对旧store的引用
+// import { usePlaygroundPersonaStore } from "./playgroundPersona";
+// import { usePlaygroundSettingsStore } from "./playgroundSettings";
+// import { usePlaygroundScriptStore } from "./playgroundScript";
+// import { usePlaygroundAudioStore } from "./playgroundAudio";
 
 // The main playground store is now significantly leaner.
 // It might act as a coordinator or hold truly global state
@@ -32,42 +36,31 @@ export const usePlaygroundStore = defineStore("playground", {
     // or in components/composables that use multiple stores.
     // For example:
     // combinedStatus(state) {
-    //   const personaStore = usePlaygroundPersonaStore();
-    //   const scriptStore = usePlaygroundScriptStore();
-    //   return `Personas loaded: ${!personaStore.personasLoading}, Script valid: ${scriptStore.isScriptValid}`;
+    //   const personaCache = usePersonaCache();
+    //   const unifiedStore = usePlaygroundUnifiedStore();
+    //   return `Personas loaded: ${!personaCache.isLoading.value}, Script valid: ${unifiedStore.validationResult?.success}`;
     // }
   },
 
   actions: {
-    // This action now calls the reset actions of the individual stores.
+    // This action now calls the reset actions of the unified store and clears persona cache.
     resetAllPlaygroundState() {
-      const personaStore = usePlaygroundPersonaStore();
-      const settingsStore = usePlaygroundSettingsStore();
-      const scriptStore = usePlaygroundScriptStore();
-      const audioStore = usePlaygroundAudioStore();
+      const unifiedStore = usePlaygroundUnifiedStore();
+      const personaCache = usePersonaCache();
 
-      personaStore.personas = []; // Explicitly reset, or call a resetPersonaState action if created
-      personaStore.personasLoading = false;
-      personaStore.selectedPersonaIdForHighlighting = null;
+      // 重置统一store
+      unifiedStore.resetPlaygroundState();
       
-      settingsStore.resetPodcastSettings();
-      scriptStore.resetScriptState();
-      audioStore.resetAudioState();
-      audioStore.setPodcastId(null); // Explicitly reset podcastId
+      // 刷新persona缓存
+      personaCache.invalidateCache();
 
       toast.info("Playground has been reset.", {
         description: "All personas, settings, script, and audio data have been cleared.",
       });
 
       // localStorage interaction might need to be re-evaluated.
-      // If each store handles its own persistence, this global one might not be needed.
-      // Or, it could orchestrate saving/loading for all.
       if (process.client) {
         localStorage.removeItem("playgroundState"); // Old key, might need new keys per store
-        // localStorage.removeItem("playgroundPersonaState");
-        // localStorage.removeItem("playgroundSettingsState");
-        // localStorage.removeItem("playgroundScriptState");
-        // localStorage.removeItem("playgroundAudioState");
       }
     },
 
@@ -78,15 +71,8 @@ export const usePlaygroundStore = defineStore("playground", {
     /*
     saveAllStateToLocalStorage() {
       if (process.client) {
-        const personaStore = usePlaygroundPersonaStore();
-        const settingsStore = usePlaygroundSettingsStore();
-        const scriptStore = usePlaygroundScriptStore();
-        const audioStore = usePlaygroundAudioStore();
-
-        localStorage.setItem("playgroundPersonaState", JSON.stringify(personaStore.$state));
-        localStorage.setItem("playgroundSettingsState", JSON.stringify(settingsStore.$state));
-        localStorage.setItem("playgroundScriptState", JSON.stringify(scriptStore.$state));
-        localStorage.setItem("playgroundAudioState", JSON.stringify(audioStore.$state));
+        const unifiedStore = usePlaygroundUnifiedStore();
+        localStorage.setItem("playgroundUnifiedState", JSON.stringify(unifiedStore.$state));
         toast.info("Playground state saved to local storage.");
       }
     },
@@ -95,13 +81,13 @@ export const usePlaygroundStore = defineStore("playground", {
     // Example of an action that might coordinate across stores:
     // async initializeNewPodcastWorkflow(initialSettings: Partial<FullPodcastSettings>) {
     //   this.resetAllPlaygroundState();
-    //   const settingsStore = usePlaygroundSettingsStore();
-    //   settingsStore.updateFullPodcastSettings(initialSettings);
+    //   const unifiedStore = usePlaygroundUnifiedStore();
+    //   unifiedStore.updatePodcastSettings(initialSettings);
     //   // ... any other setup
     // }
 
     // All other specific actions (fetchPersonas, generateScript, synthesizeAllSegmentsConcurrently, etc.)
-    // have been moved to their respective stores.
-    // Components will now import and use those stores directly for those actions.
+    // have been moved to the unified store.
+    // Components will now import and use the unified store directly for those actions.
   },
 });

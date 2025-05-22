@@ -43,6 +43,18 @@ export const usePlaygroundUnifiedStore = defineStore('playgroundUnified', {
     isLoading: false,
     currentStep: 1, // Or your default starting step
     error: null as string | null,
+
+    // 新增状态属性
+    audioUrl: null as string | null, // 当前音频URL (单段或预览)
+    finalAudioUrl: null as string | null, // 最终合成的播客音频URL
+    isSynthesizing: false, // 是否正在合成音频
+    podcastId: null as string | number | null, // 当前播客ID
+    createPodcastTrigger: 0, // 触发新播客创建的计数器，用于watch
+    selectedPersonaIdForHighlighting: null as number | string | null, // 用于高亮显示的角色ID
+    aiScriptGenerationStep: 0, // AI脚本生成当前步骤
+    aiScriptGenerationStepText: '', // AI脚本生成步骤描述
+    isValidating: false, // 是否正在验证脚本
+    validationResult: null as any, // 脚本验证结果
   }),
   
   getters: {
@@ -199,112 +211,338 @@ export const usePlaygroundUnifiedStore = defineStore('playgroundUnified', {
       if (!requestBody) {
         this.error = 'Failed to build API request. Host persona might be missing.';
         this.isLoading = false;
-        return;
+        return null;
       }
       
       try {
+        // Update UI to show generation progress
+        this.aiScriptGenerationStep = 1;
+        this.aiScriptGenerationStepText = '正在分析脚本内容...';
+        
+        // Call the script processing endpoint
         const response = await $fetch<PodcastCreateResponse>('/api/podcast/process/script', {
           method: 'POST',
-          body: requestBody,
+          body: requestBody
         });
+        
+        this.aiScriptGenerationStep = 2;
+        this.aiScriptGenerationStepText = '脚本处理完成';
+        
+        // Store the response
         this.apiResponse = response;
-        if (!response.success) {
-            this.error = response.message || 'Script processing failed.';
+        
+        // Update podcastId based on response
+        if (response.podcastId) {
+          this.podcastId = response.podcastId;
         }
-        // Optionally, update parsedSegments if backend modified them: this.parsedSegments = response.preparedSegments;
-      } catch (e: any) {
-        console.error('Error generating script:', e);
-        this.error = e.data?.message || e.message || 'An unknown error occurred during script generation.';
+        
+        return response;
+      } catch (error: any) {
+        console.error('Error generating script:', error);
+        this.error = error.message || '生成脚本失败';
+        
+        // Reset generation step UI
+        this.aiScriptGenerationStep = 0;
+        this.aiScriptGenerationStepText = '';
+        
+        throw error;
       } finally {
         this.isLoading = false;
       }
     },
     
-    // Action to synthesize audio via backend API
-    async synthesizeAudio() {
-      if (!this.apiResponse?.success || !this.apiResponse.podcastId || !this.apiResponse.preparedSegments) {
-        this.error = 'Cannot synthesize audio. Previous script processing step failed or returned invalid data.';
+    // Synthesize audio for all script segments
+    async synthesizeAudio(options: { validationResult?: any; podcastSettings?: any; speakerAssignments?: Record<string, any> } = {}) {
+      if (!this.podcastId) {
+        this.error = '缺少播客ID，无法合成音频。请先保存脚本。';
+        return null;
+      }
+      
+      this.isSynthesizing = true;
+      this.error = null;
+      
+      try {
+        // 使用传入的验证结果或从store中获取
+        const validationResult = options.validationResult || this.validationResult;
+        if (!validationResult || !validationResult.success) {
+          throw new Error('脚本验证数据无效或缺失');
+        }
+        
+        // 构建合成请求
+        const synthesisRequest = {
+          podcastId: this.podcastId,
+          segments: validationResult.structuredData?.script || [],
+          ttsProvider: this.podcastSettings.ttsProvider,
+          synthesisParams: this.synthesisParams,
+          speakerAssignments: options.speakerAssignments || {}
+        };
+        
+        // 调用合成API
+        const response = await $fetch('/api/podcast/process/synthesize', {
+          method: 'POST',
+          body: synthesisRequest
+        });
+        
+        this.synthesisApiResponse = response;
+        
+        // 如果响应包含audioUrl，更新状态
+        if (response && response.audioUrl) {
+          this.audioUrl = response.audioUrl;
+        }
+        
+        return response;
+      } catch (error: any) {
+        console.error('Error synthesizing audio:', error);
+        this.error = error.message || '合成音频失败';
+        throw error;
+      } finally {
+        this.isSynthesizing = false;
+      }
+    },
+    
+    // 预览所有音频片段
+    async synthesizeAudioPreviewForAllSegments(
+      validationResult: any, 
+      podcastSettings: any, 
+      speakerAssignments: Record<string, any>
+    ) {
+      if (!this.podcastId) {
+        this.error = '缺少播客ID，无法预览音频。请先保存脚本。';
+        return null;
+      }
+      
+      if (!speakerAssignments || Object.keys(speakerAssignments).length === 0) {
+        this.error = '缺少语音分配信息，无法预览音频。';
+        return null;
+      }
+      
+      try {
+        // 构建预览请求
+        const previewRequest = {
+          podcastId: this.podcastId,
+          segments: validationResult?.structuredData?.script || [],
+          ttsProvider: podcastSettings.ttsProvider || this.podcastSettings.ttsProvider,
+          synthesisParams: this.synthesisParams,
+          speakerAssignments
+        };
+        
+        // 调用预览API
+        const response = await $fetch('/api/podcast/preview-segments', {
+          method: 'POST',
+          body: previewRequest
+        });
+        
+        // 假设API返回了预览的音频URL
+        if (response && response.previewUrl) {
+          this.audioUrl = response.previewUrl;
+        }
+        
+        return response;
+      } catch (error: any) {
+        console.error('Error previewing segments:', error);
+        this.error = error.message || '预览音频失败';
+        throw error;
+      }
+    },
+    
+    // 设置最终合成的音频URL
+    setFinalAudioUrl(url: string) {
+      this.finalAudioUrl = url;
+      // 同时也更新当前audioUrl以便播放
+      this.audioUrl = url;
+    },
+    
+    // 合并所有音频片段
+    async combineAudio() {
+      if (!this.podcastId) {
+        this.error = '缺少播客ID，无法合并音频。';
+        return null;
+      }
+      
+      try {
+        const response = await $fetch('/api/podcast/combine-audio', {
+          method: 'POST',
+          body: {
+            podcastId: this.podcastId
+          }
+        });
+        
+        if (response && response.audioUrl) {
+          this.setFinalAudioUrl(response.audioUrl);
+        }
+        
+        return response;
+      } catch (error: any) {
+        console.error('Error combining audio:', error);
+        this.error = error.message || '合并音频失败';
+        throw error;
+      }
+    },
+    
+    // 保存片段时间戳
+    saveSegmentTimestamps(timestamps: any[]) {
+      if (!this.podcastId || !timestamps || timestamps.length === 0) {
         return;
       }
       
-      this.isLoading = true;
-      this.error = null;
-      this.synthesisApiResponse = null;
-      
       try {
-        // This request structure depends on your /api/podcast/process/synthesize endpoint
-        const synthesisRequest = {
-          podcastId: this.apiResponse.podcastId,
-          segments: this.apiResponse.preparedSegments.map(s => ({ // Ensure segments match expected structure
-            segmentIndex: s.segmentIndex,
-            text: s.text,
-            speakerPersonaId: s.speakerPersonaId,
-            // speakerName might not be needed by synthesize endpoint if it only uses speakerPersonaId
-          })),
-          ttsProvider: this.podcastSettings.ttsProvider,
-          synthesisParams: this.synthesisParams, 
-        };
-        
-        const response = await $fetch<any>('/api/podcast/process/synthesize', { // Replace 'any' with actual response type
-          method: 'POST',
-          body: synthesisRequest,
-        });
-        this.synthesisApiResponse = response;
-        // Handle success/failure of synthesis based on response structure
-      } catch (e: any) {
-        console.error('Error synthesizing audio:', e);
-        this.error = e.data?.message || e.message || 'An unknown error occurred during audio synthesis.';
-      } finally {
-        this.isLoading = false;
+        // 可以直接发送到后端保存，或者仅在前端处理
+        console.log(`为播客ID ${this.podcastId} 保存了 ${timestamps.length} 个时间戳`);
+        // 实际实现可能需要调用API或更新本地状态
+      } catch (error) {
+        console.error('Error saving timestamps:', error);
       }
     },
-
-    // Utility to select a Persona and update settings
+    
+    // 选择主播角色
     selectHostPersona(personaId: number) {
-        this.updatePodcastSettings({ hostPersonaId: personaId });
-        // Optional: if guest list contains new host, remove them from guests
-        if (this.podcastSettings.guestPersonaIds.includes(personaId)) {
-            this.updatePodcastSettings({
-                guestPersonaIds: this.podcastSettings.guestPersonaIds.filter(id => id !== personaId)
-            });
-        }
+      this.updatePodcastSettings({
+        hostPersonaId: personaId
+      });
+      
+      // 重新解析脚本以更新speakerPersonaId
+      this.parseScript();
     },
-
+    
+    // 添加嘉宾角色
     addGuestPersona(personaId: number) {
-        if (personaId === this.podcastSettings.hostPersonaId) return; // Cannot add host as guest
-        if (!this.podcastSettings.guestPersonaIds.includes(personaId)) {
-            this.updatePodcastSettings({ 
-                guestPersonaIds: [...this.podcastSettings.guestPersonaIds, personaId]
-            });
-        }
-    },
-
-    removeGuestPersona(personaId: number) {
+      const guests = [...this.podcastSettings.guestPersonaIds];
+      if (!guests.includes(personaId)) {
+        guests.push(personaId);
         this.updatePodcastSettings({
-            guestPersonaIds: this.podcastSettings.guestPersonaIds.filter(id => id !== personaId)
+          guestPersonaIds: guests
         });
+      }
     },
-
+    
+    // 移除嘉宾角色
+    removeGuestPersona(personaId: number) {
+      const guests = this.podcastSettings.guestPersonaIds.filter(id => id !== personaId);
+      this.updatePodcastSettings({
+        guestPersonaIds: guests
+      });
+    },
+    
+    // 重置Playground状态
     resetPlaygroundState() {
+      // 重置基本信息
       this.podcastSettings = {
         title: '',
         topic: '',
         numberOfSegments: 3,
         style: '',
         keywords: [],
-        hostPersonaId: undefined as number | undefined,
-        guestPersonaIds: [] as number[],
-        backgroundMusic: undefined as string | undefined,
-        ttsProvider: 'elevenlabs' as 'elevenlabs' | 'volcengine',
-      };
+        hostPersonaId: undefined,
+        guestPersonaIds: [],
+        backgroundMusic: undefined,
+        ttsProvider: 'elevenlabs',
+      } as FullPodcastSettings;
+      
+      // 重置脚本和段落
       this.scriptContent = '';
-      this.synthesisParams = { ...DEFAULT_SYNTHESIS_PARAMS };
       this.parsedSegments = [];
+      
+      // 重置API响应和状态
       this.apiResponse = null;
       this.synthesisApiResponse = null;
+      this.validationResult = null;
+      
+      // 重置音频相关
+      this.audioUrl = null;
+      this.finalAudioUrl = null;
+      this.podcastId = null;
+      
+      // 重置UI状态
       this.isLoading = false;
-      this.currentStep = 1;
+      this.isSynthesizing = false;
+      this.isValidating = false;
       this.error = null;
+      this.aiScriptGenerationStep = 0;
+      this.aiScriptGenerationStepText = '';
+      this.selectedPersonaIdForHighlighting = null;
+      this.currentStep = 1;
+      
+      // 增加触发器计数
+      this.createPodcastTrigger++;
+    },
+    
+    // 加载预设脚本
+    loadPresetScript(presetIdentifier: string = 'default') {
+      // 这里可以根据不同的预设标识符加载不同的脚本
+      let presetScript = '';
+      
+      switch (presetIdentifier) {
+        case 'ai_discussion':
+          presetScript = 'Host: 欢迎来到我们的AI讨论播客。\nGuest: 很高兴能来参加这次讨论。\nHost: 今天我们将谈论人工智能的未来发展。';
+          break;
+        case 'interview':
+          presetScript = 'Interviewer: 欢迎来到今天的访谈节目。\nGuest: 谢谢邀请，很高兴能来。\nInterviewer: 请问您能分享一下您的背景和经历吗？';
+          break;
+        case 'educational':
+          presetScript = 'Teacher: 欢迎来到今天的教育播客。\nStudent: 很期待今天的学习。\nTeacher: 今天我们将学习一个全新的主题。';
+          break;
+        default:
+          presetScript = 'Host: 欢迎来到我们的播客节目。\nGuest: 谢谢邀请，很高兴能来。\nHost: 让我们开始今天的讨论吧。';
+      }
+      
+      // 更新脚本内容，这会自动触发parseScript
+      this.updateScriptContent(presetScript);
+      
+      return presetScript;
+    },
+    
+    // 清除错误状态
+    clearError() {
+      this.error = null;
+    },
+    
+    // 验证当前脚本
+    async validateCurrentScript() {
+      if (!this.scriptContent.trim()) {
+        this.error = '脚本内容为空，无法验证。';
+        return null;
+      }
+      
+      this.isValidating = true;
+      this.error = null;
+      
+      try {
+        // 确保脚本已解析为段落
+        this.parseScript();
+        
+        if (this.parsedSegments.length === 0) {
+          throw new Error('无法解析脚本内容，请检查格式是否正确。');
+        }
+        
+        // 构建验证请求
+        const validationRequest = {
+          script: this.parsedSegments,
+          podcastSettings: this.podcastSettings
+        };
+        
+        // 调用验证API
+        const validationResponse = await $fetch('/api/podcast/validate-script', {
+          method: 'POST',
+          body: validationRequest
+        });
+        
+        // 保存验证结果
+        this.validationResult = validationResponse;
+        
+        // 如果验证成功且返回了podcastId，保存它
+        if (validationResponse.success && validationResponse.podcastId) {
+          this.podcastId = validationResponse.podcastId;
+        }
+        
+        return validationResponse;
+      } catch (error: any) {
+        console.error('Error validating script:', error);
+        this.error = error.message || '验证脚本失败';
+        this.validationResult = null;
+        throw error;
+      } finally {
+        this.isValidating = false;
+      }
     }
   }
 }); 

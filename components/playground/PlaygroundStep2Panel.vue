@@ -23,6 +23,7 @@
 <script setup lang="ts">
 import { ref, computed } from 'vue';
 import VoicePerformanceSettings from './VoicePerformanceSettings.vue'; // Assuming it's in the same directory or adjust path
+import { usePlaygroundUnifiedStore } from '~/stores/playgroundUnified';
 
 interface SynthProgress {
   synthesized: number; // Changed from number | undefined
@@ -45,6 +46,7 @@ interface Props {
 const props = defineProps<Props>();
 const emit = defineEmits(['update:scriptContent']);
 
+const unifiedStore = usePlaygroundUnifiedStore();
 const voicePerformanceSettingsRef = ref(null);
 
 const getAssignedVoicesString = () => {
@@ -85,5 +87,10 @@ defineExpose({
   totalSegmentsCount: computed(() => {
     return (voicePerformanceSettingsRef.value as any)?.totalSegmentsCount;
   }),
+  updateSegmentStats: (synthesized: number, total: number) => {
+    if (voicePerformanceSettingsRef.value && (voicePerformanceSettingsRef.value as any).updateSegmentStats) {
+      (voicePerformanceSettingsRef.value as any).updateSegmentStats(synthesized, total);
+    }
+  }
 });
 </script>

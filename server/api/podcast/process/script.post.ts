@@ -1,8 +1,4 @@
 import { createError, defineEventHandler, readBody } from "h3";
-import {
-  processPodcastScript,
-  type PreparedSegmentForSynthesis,
-} from "../../../utils/podcastScriptProcessor";
 import { serverSupabaseClient } from '#supabase/server'; // For database interaction
 import type { Database } from '~/types/supabase'; // For database types
 import { createPodcastServer, addPodcastSegmentsServer } from '~/server/utils/podcastDatabaseServerUtils'; // Import server-side database utils

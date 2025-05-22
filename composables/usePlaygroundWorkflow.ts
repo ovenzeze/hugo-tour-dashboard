@@ -1,9 +1,8 @@
 import { ref, computed, type Ref, nextTick } from 'vue';
 import { usePlaygroundStore } from '@/stores/playground'; // Main store for resetAll
-import { usePlaygroundSettingsStore } from '@/stores/playgroundSettings';
-import { usePlaygroundScriptStore } from '@/stores/playgroundScript';
-import { usePlaygroundPersonaStore, type Persona as StorePersona } from '@/stores/playgroundPersona'; // Persona type
-import { usePlaygroundAudioStore } from '@/stores/playgroundAudio';
+import { usePlaygroundUnifiedStore } from '@/stores/playgroundUnified';
+import { usePersonaCache } from '~/composables/usePersonaCache';
+import type { Persona } from '~/types/persona';
 import { usePodcastCoverGenerator } from './usePodcastCoverGenerator'; // Import
 import { toast } from 'vue-sonner';
 
@@ -23,10 +22,8 @@ export function usePlaygroundWorkflow(
   parseScriptToSegmentsFromScriptComposable: (content: string) => Array<{ speaker: string, text: string }> // Renamed
 ) {
   const mainPlaygroundStore = usePlaygroundStore();
-  const settingsStore = usePlaygroundSettingsStore();
-  const scriptStore = usePlaygroundScriptStore();
-  const personaStore = usePlaygroundPersonaStore();
-  const audioStore = usePlaygroundAudioStore();
+  const unifiedStore = usePlaygroundUnifiedStore();
+  const personaCache = usePersonaCache();
   const { generateAndSavePodcastCover } = usePodcastCoverGenerator(); // Instantiate
   
   const podcastPerformanceConfig = ref<any>(null); // Consider defining a specific type
@@ -78,7 +75,7 @@ export function usePlaygroundWorkflow(
 
   async function handleProceedWithoutValidation() {
     await nextTick(); // Ensure store updates are processed before validation
-    const localPodcastSettings = settingsStore.podcastSettings;
+    const localPodcastSettings = unifiedStore.podcastSettings;
     if (!localPodcastSettings?.title) {
       toast.error('Please set the podcast title.');
       return;
@@ -90,22 +87,20 @@ export function usePlaygroundWorkflow(
       toast.error('Please select a valid host.');
       return;
     }
-    if (!scriptStore.textToSynthesize) {
+    if (!unifiedStore.scriptContent) {
       toast.error('Script content is empty.');
       return;
     }
-    const hostPersona = personaStore.personas.find(
-      (p: StorePersona) => p.persona_id === numericHostId
-    );
+    const hostPersona = personaCache.getPersonaById(numericHostId);
     if (!hostPersona) {
       toast.error('Selected host not found.');
       return;
     }
     const guestPersonas = (localPodcastSettings.guestPersonaIds || [])
-        .map(id => personaStore.personas.find(p => p.persona_id === Number(id)))
-        .filter(p => p !== undefined) as StorePersona[];
+        .map(id => personaCache.getPersonaById(Number(id)))
+        .filter((p): p is Persona => p !== undefined);
 
-    const scriptSegments = parseScriptToSegmentsFromScriptComposable(scriptStore.textToSynthesize);
+    const scriptSegments = parseScriptToSegmentsFromScriptComposable(unifiedStore.scriptContent);
     if (scriptSegments.length === 0) {
       toast.error('Unable to parse script. Ensure format is "Role: Text Content".');
       return;
@@ -114,7 +109,7 @@ export function usePlaygroundWorkflow(
     isProcessingWorkflowStep.value = true; // Use local processing state
     try {
       // Call the refactored validateScript from scriptStore
-      const validationResult = await scriptStore.validateScript(localPodcastSettings, hostPersona, guestPersonas);
+      const validationResult = await unifiedStore.validateCurrentScript();
       
       if (!validationResult || !validationResult.success) {
         const errorMessage = validationResult?.error || validationResult?.message || 'Script validation failed.';
@@ -130,7 +125,7 @@ export function usePlaygroundWorkflow(
             name: hostPersona.name,
             voice_model_identifier: hostPersona.voice_model_identifier || "",
         },
-        guestPersonas: guestPersonas.map((p: StorePersona) => ({
+        guestPersonas: guestPersonas.map((p: Persona) => ({
             id: p.persona_id,
             name: p.name,
             voice_model_identifier: p.voice_model_identifier || "",
@@ -138,7 +133,7 @@ export function usePlaygroundWorkflow(
       };
       const apiRequestBody = {
         title: localPodcastSettings.title, // Changed from podcastTitle
-        rawScript: scriptStore.textToSynthesize, // Use rawScript for the API
+        rawScript: unifiedStore.scriptContent, // Use rawScript for the API
         personas: personasForApi,
         // hostPersonaId: Number(localPodcastSettings.hostPersonaId), // Already have hostPersona
         preferences: { // Match ValidateScriptRequest structure
@@ -168,7 +163,7 @@ export function usePlaygroundWorkflow(
 
 
       // Ensure structuredData exists and has the expected script format
-      const structuredScript = scriptStore.validationResult?.structuredData?.script;
+      const structuredScript = unifiedStore.validationResult?.structuredData?.script;
       const processedScriptForApi = Array.isArray(structuredScript)
         ? structuredScript.map(segment => ({
             speaker: segment.name || segment.role || 'Unknown', // Prioritize name, then role
@@ -176,12 +171,12 @@ export function usePlaygroundWorkflow(
           }))
         : [];
 
-      if (processedScriptForApi.length === 0 && scriptStore.textToSynthesize) {
+      if (processedScriptForApi.length === 0 && unifiedStore.scriptContent) {
         // Fallback or error if structured script is not available/valid but raw text exists
         // This might indicate an issue in the validation/structuring step
         console.warn('[usePlaygroundWorkflow] Structured script missing or invalid, attempting to use parsed raw script.');
         // Attempt to parse from raw text again as a last resort, though ideally structuredData.script should be correct
-        const rawParsedSegments = parseScriptToSegmentsFromScriptComposable(scriptStore.textToSynthesize);
+        const rawParsedSegments = parseScriptToSegmentsFromScriptComposable(unifiedStore.scriptContent);
         if (rawParsedSegments.length > 0) {
             processedScriptForApi.push(...rawParsedSegments.map(s => ({ speaker: s.speaker, text: s.text })));
         } else {
@@ -193,10 +188,10 @@ export function usePlaygroundWorkflow(
 
 
       const saveRequestBody = {
-        podcastTitle: localPodcastSettings.title || scriptStore.validationResult?.structuredData?.podcastTitle || "Untitled Podcast",
+        podcastTitle: localPodcastSettings.title || unifiedStore.validationResult?.structuredData?.podcastTitle || "Untitled Podcast",
         script: processedScriptForApi,
         personas: personasForApi, // Use the correctly structured personas object
-        language: localPodcastSettings.language || scriptStore.validationResult?.structuredData?.language || 'en',
+        language: localPodcastSettings.language || unifiedStore.validationResult?.structuredData?.language || 'en',
         topic: localPodcastSettings.topic,
         host_persona_id: localPodcastSettings.hostPersonaId ? Number(localPodcastSettings.hostPersonaId) : undefined,
         // guest_persona_ids: localPodcastSettings.guestPersonaIds?.map(id => Number(id)), // If API expects array of IDs
@@ -243,7 +238,7 @@ export function usePlaygroundWorkflow(
       }
 
       if (apiResult.success && apiResult.podcastId) { // Changed apiResult.data?.podcastId to apiResult.podcastId
-        audioStore.setPodcastId(apiResult.podcastId); // Changed apiResult.data.podcastId to apiResult.podcastId
+        unifiedStore.podcastId = apiResult.podcastId;
         toast.success('Script saved to database successfully. Proceeding to voice assignment.');
         goToStep(currentStepIndex.value + 1);
         
@@ -285,11 +280,11 @@ export function usePlaygroundWorkflow(
     // For now, assuming this uses the store's validation which might be fine.
     // If it needs local state or specific UI feedback tied to this composable, adjust accordingly.
     isProcessingWorkflowStep.value = true;
-    const localPodcastSettings = settingsStore.podcastSettings;
-    const hostPersona = localPodcastSettings.hostPersonaId ? personaStore.personas.find(p => p.persona_id === Number(localPodcastSettings.hostPersonaId)) : undefined;
+    const localPodcastSettings = unifiedStore.podcastSettings;
+    const hostPersona = localPodcastSettings.hostPersonaId ? personaCache.getPersonaById(Number(localPodcastSettings.hostPersonaId)) : undefined;
     const guestPersonas = (localPodcastSettings.guestPersonaIds || [])
-        .map(id => personaStore.personas.find(p => p.persona_id === Number(id)))
-        .filter(p => p !== undefined) as StorePersona[];
+        .map(id => personaCache.getPersonaById(Number(id)))
+        .filter(p => p !== undefined) as Persona[];
 
     if (!hostPersona) {
         toast.error("Host persona not found for validation.");
@@ -297,10 +292,10 @@ export function usePlaygroundWorkflow(
         return;
     }
 
-    const result = await scriptStore.validateScript(localPodcastSettings, hostPersona, guestPersonas);
+    const result = await unifiedStore.validateCurrentScript();
     if (result && result.success) {
       toast.success('Script validated successfully.');
-      if (scriptStore.validationResult?.structuredData) {
+      if (unifiedStore.validationResult?.structuredData) {
         console.log('[usePlaygroundWorkflow] Validation successful with structured data');
       }
     } else {

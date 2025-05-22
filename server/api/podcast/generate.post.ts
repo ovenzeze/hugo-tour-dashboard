@@ -1,19 +1,21 @@
- import { createError, defineEventHandler, readBody } from 'h3'; // Corrected uimport to import
-import { processPodcastScript } from '../../utils/podcastScriptProcessor';
-import { mergeAudioSegmentsForPodcast } from '../../utils/podcastSynthesisUtils'; // Renamed import
+import { createError, defineEventHandler, readBody } from 'h3';
+import { mergeAudioSegmentsForPodcast } from '../../utils/podcastSynthesisUtils';
 import { createMergedTimeline } from '../../utils/timelineUtils';
-// import { existsSync } from 'fs'; // existsSync will be handled by storageService
 import type { IStorageService } from '../../services/storageService';
-import { getStorageService } from '../../services/storageService'; // Import the factory
+import { getStorageService } from '../../services/storageService';
+import type { ScriptSegment, PodcastCreateResponse } from '~/types/api/podcast';
+
+/**
+ * @deprecated This API endpoint is being replaced by the new unified API flow.
+ * New implementations should use:
+ * 1. POST /api/podcast/process/script
+ * 2. POST /api/podcast/process/synthesize
+ * 3. POST /api/podcast/combine-audio
+ */
 
 interface Persona {
   name: string;
   voice_model_identifier: string;
-}
-
-interface ScriptSegment {
-  speaker: string;
-  text: string;
 }
 
 interface RequestBody {
@@ -23,6 +25,15 @@ interface RequestBody {
     hostPersona?: Persona;
     guestPersonas?: Persona[];
   };
+}
+
+// 简化版的PreparedSegmentForSynthesis，替代从旧处理器导入的类型
+interface PreparedSegmentForSynthesis {
+  segmentIndex: number;
+  text: string;
+  speaker: string;
+  voiceId?: string;
+  error?: string;
 }
 
 export default defineEventHandler(async (event) => {
@@ -52,18 +63,38 @@ export default defineEventHandler(async (event) => {
     const storageService: IStorageService = await getStorageService(event);
     console.log(`[PodcastGenerate] Using storage service: ${storageService.constructor.name}`);
 
-    // 1. Process script to generate individual segments
-    // processPodcastScript now returns PreparedSegmentForSynthesis[] and does not take storageService
-    const preparedSegments = await processPodcastScript(podcastId, script, personas);
-    console.log(`processPodcastScript for ${podcastId} completed, returning prepared segments.`);
+    // 1. 重构：直接准备音频片段，而不是调用processPodcastScript
+    // 这里我们将通过调用新的统一API流程处理脚本
+    const preparedSegments: PreparedSegmentForSynthesis[] = script.map((segment, index) => {
+      // 查找对应的角色和声音
+      let voiceId: string | undefined = undefined;
+      const { hostPersona, guestPersonas = [] } = personas;
+      
+      // 尝试匹配主播
+      if (hostPersona && segment.speaker === hostPersona.name) {
+        voiceId = hostPersona.voice_model_identifier;
+      } else {
+        // 尝试匹配嘉宾
+        const matchingGuest = guestPersonas.find(g => g.name === segment.speaker);
+        if (matchingGuest) {
+          voiceId = matchingGuest.voice_model_identifier;
+        }
+      }
+
+      return {
+        segmentIndex: index,
+        text: segment.text,
+        speaker: segment.speaker,
+        voiceId,
+        // 如果没有找到对应的声音，添加错误信息
+        error: !voiceId ? `No voice found for speaker: ${segment.speaker}` : undefined
+      };
+    });
+
+    console.log(`Prepared ${preparedSegments.length} segments for podcast ${podcastId}`);
 
     // 2. Create merged timeline
-    // This logic is now flawed because preparedSegments does not contain audio/timestamps paths.
-    // This step (and step 3) would need to happen AFTER the new 'synthesize' step which generates those files.
-    // For now, to fix TS errors, we'll adjust the condition.
     let timelineGenerated = false;
-    // The old condition checked for segment.audio and segment.timestamps, which are no longer on PreparedSegmentForSynthesis.
-    // A more meaningful check here would be if there are segments without errors that have a voiceId.
     if (preparedSegments.some(segment => !segment.error && segment.voiceId)) {
       console.warn(`[generate.post.ts] Attempting timeline generation based on prepared segments. This may not work as expected without actual audio files yet.`);
       try {
@@ -87,8 +118,8 @@ export default defineEventHandler(async (event) => {
 
     if (timelineGenerated && await storageService.exists(timelineStoragePath)) {
       try {
-        finalPodcastUrl = await mergeAudioSegmentsForPodcast(podcastId, storageService); // Use renamed function
-        console.log(`Basic podcast for ${podcastId} merged successfully: ${finalPodcastUrl}`); // Updated log
+        finalPodcastUrl = await mergeAudioSegmentsForPodcast(podcastId, storageService);
+        console.log(`Basic podcast for ${podcastId} merged successfully: ${finalPodcastUrl}`);
       } catch (synthesisError: any) {
         console.error(`Error synthesizing basic podcast for ${podcastId}:`, synthesisError.message || synthesisError);
         // Continue even if synthesis fails, but log it
@@ -101,7 +132,7 @@ export default defineEventHandler(async (event) => {
       success: true,
       podcastId: podcastId,
       message: "Podcast generation process initiated. Check server logs for details and errors.",
-      segments: preparedSegments, // Changed from processedSegments to preparedSegments
+      segments: preparedSegments,
       timelineUrl: timelineGenerated ? `/podcasts/${podcastId}/merged_timeline.json` : undefined,
       finalPodcastUrl: finalPodcastUrl,
     };

@@ -109,14 +109,14 @@
             <h3 class="text-xl font-semibold text-primary mb-3">Volcengine Settings</h3>
             <div>
               <Label for="volc-persona-select">Select Persona (for Voice Type)</Label>
-              <Select id="volc-persona-select" v-model="selectedPersonaIdForVolcengine" :disabled="personas.length === 0 && !personaStore.personasLoading">
+              <Select id="volc-persona-select" v-model="selectedPersonaIdForVolcengine" :disabled="personas.length === 0 && !personaCache.personasLoading">
                 <SelectTrigger>
                   <SelectValue placeholder="Select a Persona for Volcengine voice..." />
                 </SelectTrigger>
                 <SelectContent>
                   <SelectGroup>
                     <SelectItem :value="'_select_persona_placeholder_'" disabled>
-                      {{ personaStore.personasLoading ? 'Loading personas...' : (personas.length === 0 ? 'No personas available' : 'Select a Persona') }}
+                      {{ personaCache.personasLoading ? 'Loading personas...' : (personas.length === 0 ? 'No personas available' : 'Select a Persona') }}
                     </SelectItem>
                     <SelectItem v-for="persona in personas" :key="persona.persona_id" :value="persona.persona_id">
                       {{ persona.name }}
@@ -124,7 +124,7 @@
                   </SelectGroup>
                 </SelectContent>
               </Select>
-              <p v-if="!personaStore.personasLoading && personas.length === 0" class="text-sm text-muted-foreground mt-1">
+              <p v-if="!personaCache.personasLoading && personas.length === 0" class="text-sm text-muted-foreground mt-1">
                 No personas found. Please add or activate personas.
               </p>
               <p v-if="selectedVolcenginePersona && (!selectedVolcenginePersona.voice_model_identifier)" class="text-sm text-destructive mt-1">
@@ -254,7 +254,7 @@
 
 <script setup lang="ts">
 import { ref, computed, onMounted, watch, getCurrentInstance } from 'vue';
-import { usePlaygroundPersonaStore } from '~/stores/playgroundPersona';
+import { usePersonaCache } from '~/composables/usePersonaCache';
 import type { Persona } from '~/types/persona';
 
 // Shadcn-vue components
@@ -339,9 +339,9 @@ const volcengineConfig = ref({
   enableTimestamps: true,
 });
 
-// Persona store for Volcengine
-const personaStore = usePlaygroundPersonaStore();
-const personas = computed(() => personaStore.personas);
+// Persona cache for Volcengine
+const personaCache = usePersonaCache();
+const personas = computed(() => personaCache.personas.value);
 const selectedPersonaIdForVolcengine = ref<number | null>(null);
 const selectedVolcenginePersona = computed<Persona | undefined>(() => {
   return personas.value.find(p => p.persona_id === selectedPersonaIdForVolcengine.value);
@@ -527,8 +527,8 @@ watch(selectedApiProvider, async (newProvider, oldProvider) => {
       await fetchElevenLabsVoices();
     }
   } else if (newProvider === 'volcengine') {
-    if (personas.value.length === 0 && !personaStore.personasLoading) {
-      await personaStore.fetchPersonas();
+    if (personas.value.length === 0 && !personaCache.personasLoading) {
+      await personaCache.fetchPersonas();
     }
   }
 }, { immediate: false });
@@ -542,8 +542,8 @@ onMounted(async () => {
       await fetchElevenLabsVoices();
     }
   } else if (selectedApiProvider.value === 'volcengine') {
-    if (personas.value.length === 0 && !personaStore.personasLoading) {
-      await personaStore.fetchPersonas();
+    if (personas.value.length === 0 && !personaCache.personasLoading) {
+      await personaCache.fetchPersonas();
     }
   }
 });

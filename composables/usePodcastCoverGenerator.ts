@@ -1,8 +1,8 @@
-import { usePlaygroundSettingsStore } from '~/stores/playgroundSettings';
+import { usePlaygroundUnifiedStore } from '~/stores/playgroundUnified';
 import { toast } from 'vue-sonner'; // Optional: for non-blocking notifications
 
 export function usePodcastCoverGenerator() {
-  const settingsStore = usePlaygroundSettingsStore(); // To potentially update local state if needed
+  const unifiedStore = usePlaygroundUnifiedStore(); // 使用新的统一Store
 
   const generateAndSavePodcastCover = async (
     podcastId: string,
@@ -95,8 +95,8 @@ export function usePodcastCoverGenerator() {
 
       // Optional: Update local state if the podcast list is displayed elsewhere
       // and needs to reactively show the new cover.
-      // This might involve calling a method in settingsStore or another relevant store.
-      // For example: settingsStore.updatePodcastCoverLocally(podcastId, imageUrl);
+      // This might involve calling a method in unifiedStore or another relevant store.
+      // For example: unifiedStore.updatePodcastCoverLocally(podcastId, imageUrl);
       // Or, if the user navigates to the podcast list, it should refetch and show the new cover.
 
     } catch (error) {

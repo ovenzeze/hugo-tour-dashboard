@@ -1,7 +1,8 @@
 // Fixed import statement
-import { usePlaygroundPersonaStore, type Persona } from '../stores/playgroundPersona';
-import { usePlaygroundScriptStore } from '../stores/playgroundScript';
+import { usePlaygroundUnifiedStore } from '../stores/playgroundUnified';
+import { usePersonaCache } from '../composables/usePersonaCache';
 import { toast } from 'vue-sonner';
+import type { Persona } from '~/types/persona';
 import type { Tables } from '~/types/supabase';
 import { useRuntimeConfig } from 'nuxt/app';
 
@@ -25,8 +26,8 @@ export function useVoiceManagement(
   selectedHostPersona: Ref<Persona | undefined>,
   selectedGuestPersonas: Ref<Persona[]>
 ) {
-  const personaStore = usePlaygroundPersonaStore();
-  const scriptStore = usePlaygroundScriptStore();
+  const unifiedStore = usePlaygroundUnifiedStore();
+  const personaCache = usePersonaCache();
   const runtimeConfig = useRuntimeConfig();
 
   const speakerAssignments = ref<Record<string, { voiceId: string; provider: string }>>({});
@@ -65,7 +66,7 @@ export function useVoiceManagement(
   function assignVoicesToSpeakers() {
     console.info('[useVoiceManagement] Entering assignVoicesToSpeakers.');
     const localSpeakers = speakersInScript.value; 
-    const localPersonas = personaStore.personas;
+    const localPersonas = personaCache.personas.value;
 
     if (localPersonas.length === 0) {
       console.warn('[useVoiceManagement] Personas not loaded yet. Skipping voice assignment.');
@@ -169,14 +170,14 @@ export function useVoiceManagement(
     // speakersInScript will update, which in turn triggers the watch below
   }, { deep: true });
 
-  watch(() => personaStore.personas, (newPersonas, oldPersonas) => {
+  watch(() => personaCache.personas.value, (newPersonas, oldPersonas) => {
     if (newPersonas.length > 0) {
       console.log('[useVoiceManagement] Personas loaded or changed. Re-assigning voices.');
       assignVoicesToSpeakers();
     }
   }, { immediate: true, deep: true });
 
-  watch([speakersInScript, () => personaStore.personas], () => {
+  watch([speakersInScript, () => personaCache.personas.value], () => {
     console.log('[useVoiceManagement] speakersInScript or personas changed. Re-assigning voices.');
     assignVoicesToSpeakers();
   }, { deep: true });

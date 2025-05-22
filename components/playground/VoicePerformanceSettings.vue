@@ -5,12 +5,12 @@
       
       <div class="flex-1 flex items-center space-x-4 px-4">
         <div class="flex items-center gap-2 flex-1" role="group" aria-labelledby="temperature-label">
-          <Label id="temperature-label" class="whitespace-nowrap text-sm" for="temperature-slider">Temperature: {{ audioStore.synthesisParams.temperature.toFixed(1) }}</Label>
+          <Label id="temperature-label" class="whitespace-nowrap text-sm" for="temperature-slider">Temperature: {{ unifiedStore.synthesisParams.temperature.toFixed(1) }}</Label>
           <Slider
             id="temperature-slider"
             class="flex-1"
-            :model-value="audioStore.synthesisParams.temperatureArray"
-            @update:model-value="(value: number[] | undefined) => { if (value && value.length > 0) audioStore.updateSynthesisParams({ temperature: value[0] }) }"
+            :model-value="temperatureArray"
+            @update:model-value="(value: number[] | undefined) => { if (value && value.length > 0) unifiedStore.updateSynthesisParams({ temperature: value[0] }) }"
             :min="0"
             :max="1"
             :step="0.1"
@@ -21,12 +21,12 @@
         </div>
         
         <div class="flex items-center gap-2 flex-1" role="group" aria-labelledby="speed-label">
-          <Label id="speed-label" class="whitespace-nowrap text-sm" for="speed-slider">Speed: {{ audioStore.synthesisParams.speed.toFixed(1) }}x</Label>
+          <Label id="speed-label" class="whitespace-nowrap text-sm" for="speed-slider">Speed: {{ unifiedStore.synthesisParams.speed.toFixed(1) }}x</Label>
           <Slider
             id="speed-slider"
             class="flex-1"
-            :model-value="audioStore.synthesisParams.speedArray"
-            @update:model-value="(value: number[] | undefined) => { if (value && value.length > 0) audioStore.updateSynthesisParams({ speed: value[0] }) }"
+            :model-value="speedArray"
+            @update:model-value="(value: number[] | undefined) => { if (value && value.length > 0) unifiedStore.updateSynthesisParams({ speed: value[0] }) }"
             :min="0.5"
             :max="2"
             :step="0.1"
@@ -103,10 +103,9 @@
 <script setup lang="ts">
 import { computed, onMounted, ref, watch, toRef, nextTick, onBeforeUnmount } from 'vue';
 import { toast } from 'vue-sonner';
-import { usePlaygroundAudioStore } from '../../stores/playgroundAudio';
-import { usePlaygroundPersonaStore, type Persona } from '../../stores/playgroundPersona';
-import { usePlaygroundSettingsStore } from '../../stores/playgroundSettings';
-import { usePlaygroundScriptStore } from '../../stores/playgroundScript';
+import { usePlaygroundUnifiedStore } from '../../stores/playgroundUnified';
+import type { Persona } from '../../types/persona';
+import { usePersonaCache } from '../../composables/usePersonaCache';
 
 import { useSegmentPreview, type PreviewableSegment } from '../../composables/useSegmentPreview';
 import { useVoiceManagement } from '../../composables/useVoiceManagement';
@@ -123,14 +122,15 @@ const props = defineProps<{
 // If 'update:scriptContent', 'next', 'back' are confirmed unused, they can be removed later.
 const emit = defineEmits(['update:scriptContent', 'next', 'back', 'update:isValid', 'update:settings']);
 
-const audioStore = usePlaygroundAudioStore();
-const personaStore = usePlaygroundPersonaStore();
-const settingsStore = usePlaygroundSettingsStore();
-const scriptStore = usePlaygroundScriptStore();
+const unifiedStore = usePlaygroundUnifiedStore();
+const personaCache = usePersonaCache();
 
 const scriptContentRef = toRef(props, 'scriptContent');
 
-const scriptLanguage = computed(() => scriptStore.validationResult?.structuredData?.language);
+const temperatureArray = computed(() => [unifiedStore.synthesisParams.temperature]);
+const speedArray = computed(() => [unifiedStore.synthesisParams.speed]);
+
+const scriptLanguage = computed(() => unifiedStore.validationResult?.structuredData?.language);
 
 // Optional: For a more user-friendly display of language names
 const scriptLanguageDisplayName = computed(() => {
@@ -164,27 +164,27 @@ const parsedScriptSegments = computed(() => {
 });
 
 const selectedHostPersona = computed(() => {
-  if (!settingsStore.podcastSettings.hostPersonaId) return undefined;
-  return personaStore.personas.find((p: Persona) => p.persona_id === Number(settingsStore.podcastSettings.hostPersonaId));
+  if (!unifiedStore.podcastSettings.hostPersonaId) return undefined;
+  return personaCache.getPersonaById(unifiedStore.podcastSettings.hostPersonaId);
 });
 
 const selectedGuestPersonas = computed(() => {
-  if (!settingsStore.podcastSettings.guestPersonaIds || settingsStore.podcastSettings.guestPersonaIds.length === 0) return [];
-  return settingsStore.podcastSettings.guestPersonaIds
-    .map((id: string | number | undefined) => personaStore.personas.find((p: Persona) => p.persona_id === Number(id)))
+  if (!unifiedStore.podcastSettings.guestPersonaIds || unifiedStore.podcastSettings.guestPersonaIds.length === 0) return [];
+  return unifiedStore.podcastSettings.guestPersonaIds
+    .map((id: string | number | undefined) => personaCache.getPersonaById(id))
     .filter((p: Persona | undefined): p is Persona => p !== undefined);
 });
 
 const getPersonaForSpeaker = (speakerTag: string) => {
-  const validationInfo = scriptStore.validationResult?.structuredData?.voiceMap?.[speakerTag];
+  const validationInfo = unifiedStore.validationResult?.structuredData?.voiceMap?.[speakerTag];
   if (validationInfo?.personaId) {
     const personaId = Number(validationInfo.personaId);
-    const matchingPersona = personaStore.personas.find(p => p.persona_id === personaId);
+    const matchingPersona = personaCache.getPersonaById(personaId);
     if (matchingPersona) return matchingPersona;
   }
   
-  if (scriptStore.validationResult?.structuredData?.script) {
-    const scriptEntry = scriptStore.validationResult.structuredData.script.find(
+  if (unifiedStore.validationResult?.structuredData?.script) {
+    const scriptEntry = unifiedStore.validationResult.structuredData.script.find(
       entry => entry.name === speakerTag
     );
     if (scriptEntry) {
@@ -218,14 +218,14 @@ const getPersonaForSpeaker = (speakerTag: string) => {
 const enhancedScriptSegments = computed(() => {
   return parsedScriptSegments.value.map(segment => {
     const persona = getPersonaForSpeaker(segment.speakerTag);
-    const validationInfo = scriptStore.validationResult?.structuredData?.voiceMap?.[segment.speakerTag];
+    const validationInfo = unifiedStore.validationResult?.structuredData?.voiceMap?.[segment.speakerTag];
 
     let effectiveVoiceId = speakerAssignments.value[segment.speakerTag];
     let effectiveVoiceName = 'Assign Voice';
-    let assignedProvider = persona?.tts_provider || settingsStore.selectedProvider || 'elevenlabs';
+    let assignedProvider = persona?.tts_provider || unifiedStore.selectedProvider || 'elevenlabs';
     let roleType: 'host' | 'guest' = 'guest';
-    if (scriptStore.validationResult?.structuredData?.script) {
-      const scriptEntry = scriptStore.validationResult.structuredData.script.find(
+    if (unifiedStore.validationResult?.structuredData?.script) {
+      const scriptEntry = unifiedStore.validationResult.structuredData.script.find(
         entry => entry.name === segment.speakerTag
       );
       if (scriptEntry) roleType = scriptEntry.role as 'host' | 'guest';
@@ -280,12 +280,12 @@ const { speakerAssignments } = useVoiceManagement(
 
 const previewableEnhancedSegments = computed<PreviewableSegment[]>(() => {
   // Guard against missing data
-  if (!parsedScriptSegments.value || !parsedScriptSegments.value.length || !personaStore.personas.value || !personaStore.personas.value.length) {
+  if (!parsedScriptSegments.value || !parsedScriptSegments.value.length || !personaCache.personas.value || !personaCache.personas.value.length) {
     return [];
   }
 
   return parsedScriptSegments.value.map((parserSegment, index) => {
-    const persona = personaStore.personas.value.find((p: Persona) => p.name === parserSegment.speakerTag);
+    const persona = personaCache.getPersonaByName(parserSegment.speakerTag);
     const roleType = getRoleType(parserSegment.speakerTag);
     const personaId = persona ? String(persona.persona_id) : undefined;
 
@@ -383,17 +383,17 @@ const canProceedToPreviewAll = computed(() => {
 
 // Helper to determine roleType - DEFINED AT SCRIPT SETUP SCOPE
 function getRoleType(speakerTag: string): 'host' | 'guest' {
-  // Ensure personaStore.hostPersona and its value are accessed correctly
-  const host = personaStore.hostPersona; // host is Ref<Persona | undefined>
-  if (host && host.value && host.value.name === speakerTag) {
+  // 使用personaCache和unifiedStore
+  if (selectedHostPersona.value && selectedHostPersona.value.name === speakerTag) {
     return 'host';
   }
   return 'guest'; 
 }
 
 onMounted(() => {
-  if (!personaStore.personas.value || personaStore.personas.value.length === 0) {
-    personaStore.fetchPersonas();
+  // 使用personaCache代替personaStore
+  if (!personaCache.personas.value || personaCache.personas.value.length === 0) {
+    personaCache.fetchPersonas();
   }
   // 不再检查 availableVoices，因为它已被移除
   if (false) {
@@ -408,7 +408,7 @@ defineExpose({
   isFormValid: canProceed,
   getPerformanceConfig: () => ({
     speakerAssignments: speakerAssignments.value,
-    // Note: synthesisParams are now managed by audioStore, not directly part of these settings
+    // Note: synthesisParams are now managed by unifiedStore, not directly part of these settings
   }),
   generateAudio: handlePreviewAllSegments, 
   areAllSegmentsPreviewed: computed(() => {
@@ -424,27 +424,27 @@ defineExpose({
 
 // 新增键盘导航方法
 const decreaseTemperature = () => {
-  const currentTemp = audioStore.synthesisParams.temperature;
+  const currentTemp = unifiedStore.synthesisParams.temperature;
   const newTemp = Math.max(0, currentTemp - 0.1);
-  audioStore.updateSynthesisParams({ temperature: newTemp });
+  unifiedStore.updateSynthesisParams({ temperature: newTemp });
 };
 
 const increaseTemperature = () => {
-  const currentTemp = audioStore.synthesisParams.temperature;
+  const currentTemp = unifiedStore.synthesisParams.temperature;
   const newTemp = Math.min(1, currentTemp + 0.1);
-  audioStore.updateSynthesisParams({ temperature: newTemp });
+  unifiedStore.updateSynthesisParams({ temperature: newTemp });
 };
 
 const decreaseSpeed = () => {
-  const currentSpeed = audioStore.synthesisParams.speed;
+  const currentSpeed = unifiedStore.synthesisParams.speed;
   const newSpeed = Math.max(0.5, currentSpeed - 0.1);
-  audioStore.updateSynthesisParams({ speed: newSpeed });
+  unifiedStore.updateSynthesisParams({ speed: newSpeed });
 };
 
 const increaseSpeed = () => {
-  const currentSpeed = audioStore.synthesisParams.speed;
+  const currentSpeed = unifiedStore.synthesisParams.speed;
   const newSpeed = Math.min(2, currentSpeed + 0.1);
-  audioStore.updateSynthesisParams({ speed: newSpeed });
+  unifiedStore.updateSynthesisParams({ speed: newSpeed });
 };
 
 // 焦点管理
@@ -493,8 +493,8 @@ const handleKeyNavigation = (event: KeyboardEvent) => {
 };
 
 onMounted(() => {
-  if (!personaStore.personas.value || personaStore.personas.value.length === 0) {
-    personaStore.fetchPersonas();
+  if (!personaCache.personas.value || personaCache.personas.value.length === 0) {
+    personaCache.fetchPersonas();
   }
   if (false) {
     // Initial fetch of voices if needed, though useVoiceManagement might handle this too.
