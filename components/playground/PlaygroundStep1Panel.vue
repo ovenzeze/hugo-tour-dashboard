@@ -14,10 +14,9 @@
         :model-value="podcastSettings"
         :personas="personasForForm"
         :personas-loading="personasLoading"
-        @update:model-value="emit('update:podcastSettings', $event)"
+        @update:model-value="handlePodcastSettingsUpdate"
       />
     </Card>
-    <!-- Right Script Editing Area, Scrolls Independently -->
     <!-- Right Script Editing Area, Scrolls Independently -->
     <Card class="flex-1 min-h-0 h-full flex flex-col bg-background/25 border-none shadow-md overflow-y-auto p-1 relative">
       <!-- Success Message -->
@@ -31,9 +30,8 @@
         </div>
       </Transition>
 
-      <template v-if="isScriptGenerating || isValidating">
+      <template v-if="isLoadingFromStore">
         <div class="flex flex-col items-center justify-center h-full space-y-4">
-          <!-- Loading Indicator -->
           <div class="flex flex-col items-center">
             <Icon name="ph:spinner-gap" class="w-12 h-12 animate-spin text-primary" />
             <div class="mt-4 bg-muted/30 rounded-full h-2 w-64 overflow-hidden">
@@ -43,8 +41,6 @@
               ></div>
             </div>
           </div>
-
-          <!-- Skeleton Loader -->
           <div class="w-full space-y-3 mt-6">
             <Skeleton class="h-8 w-3/4" />
             <Skeleton class="h-4 w-full" />
@@ -56,29 +52,26 @@
             <Skeleton class="h-4 w-full" />
             <Skeleton class="h-4 w-3/4" />
           </div>
-
-          <!-- Status Title -->
           <h3 class="text-center text-lg font-semibold mt-6">
             <template v-if="isScriptGenerating">
-              <span v-if="aiScriptStep === 1">Analyzing input...</span>
-              <span v-else-if="aiScriptStep === 2">Building outline...</span>
-              <span v-else-if="aiScriptStep === 3">Generating script content...</span>
+              <span v-if="props.aiScriptStep === 1">Analyzing input...</span>
+              <span v-else-if="props.aiScriptStep === 2">Building outline...</span>
+              <span v-else-if="props.aiScriptStep === 3">Generating script content...</span>
               <span v-else>Generating script...</span>
             </template>
             <template v-else-if="isValidating">
               Validating script...
             </template>
+            <template v-else>
+              Processing...
+            </template>
           </h3>
-
-          <!-- Detailed Status Description -->
           <p class="text-center text-sm text-muted-foreground max-w-md">
-            {{ aiScriptStepText || 'Please wait, this may take a moment...' }}
+            {{ props.aiScriptStepText || 'Please wait, this may take a moment...' }}
           </p>
           <p class="text-xs text-muted-foreground">
             Estimated time remaining: {{ estimatedTimeRemaining }}
           </p>
-
-          <!-- 新增：部分内容生成时淡入显示 -->
           <Transition name="fade">
             <div v-if="mainEditorContent" class="w-full mt-6">
               <Textarea
@@ -96,111 +89,147 @@
           <Icon name="ph:x-circle" class="w-16 h-16 text-destructive mb-4" />
           <h3 class="text-xl font-semibold text-destructive mb-2">Script Generation Failed</h3>
           <p class="text-muted-foreground max-w-md">{{ scriptError }}</p>
-          <Button variant="outline" @click="emit('clearErrorAndRetry')" class="mt-6">
+          <Button variant="outline" @click="handleClearErrorAndRetry" class="mt-6">
             <Icon name="ph:arrow-clockwise" class="w-4 h-4 mr-2" />
             Retry
           </Button>
         </div>
       </template>
       <Textarea
-        v-else-if="!selectedPersonaIdForHighlighting"
+        v-else-if="!props.selectedPersonaIdForHighlighting"
         :model-value="mainEditorContent"
-        placeholder="Script will appear here once generated..."
+        placeholder="Script will appear here once generated or type your script..."
         class="flex-1 w-full h-full resize-none min-h-[200px] rounded- border-input bg-background p-4 text-base  transition placeholder:text-muted-foreground leading-relaxed"
-        @update:model-value="emit('update:mainEditorContent', $event)"
+        @update:model-value="handleMainEditorContentUpdate"
       />
       <div
         v-else
         class="flex-1 w-full h-full overflow-y-auto p-4 text-sm leading-relaxed"
-        v-html="highlightedScript"
+        v-html="props.highlightedScript"
       ></div>
     </Card>
   </div>
 </template>
 
 <script setup lang="ts">
+import { computed, ref, watch, onMounted, onUnmounted } from 'vue';
 import { Card } from '@/components/ui/card';
 import { Textarea } from '@/components/ui/textarea';
-import { Skeleton } from '@/components/ui/skeleton'; // Import Skeleton
-import { Button } from '@/components/ui/button'; // Import Button
-// Icon is auto-imported
+import { Skeleton } from '@/components/ui/skeleton';
+import { Button } from '@/components/ui/button';
 import PodcastSettingsForm from './PodcastSettingsForm.vue';
-// Import types expected by PodcastSettingsForm
-import type { FullPodcastSettings } from '~/types/playground'; // Persona type will come from the store
-import type { Persona } from '@/stores/playgroundPersona'; // Import Persona from the store
-import { computed, ref, watch, onMounted, onUnmounted } from 'vue'; // Import Vue composition API functions
 
+import { usePlaygroundUnifiedStore } from '~/stores/playgroundUnified';
+import { usePersonaCache } from '~/composables/usePersonaCache';
+import type { FullPodcastSettings } from '~/types/playground'; // Keep for PodcastSettingsForm if it still expects it directly
+// Persona type will now come from usePersonaCache or common types if defined
+// import type { Persona } from '@/stores/playgroundPersona'; // Remove old store import
+import type { Persona } from '~/types/persona'; // Assuming common Persona type
+
+const playgroundStore = usePlaygroundUnifiedStore();
+const personaCache = usePersonaCache();
+
+// Props that might still be needed if controlled by a parent orchestrator for multi-step scenarios
+// For a fully store-driven component, these might also be removed or simplified.
 interface Props {
-  podcastSettings: FullPodcastSettings; // Use FullPodcastSettings from ~/types/playground
-  personasForForm: Persona[]; // Use Persona from the store
-  personasLoading: boolean;
-  isScriptGenerating: boolean;
-  isValidating: boolean;
-  mainEditorContent: string;
+  // Example: if a parent component needs to know about highlighting, it could still be a prop
   selectedPersonaIdForHighlighting: number | null;
   highlightedScript: string;
-  aiScriptStep?: number; // 1: Analyzing, 2: Outlining, 3: Generating Content
+  // aiScriptStep & aiScriptStepText might be moved to store if they represent global generation state
+  aiScriptStep?: number; 
   aiScriptStepText?: string;
-  scriptError?: string | null; // To display error messages
 }
 
 const props = withDefaults(defineProps<Props>(), {
+  selectedPersonaIdForHighlighting: null,
+  highlightedScript: '',
   aiScriptStep: 0,
   aiScriptStepText: '',
-  scriptError: null,
 });
 
-// Computed property for left card loading state
+// --- Store-driven reactive data ---
+const podcastSettings = computed(() => playgroundStore.podcastSettings);
+const mainEditorContent = computed(() => playgroundStore.scriptContent);
+const personasForForm = computed(() => personaCache.personas.value);
+const personasLoading = computed(() => personaCache.isLoading.value);
+
+// Combined loading state from the store. 
+// You might need more granular states in the store if "isScriptGenerating" and "isValidating" have distinct UI implications.
+const isLoadingFromStore = computed(() => playgroundStore.isLoading);
+const scriptError = computed(() => playgroundStore.error);
+
+// UI specific loading/status (can be driven by store state too)
 const isLeftCardLoading = computed(() => {
-  if (props.isValidating) {
-    return true; // Always load left card during validation/standardization (Next Step)
-  }
-  // Load left card if script is generating AND it's in the meta-information phase (steps 1 or 2)
-  if (props.isScriptGenerating && props.aiScriptStep <= 2) {
-    return true;
-  }
-  return false;
+  // Example: Loading left card if store is loading and it's a script generation phase (e.g. step < 3)
+  // This logic might need to be adapted based on how `isLoading` and step management is done in the store
+  return playgroundStore.isLoading && (props.aiScriptStep ? props.aiScriptStep <= 2 : false) ; 
 });
+
+const isScriptGenerating = computed(() => playgroundStore.isLoading && playgroundStore.currentStep === 2); // Assuming step 2 is script generation
+const isValidating = computed(() => playgroundStore.isLoading && playgroundStore.currentStep === 3); // Assuming step 3 is validation
+
 
 const emit = defineEmits([
-  'update:podcastSettings',
-  'update:mainEditorContent',
-  'clearErrorAndRetry',
+  // 'update:podcastSettings', // Will be handled by store actions
+  // 'update:mainEditorContent', // Will be handled by store actions
+  // 'clearErrorAndRetry', // Will be handled by store actions
+  // Emit events that are truly for parent communication if any remain
 ]);
 
-// Loading progress simulation
+// Fetch personas on mount
+onMounted(() => {
+  if (personasForForm.value.length === 0) {
+    personaCache.fetchPersonas();
+  }
+});
+
+// Function to handle updates from PodcastSettingsForm
+const handlePodcastSettingsUpdate = (newSettings: FullPodcastSettings) => {
+  playgroundStore.updatePodcastSettings(newSettings);
+};
+
+// Function to handle script content updates from Textarea
+const handleMainEditorContentUpdate = (newContent: string) => {
+  playgroundStore.updateScriptContent(newContent);
+};
+
+// Function to handle retry
+const handleClearErrorAndRetry = () => {
+  playgroundStore.error = null; // Clear error in store
+  // Potentially reset other relevant states or re-trigger an action, e.g.,
+  // playgroundStore.generateScript(); // If retry means re-generating script
+  // This depends on the desired retry behavior.
+  // For now, just clearing the error. UI can then allow re-triggering actions.
+};
+
+
+// --- Existing UI logic for loading progress, success messages etc. ---
+// This section (loadingProgress, estimatedTimeRemaining, showSuccessMessage, etc.)
+// will need to be re-evaluated. Much of it can be simplified or driven directly
+// by `playgroundStore.isLoading` and `playgroundStore.error`.
+// For instance, the complex progress simulation might be simplified or removed
+// if the backend provides real progress, or if a simpler spinner is sufficient.
+
 const loadingProgress = ref(0);
 const estimatedTimeRemaining = ref('计算中...');
 let loadingInterval: NodeJS.Timeout | null = null;
 let startTime: number | null = null;
-
-// Success message handling
 const showSuccessMessage = ref(false);
 let successMessageTimeout: NodeJS.Timeout | null = null;
 
-// Function to start loading progress simulation
 function startLoadingProgress() {
   if (loadingInterval) clearInterval(loadingInterval);
   loadingProgress.value = 0;
   startTime = Date.now();
-  
-  // Simulate progress with realistic acceleration and deceleration
   loadingInterval = setInterval(() => {
-    // Calculate elapsed time in seconds
     const elapsed = startTime ? (Date.now() - startTime) / 1000 : 0;
-    
-    // Progress calculation with sigmoid-like curve
-    // Faster at beginning, slows down as it approaches 90%
     if (loadingProgress.value < 90) {
       const increment = Math.max(0.1, (90 - loadingProgress.value) / 20);
       loadingProgress.value = Math.min(90, loadingProgress.value + increment);
     }
-    
-    // Update estimated time remaining
     if (elapsed > 2) {
-      const totalEstimated = elapsed * 100 / loadingProgress.value;
+      const totalEstimated = elapsed * 100 / (loadingProgress.value || 1); // avoid division by zero
       const remaining = Math.max(0, totalEstimated - elapsed);
-      
       if (remaining < 60) {
         estimatedTimeRemaining.value = `~${Math.ceil(remaining)} seconds`;
       } else {
@@ -210,7 +239,6 @@ function startLoadingProgress() {
   }, 300);
 }
 
-// Function to complete loading progress
 function completeLoadingProgress() {
   if (loadingInterval) {
     clearInterval(loadingInterval);
@@ -218,53 +246,37 @@ function completeLoadingProgress() {
   }
   loadingProgress.value = 100;
   estimatedTimeRemaining.value = 'Complete';
-  
-  // Reset after a delay
   setTimeout(() => {
     loadingProgress.value = 0;
   }, 1000);
 }
 
 watch(
-  () => [props.isScriptGenerating, props.isValidating, props.scriptError],
-  ([generating, validating, error], [prevGenerating, prevValidating]) => {
-    const isLoading = generating || validating;
-    const wasLoading = prevGenerating || prevValidating;
-
-    // Start loading progress when loading begins
+  () => [playgroundStore.isLoading, playgroundStore.error],
+  ([isLoading, error], [wasLoading]) => {
     if (!wasLoading && isLoading) {
       startLoadingProgress();
       showSuccessMessage.value = false;
       if (successMessageTimeout) clearTimeout(successMessageTimeout);
     }
-
-    // Complete loading progress when loading ends
     if (wasLoading && !isLoading) {
       completeLoadingProgress();
-      
-      // Show success message if no error
       if (!error) {
         showSuccessMessage.value = true;
         if (successMessageTimeout) clearTimeout(successMessageTimeout);
         successMessageTimeout = setTimeout(() => {
           showSuccessMessage.value = false;
-        }, 3000); // Show for 3 seconds
+        }, 3000); // Show success for 3 seconds
       }
     }
-
-    // If an error occurs, hide the success message immediately
-    if (error) {
-      showSuccessMessage.value = false;
-      if (successMessageTimeout) clearTimeout(successMessageTimeout);
-    }
-  },
-  { immediate: false } // Optional: Add watch options if needed, like immediate or deep. Defaulting to false for immediate.
+  }
 );
-// Ensure to clear all timeouts and intervals on unmount
+
 onUnmounted(() => {
-  if (successMessageTimeout) clearTimeout(successMessageTimeout);
   if (loadingInterval) clearInterval(loadingInterval);
+  if (successMessageTimeout) clearTimeout(successMessageTimeout);
 });
+
 </script>
 
 <style scoped>

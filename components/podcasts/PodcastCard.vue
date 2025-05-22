@@ -43,7 +43,7 @@
     <!-- Core content always visible -->
     <div :class="[
       'card-content-fade',
-      hoveredPodcastId === Number(podcast.podcast_id) ? 'opacity-100' : 'opacity-50'
+      hoveredPodcastId === Number(podcast.podcast_id) ? 'opacity-100' : 'opacity-100'
     ]">
       <CardHeader class="pb-2 relative z-20">
         <div class="flex flex-col items-start">
