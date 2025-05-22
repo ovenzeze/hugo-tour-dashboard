@@ -1,15 +1,15 @@
 <template>
-  <Stepper :model-value="modelValue" class="block w-full max-w-3xl mx-auto" @update:model-value="emit('update:modelValue', $event)">
+  <Stepper :model-value="currentStep" class="block w-full max-w-3xl mx-auto">
     <div class="flex w-full flex-start gap-2">
       <StepperItem
-        v-for="step in steps"
+        v-for="step in definedSteps"
         :key="step.step"
         v-slot="{ state }"
         class="relative flex w-full flex-col items-center justify-center"
         :step="step.step"
       >
         <StepperSeparator
-          v-if="step.step !== steps[steps.length - 1].step"
+          v-if="step.step !== definedSteps[definedSteps.length - 1].step"
           class="absolute left-[calc(50%+20px)] right-[calc(-50%+10px)] top-5 block h-0.5 shrink-0 rounded-full bg-muted group-data-[state=completed]:bg-primary"
         />
 
@@ -51,26 +51,31 @@
 // If not, they would need to be imported, e.g., from '@/components/ui/stepper'
 // import { Stepper, StepperItem, StepperSeparator, StepperTrigger, StepperTitle, StepperDescription } from '@/components/ui/stepper';
 import { Button } from '@/components/ui/button';
+import { storeToRefs } from 'pinia';
+import { usePlaygroundUIStore } from '@/stores/playgroundUIStore';
 // Icon component is likely auto-imported by NuxtIcon or similar
-// import Icon from '@/components/ui/Icon.vue'; 
+// import Icon from '@/components/ui/Icon.vue';
 
-interface Step {
+interface StepDefinition {
   step: number;
   title: string;
   description: string;
 }
 
-interface Props {
-  modelValue: number;
-  steps: Step[];
-}
+// Define steps directly in the component or pass as props if they need to be dynamic
+// For now, let's assume they are static as per typical stepper usage in this context.
+const definedSteps: StepDefinition[] = [
+  { step: 1, title: 'Settings', description: 'Configure your podcast' },
+  { step: 2, title: 'Script & Voices', description: 'Write script and assign voices' },
+  { step: 3, title: 'Synthesize', description: 'Generate and preview audio' },
+];
 
-const props = defineProps<Props>();
-const emit = defineEmits(['update:modelValue']);
+const playgroundUIStore = usePlaygroundUIStore();
+const { currentStep } = storeToRefs(playgroundUIStore);
 
 const handleStepClick = (step: number) => {
-  // Emitting the step directly. Parent component (`pages/playground.vue`)
-  // will be responsible for deciding if the step change is allowed.
-  emit('update:modelValue', step);
+  // Logic to determine if step change is allowed can be added here or in the store action
+  // For now, directly call the action to update the step.
+  playgroundUIStore.setCurrentStep(step);
 };
 </script>

@@ -1,8 +1,8 @@
-import { usePlaygroundUnifiedStore } from '~/stores/playgroundUnified';
+// import { usePlaygroundUnifiedStore } from '~/stores/playgroundUnified'; // Commented out due to empty playgroundUnified.ts
 import { toast } from 'vue-sonner'; // Optional: for non-blocking notifications
 
 export function usePodcastCoverGenerator() {
-  const unifiedStore = usePlaygroundUnifiedStore(); // 使用新的统一Store
+  // const unifiedStore = usePlaygroundUnifiedStore(); // Commented out: unifiedStore is not used in this composable
 
   const generateAndSavePodcastCover = async (
     podcastId: string,

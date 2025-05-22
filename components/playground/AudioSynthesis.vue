@@ -20,15 +20,15 @@
       <div class="space-y-2">
         <Label>Output Filename</Label>
         <Input 
-          v-model="localOutputFilename" 
+          v-model="localOutputFilename"
           placeholder="podcast_output.mp3"
-          :disabled="disabled || isLoading"
+          :disabled="isLoading"
         />
       </div>
 
       <div class="space-y-2">
         <div class="flex items-center justify-between">
-          <Label>Voice Temperature ({{ synthesisParams.temperature }})</Label>
+          <Label>Voice Temperature ({{ synthesisParamsForTemplate.temperature }})</Label>
           <HoverCard>
             <HoverCardTrigger>
               <Button variant="ghost" size="icon">
@@ -41,17 +41,17 @@
           </HoverCard>
         </div>
         <Slider
-          v-model="synthesisParams.temperatureArray"
+          v-model="temperatureForSlider"
           :min="0"
           :max="1"
           :step="0.1"
-          :disabled="disabled || isLoading"
+          :disabled="isLoading"
         />
       </div>
 
       <div class="space-y-2">
         <div class="flex items-center justify-between">
-          <Label>Speech Rate ({{ synthesisParams.speed }}x)</Label>
+          <Label>Speech Rate ({{ synthesisParamsForTemplate.speed }}x)</Label>
           <HoverCard>
             <HoverCardTrigger>
               <Button variant="ghost" size="icon">
@@ -64,31 +64,32 @@
           </HoverCard>
         </div>
         <Slider
-          v-model="synthesisParams.speedArray"
+          v-model="speedForSlider"
           :min="0.5"
           :max="2"
           :step="0.1"
-          :disabled="disabled || isLoading"
+          :disabled="isLoading"
         />
       </div>
     </div>
 
     <!-- Add timestamp information display area -->
-    <div v-if="props.performanceConfig?.useTimestamps" class="mt-4 border-t pt-4">
+    <div v-if="podcastSettings.useTimestamps" class="mt-4 border-t pt-4">
       <div class="flex items-center justify-between">
         <h4 class="text-sm font-medium">Timestamp Information Visualization</h4>
         <Badge variant="outline">Beta</Badge>
       </div>
-      
+
       <div class="mt-2 p-3 bg-muted rounded-md text-xs">
         <p>Timestamp data imported from Step 2 will be used for advanced audio processing</p>
       </div>
-      
+
       <!-- Can add a switch to control whether to use timestamps -->
       <div class="mt-3 flex items-center space-x-2">
         <Checkbox
           id="use-timestamps"
           v-model:checked="useTimestampsForSynthesis"
+          :disabled="isLoading"
         />
         <Label for="use-timestamps">Use pre-generated timestamp data</Label>
       </div>
@@ -96,18 +97,18 @@
 
     <!-- Action Buttons -->
     <div class="flex gap-3">
-      <Button 
-        @click="handleSynthesize" 
-        :disabled="disabled || isLoading || !scriptContent?.trim()"
+      <Button
+        @click="handleSynthesize"
+        :disabled="isLoading || !scriptContent?.trim()"
       >
         <Loader2 v-if="isLoading" class="w-4 h-4 mr-2 animate-spin" />
         <RadioTower v-else class="w-4 h-4 mr-2" />
         {{ isLoading ? 'Generating...' : 'Generate Audio' }}
       </Button>
-      <Button 
-        v-if="modelValue" 
-        variant="outline" 
-        @click="$emit('download')"
+      <Button
+        v-if="finalAudioUrl"
+        variant="outline"
+        @click="handleDownload"
         :disabled="isLoading"
       >
         <Download class="w-4 h-4 mr-2" />
@@ -116,78 +117,133 @@
     </div>
 
     <!-- Audio Player -->
-    <div v-if="modelValue" class="space-y-2">
+    <div v-if="finalAudioUrl" class="space-y-2">
       <Label>Podcast Audio</Label>
       <div class="rounded-lg border bg-card p-4">
-        <audio :src="modelValue" controls class="w-full" />
+        <audio :src="finalAudioUrl" controls class="w-full" />
       </div>
     </div>
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref, watch } from 'vue'
-import { Button } from '../../components/ui/button/index.js'
-import { Input } from '../../components/ui/input/index.js'
-import { Label } from '../../components/ui/label/index.js'
-import { Badge } from '../../components/ui/badge/index.js'
-import { Slider } from '../../components/ui/slider/index.js'
-import { Checkbox } from '../../components/ui/checkbox/index.js' // Added Checkbox
-import { ScrollArea } from '../../components/ui/scroll-area/index.js'
+import { ref, watch, computed } from 'vue';
+import { storeToRefs } from 'pinia';
+import { usePlaygroundUIStore } from '~/stores/playgroundUIStore';
+import { usePlaygroundScriptStore } from '~/stores/playgroundScriptStore';
+import { usePlaygroundSettingsStore } from '~/stores/playgroundSettingsStore';
+import { usePlaygroundProcessStore } from '~/stores/playgroundProcessStore';
+
+// Assuming UI components are auto-imported by Nuxt or correctly pathed
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Badge } from '@/components/ui/badge';
+import { Slider } from '@/components/ui/slider';
+import { Checkbox } from '@/components/ui/checkbox';
+import { ScrollArea } from '@/components/ui/scroll-area';
 import {
   HoverCard,
   HoverCardContent,
   HoverCardTrigger,
-} from '../../components/ui/hover-card/index.js'
-import { RadioTower, Download, Loader2, HelpCircle } from 'lucide-vue-next'
+} from '@/components/ui/hover-card';
+import { RadioTower, Download, Loader2, HelpCircle } from 'lucide-vue-next';
 
-const props = defineProps<{
-  modelValue?: string // Audio URL
-  scriptContent: string
-  synthesisParams: {
-    temperature: number
-    speed: number
-    temperatureArray: number[]
-    speedArray: number[]
+const uiStore = usePlaygroundUIStore();
+const scriptStore = usePlaygroundScriptStore();
+const settingsStore = usePlaygroundSettingsStore();
+const processStore = usePlaygroundProcessStore();
+
+const { finalAudioUrl } = storeToRefs(uiStore); // Was modelValue
+const { scriptContent } = storeToRefs(scriptStore);
+const { synthesisParams: storeSynthesisParams, podcastSettings } = storeToRefs(settingsStore); // podcastSettings for useTimestamps from settings
+const { isSynthesizing, isCombining, error: processError } = storeToRefs(processStore);
+
+const isLoading = computed(() => isSynthesizing.value || isCombining.value);
+// const disabled = computed(() => /* some logic based on store states */ false); // Placeholder for disabled logic
+
+// Local state for UI, synced with store
+const localOutputFilename = ref(podcastSettings.value.title ? `${podcastSettings.value.title.replace(/\s+/g, '_')}.mp3` : 'podcast_output.mp3');
+watch(localOutputFilename, (newValue) => {
+  // Potentially update a field in settingsStore if outputFilename needs to be persisted globally
+  // settingsStore.updatePodcastSettings({ outputFilename: newValue }); // Example
+});
+watch(() => podcastSettings.value.title, (newTitle) => {
+    if (newTitle && !localOutputFilename.value.startsWith(newTitle.replace(/\s+/g, '_'))) {
+        localOutputFilename.value = `${newTitle.replace(/\s+/g, '_')}.mp3`;
+    } else if (!newTitle && localOutputFilename.value !== 'podcast_output.mp3') {
+        localOutputFilename.value = 'podcast_output.mp3';
+    }
+});
+
+
+// Computed properties to bridge Slider's array model with store's single number values
+const temperatureForSlider = computed({
+  get: () => [storeSynthesisParams.value.temperature ?? 0.7],
+  set: (val) => settingsStore.updateSynthesisParams({ temperature: val[0] })
+});
+
+const speedForSlider = computed({
+  get: () => [storeSynthesisParams.value.speed ?? 1.0],
+  set: (val) => settingsStore.updateSynthesisParams({ speed: val[0] })
+});
+
+// Assuming useTimestamps is part of podcastSettings or a new specific store state
+// For now, let's assume it's a setting in podcastSettings.
+const useTimestampsForSynthesis = computed({
+    get: () => podcastSettings.value.useTimestamps ?? true, // Default to true if not set
+    set: (val) => settingsStore.updatePodcastSettings({ useTimestamps: val })
+});
+
+
+const handleSynthesize = async () => {
+  if (!scriptContent.value?.trim()) {
+    processStore.error = "Script content is empty. Cannot synthesize.";
+    return;
   }
-  performanceConfig?: { // Added performanceConfig
-    useTimestamps?: boolean
-    segments?: any[] // Define more specifically if needed
-    // other properties from VoicePerformanceSettings...
+  if (isLoading.value) return;
+
+  try {
+    // The synthesizeAudio action in processStore should internally get all necessary params
+    // from settingsStore and scriptStore.
+    const response = await processStore.synthesizeAudio();
+    if (response?.success && response.finalAudioUrl) {
+      uiStore.setFinalAudioUrl(response.finalAudioUrl);
+      // Optionally move to next step or indicate completion
+    } else if (response?.success && response.segmentResults && !response.finalAudioUrl) {
+        // Segments synthesized, try to combine
+        const combineResponse = await processStore.combineAudio();
+        if (combineResponse?.success && combineResponse.audioUrl) {
+            uiStore.setFinalAudioUrl(combineResponse.audioUrl);
+        } else {
+            processStore.error = combineResponse?.message || "Failed to combine audio segments.";
+        }
+    }
+    // Error is handled within processStore actions
+  } catch (e) {
+    console.error("Synthesis process failed:", e);
+    // Error should be set in processStore
   }
-  isLoading?: boolean
-  disabled?: boolean
-}>()
+};
 
-const emit = defineEmits<{
-  'update:outputFilename': [value: string]
-  'synthesize': [payload: {
-    useTimestamps: boolean,
-    synthesisParams?: any,
-    performanceConfig?: any
-  }] // Extended synthesize event payload
-  'download': []
-}>()
+const handleDownload = () => {
+  if (finalAudioUrl.value) {
+    const link = document.createElement('a');
+    link.href = finalAudioUrl.value;
+    link.download = localOutputFilename.value || 'podcast_audio.mp3';
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  }
+};
 
-const localOutputFilename = ref('')
+// Expose synthesisParams for template binding (temperature and speed directly)
+const synthesisParamsForTemplate = computed(() => ({
+    temperature: storeSynthesisParams.value.temperature ?? 0.7,
+    speed: storeSynthesisParams.value.speed ?? 1.0,
+    // Arrays are handled by temperatureForSlider, speedForSlider for the slider components
+    temperatureArray: temperatureForSlider.value,
+    speedArray: speedForSlider.value,
+}));
 
-watch(() => localOutputFilename.value, (newValue) => {
-  emit('update:outputFilename', newValue)
-})
-
-const useTimestampsForSynthesis = ref(true); // Added this ref
-
-const handleSynthesize = () => {
-  if (!props.scriptContent?.trim()) return;
-  
-  // Check if timestamp data exists and the user has chosen to use it
-  const useTimestamps = !!(props.performanceConfig?.useTimestamps && useTimestampsForSynthesis.value);
-  
-  // Include timestamp data and other necessary parameters when sending the synthesis request
-  emit('synthesize', {
-    useTimestamps,
-    synthesisParams: props.synthesisParams,
-    performanceConfig: props.performanceConfig
-  });
-}
 </script>

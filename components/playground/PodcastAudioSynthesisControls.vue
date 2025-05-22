@@ -4,7 +4,7 @@
     <div class="rounded-lg border p-4 space-y-2 bg-muted/10">
       <div class="flex justify-between items-center">
         <h3 class="text-lg font-medium">Podcast Information</h3>
-        <Badge variant="outline" class="bg-primary/10">{{ props.podcastId || 'No ID' }}</Badge>
+        <Badge variant="outline" class="bg-primary/10">{{ podcastIdForComposables || 'No ID' }}</Badge>
       </div>
       <div class="grid grid-cols-2 gap-2 text-sm">
         <div><span class="font-medium">Title:</span> {{ podcastInfo.title || 'N/A' }}</div>
@@ -35,7 +35,7 @@
             variant="outline" 
             size="sm"
             @click="timelineManager.generateTimeline"
-            :disabled="timelineManager.isGeneratingTimeline.value || !props.podcastId || segmentsManager.segmentsLoading.value"
+            :disabled="timelineManager.isGeneratingTimeline.value || !podcastIdForComposables || segmentsManager.segmentsLoading.value"
           >
             <Icon name="ph:spinner" v-if="timelineManager.isGeneratingTimeline.value" class="w-4 h-4 mr-2 animate-spin" />
             <Icon name="ph:chart-line" v-else class="w-4 h-4 mr-2" />
@@ -200,10 +200,10 @@
     <div v-if="finalizationManager.finalAudioUrl.value" class="space-y-2 pt-3 border-t">
       <div class="flex justify-between items-center">
         <Label>Final Podcast</Label>
-        <Button 
-          variant="outline" 
+        <Button
+          variant="outline"
           size="sm"
-          @click="$emit('download')"
+          @click="handleDownloadClick"
         >
           <Icon name="ph:download-simple" class="w-4 h-4 mr-2" />
           Download
@@ -217,74 +217,115 @@
 </template>
 
 <script setup lang="ts">
-import { watch, toRef } from 'vue'
-// Composables
-import { usePodcastInfo } from '~/composables/podcast/usePodcastInfo'
-import { usePodcastTimeline } from '~/composables/podcast/usePodcastTimeline'
-import { usePodcastSegments } from '~/composables/podcast/usePodcastSegments' // Segment type is implicitly handled by the composable's return type
-import { usePodcastFinalization } from '~/composables/podcast/usePodcastFinalization'
-import { usePodcastAudioPlayer } from '~/composables/podcast/usePodcastAudioPlayer'
+import { watch, toRef, computed } from 'vue';
+import { storeToRefs } from 'pinia';
+import { usePlaygroundProcessStore } from '~/stores/playgroundProcessStore';
+import { usePlaygroundUIStore } from '~/stores/playgroundUIStore';
+import { usePlaygroundSettingsStore } from '~/stores/playgroundSettingsStore';
 
-// Define Props and Emits
+// Composables
+import { usePodcastInfo } from '~/composables/podcast/usePodcastInfo';
+import { usePodcastTimeline } from '~/composables/podcast/usePodcastTimeline';
+import { usePodcastSegments } from '~/composables/podcast/usePodcastSegments';
+import { usePodcastFinalization } from '~/composables/podcast/usePodcastFinalization';
+import { usePodcastAudioPlayer } from '~/composables/podcast/usePodcastAudioPlayer';
+
+// Define Props and Emits (some will be removed or changed)
 const props = defineProps<{
-  podcastId?: string;
-  modelValue?: string; // Final audio URL (for v-model)
-  outputFilename?: string; // For v-model:outputFilename
+  // podcastId will come from store
+  // modelValue (finalAudioUrl) will come from store
+  outputFilename?: string; // This might still be useful if parent wants to suggest initial name
   disabled?: boolean; // General disabled state
 }>()
 
 const emit = defineEmits<{
-  'update:modelValue': [value: string];
-  'update:outputFilename': [value: string];
-  'download': []; 
-  'synthesize': []; 
+  // 'update:modelValue': [value: string]; // Will be handled by store action
+  'update:outputFilename': [value: string]; // May keep if parent needs to know filename changes
+  'download': []; // Download button is now internal
+  // 'synthesize': []; // Synthesize actions are now internal via composables/stores
 }>()
 
-// Create refs from props for composables
-const podcastIdRef = toRef(props, 'podcastId')
-const modelValueRef = toRef(props, 'modelValue')
+const processStore = usePlaygroundProcessStore();
+const uiStore = usePlaygroundUIStore();
+const settingsStore = usePlaygroundSettingsStore();
 
-// Instantiate Composables
-const { podcastInfo } = usePodcastInfo(podcastIdRef)
 
-const timelineManager = usePodcastTimeline(podcastIdRef, async () => {
-  // Callback after timeline generation, refresh segments status
-  if (segmentsManager) { // Ensure segmentsManager is initialized
+const { podcastId: storePodcastId } = storeToRefs(processStore);
+const { finalAudioUrl: storeFinalAudioUrl } = storeToRefs(uiStore);
+const { podcastSettings } = storeToRefs(settingsStore);
+
+// Computed ref to ensure the type passed to composables is Ref<string | undefined>
+const podcastIdForComposables = computed<string | undefined>(() => {
+  const id = storePodcastId.value;
+  if (id === null || id === undefined) {
+    return undefined;
+  }
+  return String(id); // Ensure it's a string
+});
+
+// Instantiate Composables, passing reactive store values or refs
+const { podcastInfo } = usePodcastInfo(podcastIdForComposables);
+
+const timelineManager = usePodcastTimeline(podcastIdForComposables, async () => {
+  if (segmentsManager) {
     await segmentsManager.refreshSegmentsStatus();
   }
 });
 
 const segmentsManager = usePodcastSegments(
-  podcastIdRef, 
-  timelineManager.isTimelineGenerated // Pass the reactive ref here
+  podcastIdForComposables,
+  timelineManager.isTimelineGenerated
 );
 
+// For finalizationManager, outputFilename and finalAudioUrl need to sync with stores
+// We pass the store's finalAudioUrl ref to the composable.
+// The composable's localOutputFilename can be initialized by props.outputFilename or a default.
+const initialOutputFilename = computed(() => props.outputFilename || podcastSettings.value.title?.replace(/\s+/g, '_') + '.mp3' || 'podcast_audio.mp3');
+
 const finalizationManager = usePodcastFinalization(
-  podcastIdRef,
+  podcastIdForComposables,
   timelineManager.isTimelineGenerated,
   segmentsManager.synthesizedCount,
-  segmentsManager.totalSegments,
-  props.outputFilename, // initial value for localOutputFilename in composable
-  modelValueRef         // initial value for finalAudioUrl in composable
+  segmentsManager.totalSegments
+  // initialOutputFilename and storeFinalAudioUrl are no longer passed directly;
+  // the composable now gets them from the settingsStore and uiStore respectively.
 );
 
 const audioPlayer = usePodcastAudioPlayer();
 
-// Watch for changes in localOutputFilename from the composable to emit update
+// Watch for changes in localOutputFilename from the composable to emit update (if prop still used)
+// Or, if outputFilename is managed in a store, update the store here.
 watch(finalizationManager.localOutputFilename, (newName) => {
-  if (newName !== props.outputFilename) { 
-    emit('update:outputFilename', newName)
+  // Example: if outputFilename were in settingsStore
+  // if (newName !== settingsStore.podcastSettings.outputFilename) {
+  //   settingsStore.updatePodcastSettings({ outputFilename: newName });
+  // }
+  // For now, if parent still uses v-model:outputFilename
+  if (props.outputFilename !== undefined && newName !== props.outputFilename) {
+    emit('update:outputFilename', newName);
   }
-})
+});
 
-// Wrapper function to call handleMergeAudio and emit update:modelValue on success
+// handleMergeAndEmit now directly calls the composable method,
+// which should internally update the uiStore's finalAudioUrl via its passed ref or by calling an action.
 const handleMergeAndEmit = async () => {
   await finalizationManager.handleMergeAudio(
-    (url: string) => { // onSuccess callback
-      emit('update:modelValue', url);
-    },
-    // onFailure callback is optional as errors are toasted within the composable
+    (url: string) => { // onSuccess callback from composable
+      uiStore.setFinalAudioUrl(url); // Update the store
+    }
+    // onFailure is handled in composable
   );
+};
+
+const handleDownloadClick = () => {
+  if (storeFinalAudioUrl.value) {
+    const link = document.createElement('a');
+    link.href = storeFinalAudioUrl.value;
+    link.download = finalizationManager.localOutputFilename.value || 'podcast_audio.mp3';
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  }
 };
 
 </script>

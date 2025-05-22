@@ -3,7 +3,7 @@
 import { defineStore } from "pinia";
 import { toast } from "vue-sonner";
 // 更新引入
-import { usePlaygroundUnifiedStore } from "./playgroundUnified";
+// import { usePlaygroundUnifiedStore } from "./playgroundUnified"; // Commented out due to empty playgroundUnified.ts
 import { usePersonaCache } from "~/composables/usePersonaCache";
 
 // 移除对旧store的引用
@@ -37,19 +37,20 @@ export const usePlaygroundStore = defineStore("playground", {
     // For example:
     // combinedStatus(state) {
     //   const personaCache = usePersonaCache();
-    //   const unifiedStore = usePlaygroundUnifiedStore();
-    //   return `Personas loaded: ${!personaCache.isLoading.value}, Script valid: ${unifiedStore.validationResult?.success}`;
+    //   const unifiedStore = undefined; // usePlaygroundUnifiedStore(); // Commented out
+    //   return `Personas loaded: ${!personaCache.isLoading.value}, Script valid: ${unifiedStore ? unifiedStore.validationResult?.success : 'N/A'}`;
     // }
   },
 
   actions: {
     // This action now calls the reset actions of the unified store and clears persona cache.
     resetAllPlaygroundState() {
-      const unifiedStore = usePlaygroundUnifiedStore();
+      // const unifiedStore = usePlaygroundUnifiedStore(); // Commented out
       const personaCache = usePersonaCache();
 
       // 重置统一store
-      unifiedStore.resetPlaygroundState();
+      // unifiedStore.resetPlaygroundState(); // Commented out
+      console.warn('[resetAllPlaygroundState] Skipping reset of unified store as it is currently unavailable.');
       
       // 刷新persona缓存
       personaCache.invalidateCache();
@@ -71,8 +72,8 @@ export const usePlaygroundStore = defineStore("playground", {
     /*
     saveAllStateToLocalStorage() {
       if (process.client) {
-        const unifiedStore = usePlaygroundUnifiedStore();
-        localStorage.setItem("playgroundUnifiedState", JSON.stringify(unifiedStore.$state));
+        // const unifiedStore = usePlaygroundUnifiedStore(); // Commented out
+        // if (unifiedStore) localStorage.setItem("playgroundUnifiedState", JSON.stringify(unifiedStore.$state)); // Commented out
         toast.info("Playground state saved to local storage.");
       }
     },
@@ -81,8 +82,8 @@ export const usePlaygroundStore = defineStore("playground", {
     // Example of an action that might coordinate across stores:
     // async initializeNewPodcastWorkflow(initialSettings: Partial<FullPodcastSettings>) {
     //   this.resetAllPlaygroundState();
-    //   const unifiedStore = usePlaygroundUnifiedStore();
-    //   unifiedStore.updatePodcastSettings(initialSettings);
+    //   const unifiedStore = undefined; // usePlaygroundUnifiedStore(); // Commented out
+    //   if (unifiedStore) unifiedStore.updatePodcastSettings(initialSettings);
     //   // ... any other setup
     // }
 

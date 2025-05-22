@@ -1,385 +1,280 @@
 // server/api/podcast/process/synthesize.post.ts
-// This endpoint is responsible for generating individual timed audio segments.
-import { defineEventHandler, readBody, createError } from 'h3';
+import { defineEventHandler, readBody, createError, type H3Event } from 'h3';
 import { useRuntimeConfig } from '#imports';
-import { getStorageService } from '../../../services/storageService';
-import type { IStorageService } from '../../../services/storageService';
-import { 
-  generateAndStoreTimedAudioSegmentElevenLabs, 
+import { consola } from 'consola';
+import { getStorageService } from '../../../services/storageService'; // Restored correct path
+import type { IStorageService } from '../../../services/storageService'; // Restored correct path
+import {
+  generateAndStoreTimedAudioSegmentElevenLabs,
   generateAndStoreTimedAudioSegmentVolcengine,
   type TimedAudioSegmentResult,
   type ElevenLabsParams,
   type VolcengineParams,
-} from '../../../services/timedAudioService';
-// Import server-side database utilities
+} from '../../../services/timedAudioService'; // Restored correct path
 import { createServerPodcastDatabase } from '~/server/composables/useServerPodcastDatabase';
 import { serverSupabaseServiceRole } from '#supabase/server';
 import type { Database } from '~/types/supabase';
+import type { SynthesisParams } from '~/types/api/podcast'; // Import shared SynthesisParams
+import { getPersonaById, type AutoSelectedPersona } from '~/server/utils/personaFetcher';
 
-interface InputSegment {
-  segmentIndex: number;
+// Define the expected structure for each segment in the request
+interface SynthesizeSegmentRequestData {
   text: string;
-  voiceId: string;
-  speakerName: string;
+  speakerPersonaId: number;
+  speakerName?: string; // Optional: for logging or if needed by TTS service directly
+  segmentIndex: number; // Keep segmentIndex for mapping results
 }
 
-/**
- * Supports three input formats:
- * 1. Traditional format: { podcastId, segments, ... }
- * 2. Validate structured format: { podcastTitle, script, voiceMap, hostPersonaId, language, ... }
- * 3. Update: Support specifying segments to synthesize via segmentIndices
- */
-interface RequestBody {
-  // Traditional format
+// Define the overall request body structure for this endpoint
+interface SynthesizeRequestBody {
   podcastId: string;
-  segments?: InputSegment[];
-  segmentIndices?: number[] | 'all'; // New: used to specify which segments to synthesize
-  defaultModelId?: string;
-  voiceSettings?: { // Primarily for ElevenLabs
-    stability?: number;
-    similarity_boost?: number;
-    style?: number;
-    use_speaker_boost?: boolean;
-  };
-  synthesisParams?: { // Generic params, can be mapped
-    temperature?: number; // For ElevenLabs style
-    speed?: number;       // For ElevenLabs speed, Volcengine speed_ratio
-    pitch?: number;       // For Volcengine pitch_ratio
-    volume?: number;      // For Volcengine volume_ratio
-    // Volcengine specific params can be added if needed, or mapped from generic ones
-    volcengineEncoding?: 'mp3' | 'pcm' | 'wav';
-    [key: string]: any;
-  };
-  ttsProvider?: 'elevenlabs' | 'volcengine'; // New field to select TTS provider
-  // Validate structured format
-  podcastTitle?: string;
-  script?: Array<{ role: string; name?: string; text: string }>;
-  voiceMap?: Record<string, { personaId: number; voice_model_identifier: string }>;
-  hostPersonaId?: number;
-  language?: string;
+  segments: SynthesizeSegmentRequestData[];
+  defaultModelId?: string; // Optional: Primarily for ElevenLabs if a global model is preferred over persona's
+  globalTtsProvider?: 'elevenlabs' | 'volcengine'; // Optional: A global TTS provider hint
+  globalSynthesisParams?: SynthesisParams; // Optional: Global synthesis parameters
 }
 
-export default defineEventHandler(async (event) => {
+// Define the structure for a processed segment before TTS call
+interface ProcessedSegment extends SynthesizeSegmentRequestData {
+  persona: AutoSelectedPersona; // Contains voice_model_identifier and tts_provider
+}
+
+function sanitizeProviderForResults(provider: string | null | undefined): 'elevenlabs' | 'volcengine' | undefined {
+  if (provider === 'elevenlabs' || provider === 'volcengine') {
+    return provider;
+  }
+  if (provider) {
+    consola.warn(`[synthesize.post.ts] Unknown TTS provider string '${provider}' encountered. Storing as undefined in results.`);
+  }
+  return undefined;
+}
+
+export default defineEventHandler(async (event: H3Event) => {
   try {
-    const body = await readBody(event) as RequestBody;
-    
-    // Required parameter validation
-    if (!body.podcastId) {
-      throw createError({
-        statusCode: 400,
-        statusMessage: 'Invalid request: "podcastId" is required.',
-      });
-    }
-    
-    const podcastId = body.podcastId;
-    let segments = body.segments;
-    const segmentIndices = body.segmentIndices;
-    const defaultModelId = body.defaultModelId; // Primarily for ElevenLabs
-    const voiceSettings = body.voiceSettings; // Primarily for ElevenLabs
+    const body = await readBody<SynthesizeRequestBody>(event);
+    consola.info('[synthesize.post.ts] Received request:', { podcastId: body.podcastId, segmentCount: body.segments?.length });
 
-    // New TTS Provider selection logic
-    let ttsProvider: string; // Changed type to string to accept any provider value
-    if (body.ttsProvider && typeof body.ttsProvider === 'string' && body.ttsProvider.trim() !== '') {
-      ttsProvider = body.ttsProvider.trim(); // Use the provided ttsProvider directly
-      console.log(`[synthesize.post.ts] Using ttsProvider from request body: ${ttsProvider}`);
-    } else {
+    // 1. Validate Request Body
+    if (!body.podcastId || !body.segments || !Array.isArray(body.segments) || body.segments.length === 0) {
       throw createError({
         statusCode: 400,
-        statusMessage: 'Invalid request: "ttsProvider" is required and cannot be empty.',
+        statusMessage: 'Invalid request: "podcastId" and a non-empty "segments" array are required.',
       });
     }
+
+    for (const segment of body.segments) {
+      if (typeof segment.text !== 'string' || typeof segment.speakerPersonaId !== 'number' || typeof segment.segmentIndex !== 'number') {
+        throw createError({
+          statusCode: 400,
+          statusMessage: `Invalid segment at index ${segment.segmentIndex}. Each segment must have "text" (string), "speakerPersonaId" (number), and "segmentIndex" (number).`,
+        });
+      }
+    }
     
-    // Check for preset voice parameters
-    const synthesisParams = body.synthesisParams || {};
-    
+    const { podcastId, segments: inputSegments, defaultModelId, globalTtsProvider, globalSynthesisParams = {} } = body;
     const storageService: IStorageService = await getStorageService(event);
-    
-    // If segmentIndices is provided, read corresponding segments from existing timeline
-    if (segmentIndices && (!segments || segments.length === 0)) {
-      // Check if timeline exists
-      const timelineStoragePath = storageService.joinPath('public', 'podcasts', podcastId, 'merged_timeline.json');
-      const timelineExists = await storageService.exists(timelineStoragePath);
-      
-      if (!timelineExists) {
-        throw createError({
-          statusCode: 400,
-          statusMessage: 'Timeline not found. Generate timeline first before synthesizing specific segments.',
-        });
-      }
-      
-      // Read timeline
-      const timelineContent = await storageService.readFile(timelineStoragePath, 'utf-8') as string;
-      const timelineData = JSON.parse(timelineContent);
-      
-      if (!Array.isArray(timelineData) || timelineData.length === 0) {
-        throw createError({
-          statusCode: 400,
-          statusMessage: 'Timeline exists but contains no segments.',
-        });
-      }
-      
-      // Build list of segments to synthesize
-      if (segmentIndices === 'all') {
-        // Synthesize all segments
-        segments = timelineData.map((segment, index) => ({
-          segmentIndex: index,
-          text: segment.text || '',
-          voiceId: segment.voiceId || '', // Timeline may need to include this info
-          speakerName: segment.speaker
-        }));
-      } else if (Array.isArray(segmentIndices) && segmentIndices.length > 0) {
-        // Synthesize specific segments by index
-        segments = segmentIndices
-          .filter(index => index >= 0 && index < timelineData.length)
-          .map(index => ({
-            segmentIndex: index,
-            text: timelineData[index].text || '',
-            voiceId: timelineData[index].voiceId || '',
-            speakerName: timelineData[index].speaker
-          }));
-      }
-    }
+    const runtimeConfig = useRuntimeConfig(event);
+    const results: (TimedAudioSegmentResult & { segmentIndex: number; provider?: string; voiceModelUsed?: string | null })[] = [];
 
-    // Assemble segments from structured validation data
-    if ((!segments || segments.length === 0) && body.script && body.voiceMap) {
-      console.log('[synthesize.post.ts] Assembling segments from structured data. Received voiceMap:', JSON.stringify(body.voiceMap, null, 2));
-      // Auto-assemble segments
-      segments = body.script.map((seg, idx) => {
-        // Prefer name for voiceMap lookup, fallback to role
-        const voiceMap = body.voiceMap ?? {};
-        let voiceKey = seg.name && voiceMap[seg.name] ? seg.name : seg.role;
-        let voice = voiceMap[voiceKey] || voiceMap[seg.role] || {};
-        const voiceId = voice.voice_model_identifier || '';
-        if (!voiceId) {
-          console.warn(`[synthesize.post.ts] No voiceId found for speaker: "${seg.name || seg.role}" (role: "${seg.role}", name: "${seg.name}") in segment ${idx}.`);
-        }
-        return {
-          segmentIndex: idx,
-          text: seg.text,
-          voiceId: voiceId,
-          speakerName: seg.name || seg.role
-        };
-      });
-    }
-
-    if (!segments || !Array.isArray(segments) || segments.length === 0) {
-      throw createError({
-        statusCode: 400,
-        statusMessage: 'No valid segments to synthesize.',
-      });
-    }
-
-    const runtimeConfig = useRuntimeConfig(event); // Ensure this is called once at the top if possible
-    
-    // API Key validation will happen within the respective service functions
-    // but we can pre-check if needed, or rely on the service to throw.
-    // For now, let the service functions handle their specific API key checks.
-
-    const results: (TimedAudioSegmentResult & { segmentIndex: number })[] = [];
-
-    // For Supabase Storage, both publicOutputDirectory and storageOutputDirectory
-    // will refer to the path within the bucket.
     const supabasePathSuffix = storageService.joinPath('podcasts', podcastId, 'segments');
     const publicOutputDirectory = supabasePathSuffix;
     const storageOutputDirectory = supabasePathSuffix;
-    console.log('[synthesize.post.ts] Calculated Supabase storageOutputDirectory:', storageOutputDirectory);
-    console.log('[synthesize.post.ts] Calculated Supabase publicOutputDirectory:', publicOutputDirectory);
-    
-    await storageService.ensureDir(storageOutputDirectory); // For Supabase, this might be a no-op
+    await storageService.ensureDir(storageOutputDirectory);
+    consola.info(`[synthesize.post.ts] Storage output directory: ${storageOutputDirectory}`);
 
-    // Filter out segments without voice IDs
-    const validSegments = segments.filter(segment => segment.voiceId);
-    
-    if (validSegments.length === 0) {
-      throw createError({
-        statusCode: 400,
-        statusMessage: 'No segments with valid voice IDs found.',
-      });
+    // 2. Fetch Persona details for each segment
+    const processedSegments: ProcessedSegment[] = [];
+    for (const seg of inputSegments) {
+      const persona = await getPersonaById(event, seg.speakerPersonaId);
+      if (!persona) {
+        consola.warn(`[synthesize.post.ts] Persona not found for ID: ${seg.speakerPersonaId} (segmentIndex: ${seg.segmentIndex}). Skipping segment.`);
+        results.push({ error: `Persona with ID ${seg.speakerPersonaId} not found.`, segmentIndex: seg.segmentIndex });
+        continue;
+      }
+      if (!persona.voice_model_identifier) {
+        consola.warn(`[synthesize.post.ts] Persona ID ${seg.speakerPersonaId} (name: ${persona.name}) is missing 'voice_model_identifier'. Skipping segment ${seg.segmentIndex}.`);
+        results.push({ error: `Persona ${persona.name} (ID: ${seg.speakerPersonaId}) is missing voice model identifier.`, segmentIndex: seg.segmentIndex });
+        continue;
+      }
+      if (!persona.tts_provider) {
+        consola.warn(`[synthesize.post.ts] Persona ID ${seg.speakerPersonaId} (name: ${persona.name}) is missing 'tts_provider'. Skipping segment ${seg.segmentIndex}.`);
+        results.push({ error: `Persona ${persona.name} (ID: ${seg.speakerPersonaId}) is missing TTS provider configuration.`, segmentIndex: seg.segmentIndex });
+        continue;
+      }
+      processedSegments.push({ ...seg, persona });
     }
 
-    console.info(`[TTS] validSegments count: ${validSegments.length}`);
-if (validSegments.length > 0) {
-  const previewSegments = validSegments.slice(0, 3).map(seg => ({segmentIndex: seg.segmentIndex, speakerName: seg.speakerName, voiceId: seg.voiceId, textPreview: seg.text.slice(0, 20) + (seg.text.length > 20 ? '...' : '')}));
-  console.info(`[TTS] validSegments preview (first 3):`, JSON.stringify(previewSegments, null, 2));
-}
+    if (processedSegments.length === 0) {
+      consola.warn('[synthesize.post.ts] No segments could be processed after fetching persona details.');
+      // Return early if all segments failed persona lookup, but include individual errors in results.
+      return {
+        success: false,
+        podcastId: podcastId,
+        generatedSegments: results, // Contains errors for segments that failed persona lookup
+        message: 'No segments could be processed due to persona lookup issues.',
+      };
+    }
+    consola.info(`[synthesize.post.ts] Successfully processed ${processedSegments.length} segments with persona data.`);
 
-for (const segment of validSegments) {
-      const safeSpeakerName = segment.speakerName.replace(/[^a-zA-Z0-9_]/g, '_').substring(0, 50);
+    // 3. Synthesize audio for each processed segment
+    for (const segment of processedSegments) {
+      const safeSpeakerName = (segment.speakerName || segment.persona.name).replace(/[^a-zA-Z0-9_]/g, '_').substring(0, 50);
       const baseFilename = `${String(segment.segmentIndex).padStart(3, '0')}_${safeSpeakerName}`;
       
-      const mergedVoiceSettings = {
-        stability: synthesisParams.stability ?? voiceSettings?.stability ?? 0.5,
-        similarity_boost: synthesisParams.similarity_boost ?? voiceSettings?.similarity_boost ?? 0.75,
-        style: synthesisParams.style ?? voiceSettings?.style ?? 0.0,
-        use_speaker_boost: synthesisParams.use_speaker_boost ?? voiceSettings?.use_speaker_boost ?? true,
-        // Map generic speed to ElevenLabs specific if applicable, or handle in service
-        speed: synthesisParams.speed, 
+      // Determine TTS provider: Persona's provider > globalTtsProvider from request
+      const actualTtsProvider = segment.persona.tts_provider || globalTtsProvider;
+      let cleanedTtsProvider = actualTtsProvider;
+      if (cleanedTtsProvider && cleanedTtsProvider.startsWith("'") && cleanedTtsProvider.endsWith("'")) {
+        cleanedTtsProvider = cleanedTtsProvider.substring(1, cleanedTtsProvider.length - 1);
+      }
+      const actualVoiceId = segment.persona.voice_model_identifier; // This is guaranteed by the check above
+
+      if (!cleanedTtsProvider || !actualVoiceId) { // Used cleanedTtsProvider
+        consola.error(`[synthesize.post.ts] Critical error: Missing TTS provider or voice ID for segment ${segment.segmentIndex} after persona processing. This should not happen.`);
+        results.push({ error: 'Internal error: Missing TTS provider or voice ID.', segmentIndex: segment.segmentIndex });
+        continue;
+      }
+      
+      // Merge global and persona-specific synthesis params (TODO: define clear merge strategy if needed)
+      // For now, globalSynthesisParams are applied, specific services might override with persona defaults if not provided
+      const currentSynthesisParams: SynthesisParams = {
+        ...globalSynthesisParams, // Apply global params first
+        // Potentially override with persona-specific params if they were stored on the persona object
+        // For now, we assume globalSynthesisParams are the primary source for overrides.
       };
+      
+      consola.info(`[TTS] Segment ${segment.segmentIndex} ('${segment.text.substring(0,20)}...'): Provider='${cleanedTtsProvider}', VoiceID='${actualVoiceId}'`); // Used cleanedTtsProvider
 
       try {
         let segmentResult: TimedAudioSegmentResult | null = null;
-        let actualTtsProvider = ttsProvider; // Use the general ttsProvider by default
-        let actualVoiceId = segment.voiceId; // Use the segment's voiceId by default
 
-        console.log(`[synthesize.post.ts] Current ttsProvider for segment ${segment.segmentIndex}: ${ttsProvider}`);
-
-        if (actualTtsProvider === 'volcengine') {
-          // Volcengine TTS configuration check (re-enabled)
-          if (!runtimeConfig.volcengine?.appId || 
-              !runtimeConfig.volcengine?.accessToken || 
-              !runtimeConfig.volcengine?.cluster ||
-              !runtimeConfig.volcengine?.instanceId) { 
-            console.error('[synthesize.post.ts] Volcengine TTS configuration missing (AppId, AccessToken, Cluster, or InstanceId) for segment:', segment.segmentIndex);
-            results.push({ error: 'Volcengine configuration missing.', segmentIndex: segment.segmentIndex, provider: 'volcengine' });
+        if (cleanedTtsProvider.toLowerCase() === 'volcengine') { // Used cleanedTtsProvider
+          if (!runtimeConfig.volcengine?.appId || !runtimeConfig.volcengine?.accessToken || !runtimeConfig.volcengine?.cluster || !runtimeConfig.volcengine?.instanceId) {
+            consola.error('[synthesize.post.ts] Volcengine TTS configuration missing for segment:', segment.segmentIndex);
+            results.push({ error: 'Volcengine configuration missing.', segmentIndex: segment.segmentIndex, provider: 'volcengine', voiceModelUsed: actualVoiceId });
             continue;
           }
-
-          console.info(`[TTS] [${segment.segmentIndex}] Preparing VolcengineParams for segment. speakerName: '${segment.speakerName}', voiceId: '${segment.voiceId}', textPreview: '${segment.text.slice(0, 30)}${segment.text.length > 30 ? '...' : ''}'`);
-
           const volcConfig: VolcengineParams = {
             text: segment.text,
-            voiceType: actualVoiceId, // This is the Volcengine voice model ID, potentially overridden
+            voiceType: actualVoiceId,
             storageService,
             appId: runtimeConfig.volcengine.appId,
             accessToken: runtimeConfig.volcengine.accessToken,
             cluster: runtimeConfig.volcengine.cluster,
-            instanceId: runtimeConfig.volcengine.instanceId, 
+            instanceId: runtimeConfig.volcengine.instanceId,
             publicOutputDirectory,
             storageOutputDirectory,
             baseFilename,
-            encoding: synthesisParams.volcengineEncoding || 'mp3',
-            speedRatio: synthesisParams.speed, // Map generic speed
-            volumeRatio: synthesisParams.volume,
-            pitchRatio: synthesisParams.pitch,
-            enableTimestamps: true, // Defaulting to true, can be overridden if added to synthesisParams
+            encoding: currentSynthesisParams.volcengineEncoding || 'mp3',
+            speedRatio: currentSynthesisParams.speed,
+            volumeRatio: currentSynthesisParams.volume,
+            pitchRatio: currentSynthesisParams.pitch,
+            enableTimestamps: true,
           };
-
-          console.log('[Volcengine Config Debug] Attempting to read Volcengine config from runtimeConfig for segment:', segment.segmentIndex);
-          console.log('[Volcengine Config Debug] AppId from runtimeConfig:', runtimeConfig.volcengine.appId);
-          console.log('[Volcengine Config Debug] AccessToken from runtimeConfig:', runtimeConfig.volcengine.accessToken);
-          console.log('[Volcengine Config Debug] Cluster from runtimeConfig:', runtimeConfig.volcengine.cluster);
-          console.log('[Volcengine Config Debug] InstanceId from runtimeConfig:', runtimeConfig.volcengine.instanceId);
-          
-          console.info(`[TTS] [${segment.segmentIndex}] Calling generateAndStoreTimedAudioSegmentVolcengine with voiceType: '${volcConfig.voiceType}'`);
           segmentResult = await generateAndStoreTimedAudioSegmentVolcengine(volcConfig);
-        } else { // Default to ElevenLabs
+        } else if (cleanedTtsProvider.toLowerCase() === 'elevenlabs') { // Used cleanedTtsProvider
           const elevenLabsApiKey = runtimeConfig.elevenlabs?.apiKey;
+          if (!elevenLabsApiKey) {
+             consola.error('[synthesize.post.ts] ElevenLabs API key missing for segment:', segment.segmentIndex);
+             results.push({ error: 'ElevenLabs API key missing.', segmentIndex: segment.segmentIndex, provider: 'elevenlabs', voiceModelUsed: actualVoiceId });
+             continue;
+          }
           const elevenLabsTTSParams: ElevenLabsParams = {
             text: segment.text,
-            voiceId: actualVoiceId, // Potentially overridden
+            voiceId: actualVoiceId,
             storageService,
             elevenLabsApiKey,
             publicOutputDirectory,
             storageOutputDirectory,
             baseFilename,
-            defaultModelId: defaultModelId,
-            voiceSettings: { // Pass specific ElevenLabs voice settings
-              stability: mergedVoiceSettings.stability,
-              similarity_boost: mergedVoiceSettings.similarity_boost,
-              style: voiceSettings?.style, // original voiceSettings might have this
-              use_speaker_boost: voiceSettings?.use_speaker_boost,
+            defaultModelId: defaultModelId, // Use global defaultModelId if provided
+            voiceSettings: { // Apply relevant params from merged SynthesisParams
+              stability: currentSynthesisParams.stability,
+              similarity_boost: currentSynthesisParams.similarity_boost,
+              style: currentSynthesisParams.style,
+              use_speaker_boost: currentSynthesisParams.use_speaker_boost,
             },
-            // Note: ElevenLabs SDK might handle speed/temperature differently or not at all via these params.
-            // The `elevenlabs.textToSpeech.convertWithTimestamps` might not directly accept speed/temp.
-            // These are usually part of voice_settings if supported.
+             // speed is not directly part of ElevenLabsParams for textToSpeech.convertWithTimestamps
+             // It might be part of a voice's settings or a different API endpoint.
+             // For now, we pass it if present in currentSynthesisParams, but the service function needs to handle it.
           };
           segmentResult = await generateAndStoreTimedAudioSegmentElevenLabs(elevenLabsTTSParams);
+        } else {
+          consola.warn(`[synthesize.post.ts] Unsupported TTS provider '${cleanedTtsProvider}' for segment ${segment.segmentIndex}.`); // Used cleanedTtsProvider
+          results.push({ error: `Unsupported TTS provider: ${cleanedTtsProvider}`, segmentIndex: segment.segmentIndex, provider: sanitizeProviderForResults(cleanedTtsProvider), voiceModelUsed: actualVoiceId }); // Used cleanedTtsProvider
+          continue;
         }
         
-        results.push({ ...segmentResult, segmentIndex: segment.segmentIndex });
+        results.push({ ...segmentResult, segmentIndex: segment.segmentIndex, provider: sanitizeProviderForResults(cleanedTtsProvider), voiceModelUsed: actualVoiceId }); // Used cleanedTtsProvider
 
-        // ---- BEGIN DATABASE INSERT FOR AUDIO URL ----
-        // Only save to DB if audio generation was successful
+        // ---- DATABASE INSERT FOR AUDIO URL ----
         if (segmentResult && segmentResult.audioFileUrl && !segmentResult.error) {
           try {
-            // Get the database segment ID using the segment index
-            // We need the podcast ID to fetch segments from the DB
-            // Use server-side Supabase client and database utilities
             const supabase = await serverSupabaseServiceRole<Database>(event);
             if (!supabase) {
-              console.error(`[synthesize.post.ts] Failed to get Supabase service role client for segment ${segment.segmentIndex} of podcast ${podcastId}. Skipping DB save.`);
-              continue; // Skip to next segment if Supabase client fails
+              consola.error(`[DB] Failed to get Supabase client for segment ${segment.segmentIndex}. Skipping DB save.`);
+              continue;
             }
             const podcastDb = createServerPodcastDatabase(supabase);
-            const dbSegments = await podcastDb.getSegmentsByPodcastId(podcastId);
+            const dbSegments = await podcastDb.getSegmentsByPodcastId(podcastId); // Assumes podcast record exists
             const dbSegment = dbSegments.find(s => s.idx === segment.segmentIndex);
 
-            if (dbSegment) {
-              // Save the audio URL and metadata to segment_audios table
-              // Construct a more detailed params object for database logging
+            if (dbSegment && dbSegment.segment_text_id) {
               const dbAudioParams: Record<string, any> = {
-                ttsProvider: actualTtsProvider, // Use the determined provider for this segment
-                voiceIdUsed: actualVoiceId,    // Use the determined voiceId for this segment
+                ttsProvider: actualTtsProvider,
+                voiceIdUsed: actualVoiceId,
                 timestampFileUrl: segmentResult.timestampFileUrl,
                 durationMs: segmentResult.durationMs,
-                // Provider-specific settings that were applied
-                ...(ttsProvider === 'elevenlabs' && {
-                  modelId: defaultModelId, // Global defaultModelId if used
-                  stability: mergedVoiceSettings.stability,
-                  similarity_boost: mergedVoiceSettings.similarity_boost,
-                  style: voiceSettings?.style,
-                  use_speaker_boost: voiceSettings?.use_speaker_boost,
-                  // Explicitly log generic params if they influenced ElevenLabs settings
-                  appliedSpeed: mergedVoiceSettings.speed, // Speed might not be directly settable in EL SDK this way
-                }),
-                ...(ttsProvider === 'volcengine' && {
-                  encoding: synthesisParams.volcengineEncoding || 'mp3',
-                  speedRatio: synthesisParams.speed, // Mapped from generic speed
-                  pitchRatio: synthesisParams.pitch,
-                  volumeRatio: synthesisParams.volume,
-                }),
-                // Optionally, store the raw input params for full traceability if needed
-                // rawRequestBodySynthesisParams: synthesisParams,
-                // rawRequestBodyVoiceSettings: voiceSettings,
+                // Log applied synthesis parameters
+                appliedSynthesisParams: {
+                    ...(actualTtsProvider.toLowerCase() === 'elevenlabs' && {
+                        modelId: defaultModelId, // Global defaultModelId if used
+                        stability: currentSynthesisParams.stability,
+                        similarity_boost: currentSynthesisParams.similarity_boost,
+                        style: currentSynthesisParams.style,
+                        use_speaker_boost: currentSynthesisParams.use_speaker_boost,
+                    }),
+                    ...(actualTtsProvider.toLowerCase() === 'volcengine' && {
+                        encoding: currentSynthesisParams.volcengineEncoding || 'mp3',
+                        speedRatio: currentSynthesisParams.speed,
+                        pitchRatio: currentSynthesisParams.pitch,
+                        volumeRatio: currentSynthesisParams.volume,
+                    }),
+                }
               };
-
-              await podcastDb.addSegmentAudio(
-                dbSegment.segment_text_id, 
-                segmentResult.audioFileUrl,
-                'v1', // Using 'v1' as the version tag. This can be made dynamic if needed.
-                dbAudioParams 
-              );
-              console.log(`Successfully saved audio URL for segment ${segment.segmentIndex} (DB ID: ${dbSegment.segment_text_id}) to database with detailed params.`);
+              await podcastDb.addSegmentAudio(dbSegment.segment_text_id, segmentResult.audioFileUrl, 'v1', dbAudioParams);
+              consola.info(`[DB] Saved audio URL for segment ${segment.segmentIndex} (DB ID: ${dbSegment.segment_text_id})`);
             } else {
-              console.warn(`Could not find database segment for index ${segment.segmentIndex} in podcast ${podcastId}. Audio URL not saved to DB.`);
+              consola.warn(`[DB] Could not find DB segment for index ${segment.segmentIndex} in podcast ${podcastId}. Audio URL not saved.`);
             }
           } catch (dbError: any) {
-            console.error(
-              `Database insert error for segment audio (podcastId: ${podcastId}, segmentIndex: ${segment.segmentIndex}): ${dbError.message}`,
-              dbError
-            );
-            // Log error but do not fail the API response for this segment
+            consola.error(`[DB] Error saving audio for segment ${segment.segmentIndex}: ${dbError.message}`, dbError);
           }
         } else if (segmentResult && segmentResult.error) {
-          console.warn(`Audio generation failed for segment ${segment.segmentIndex}. Skipping database save.`);
+          consola.warn(`[TTS] Audio generation failed for segment ${segment.segmentIndex}. Skipping DB save. Error: ${segmentResult.error}`);
         }
-        // ---- END DATABASE INSERT FOR AUDIO URL ----
+        // ---- END DATABASE INSERT ----
       } catch (error: any) {
-        console.error(`Error generating segment ${segment.segmentIndex}:`, error.message || error, error.stack);
-        results.push({ error: error.message || 'Unknown internal server error.', segmentIndex: segment.segmentIndex });
+        consola.error(`[TTS] Error generating segment ${segment.segmentIndex}: ${error.message}`, error);
+        results.push({ error: error.message || 'Unknown TTS error.', segmentIndex: segment.segmentIndex, provider: sanitizeProviderForResults(actualTtsProvider), voiceModelUsed: actualVoiceId });
       }
     }
 
-    const allFailed = results.every(r => r.error);
-    if (allFailed && validSegments.length > 0) {
-        const errorSummary = results.map(r => `Segment ${r.segmentIndex}: ${r.error}`).join('; ');
-        console.error(`[synthesize.post.ts] All segments failed for podcastId ${podcastId}: ${errorSummary}`);
-        throw createError({
-            statusCode: 500,
-            statusMessage: `Failed to synthesize any audio segments for podcast ${podcastId}. Errors: ${errorSummary}`,
-        });
-    }
+    const allFailed = results.every(r => r.error && r.audioFileUrl === undefined); // More precise check for failure
+    const successfulSegmentsCount = results.filter(r => r.audioFileUrl && !r.error).length;
+
+    consola.info(`[synthesize.post.ts] Synthesis complete. Successful: ${successfulSegmentsCount}, Failed: ${results.length - successfulSegmentsCount}`);
     
     return {
-      success: !allFailed,
+      success: successfulSegmentsCount > 0, // Overall success if at least one segment succeeded
       podcastId: podcastId,
       generatedSegments: results,
-      message: `Segment synthesis process completed for podcast ${podcastId}. Check segment results for individual errors.`,
+      message: `Segment synthesis process completed for podcast ${podcastId}. Successful: ${successfulSegmentsCount}/${inputSegments.length}.`,
     };
 
   } catch (error: any) {
-    console.error(`Error in /api/podcast/process/synthesize.post.ts:`, error.message || error, error.stack);
-    if (error.statusCode && error.statusMessage) { // It's already an H3 error
+    consola.error(`[synthesize.post.ts] Critical error in handler: ${error.message}`, error);
+    if (error.statusCode && error.statusMessage) {
         throw error;
     }
     throw createError({

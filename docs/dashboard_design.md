@@ -17,7 +17,8 @@ Dashboard 页面将采用卡片式布局，分为以下几个主要区域：
 
 ### 1. 顶部总览区 (Key Metrics)
 
-4-6个关键指标卡片，呈现系统的核心数据：
+4-6 个关键指标卡片，呈现系统的核心数据：
+
 - 博物馆总数
 - 展厅总数
 - 展品总数
@@ -30,6 +31,7 @@ Dashboard 页面将采用卡片式布局，分为以下几个主要区域：
 ### 2. 博物馆内容分布图 (Museum Content Distribution)
 
 使用组合图表展示博物馆资源分布情况：
+
 - 主图：展示各博物馆的展品、展厅和音频数量
 - 迷你圆环图：显示整体资源在各博物馆间的分布比例
 - 可筛选：按城市、国家或其他属性筛选
@@ -37,6 +39,7 @@ Dashboard 页面将采用卡片式布局，分为以下几个主要区域：
 ### 3. 内容语言覆盖率 (Language Coverage)
 
 展示多语言支持情况：
+
 - 水平条形图：按语言显示文本和音频数量
 - 热力图：展示语言与博物馆的覆盖矩阵
 - 完成度指标：显示各语言内容完成度
@@ -44,6 +47,7 @@ Dashboard 页面将采用卡片式布局，分为以下几个主要区域：
 ### 4. 最新添加内容 (Recent Content)
 
 以时间线形式展示最近添加或更新的内容：
+
 - 博物馆新增
 - 展品添加
 - 音频生成
@@ -52,6 +56,7 @@ Dashboard 页面将采用卡片式布局，分为以下几个主要区域：
 ### 5. 角色使用统计 (Persona Usage)
 
 展示各导览角色的使用情况：
+
 - 按角色统计的音频数量
 - 按角色统计的总时长
 - 各角色支持的语言
@@ -59,6 +64,7 @@ Dashboard 页面将采用卡片式布局，分为以下几个主要区域：
 ### 6. 快速访问链接 (Quick Access)
 
 提供对系统其他功能区域的快速访问：
+
 - 博物馆管理
 - 展品管理
 - 音频生成
@@ -73,7 +79,7 @@ Dashboard 页面将采用卡片式布局，分为以下几个主要区域：
 2. **日期范围选择** - 可选择不同时间范围查看数据
 3. **下钻功能** - 从总体数据点击进入详细视图
 4. **过滤与排序** - 灵活调整数据展示方式
-5. **导出功能** - 将数据导出为CSV或PDF报告
+5. **导出功能** - 将数据导出为 CSV 或 PDF 报告
 
 ## 视觉设计
 
@@ -92,43 +98,45 @@ Dashboard 页面将采用卡片式布局，分为以下几个主要区域：
 
 ```typescript
 // composables/useDashboardData.ts
-import { ref, computed } from 'vue'
-import { useSupabaseClient } from '@nuxtjs/supabase'
+import { ref, computed } from "vue";
+import { useSupabaseClient } from "@nuxtjs/supabase";
 
 export function useDashboardData() {
-  const supabase = useSupabaseClient()
-  const dashboardData = ref(null)
-  const isLoading = ref(true)
-  const error = ref(null)
+  const supabase = useSupabaseClient();
+  const dashboardData = ref(null);
+  const isLoading = ref(true);
+  const error = ref(null);
 
   const fetchDashboardData = async () => {
-    isLoading.value = true
-    error.value = null
-    
+    isLoading.value = true;
+    error.value = null;
+
     try {
       const { data, error: err } = await supabase
-        .from('dashboard_combined_view')
-        .select('*')
-        .single()
-        
-      if (err) throw err
-      
-      dashboardData.value = data.dashboard_data
+        .from("dashboard_combined_view")
+        .select("*")
+        .single();
+
+      if (err) throw err;
+
+      dashboardData.value = data.dashboard_data;
     } catch (err) {
-      console.error('获取 Dashboard 数据失败:', err)
-      error.value = err
+      console.error("获取 Dashboard 数据失败:", err);
+      error.value = err;
     } finally {
-      isLoading.value = false
+      isLoading.value = false;
     }
-  }
-  
+  };
+
   // 各部分数据的计算属性
-  const keyMetrics = computed(() => dashboardData.value?.overall_stats || {})
-  const recentItems = computed(() => dashboardData.value?.recent_items || [])
-  const topMuseums = computed(() => dashboardData.value?.top_museums || [])
-  const languageStats = computed(() => dashboardData.value?.language_stats || [])
-  const topPersonas = computed(() => dashboardData.value?.top_personas || [])
-  
+  const keyMetrics = computed(() => dashboardData.value?.overall_stats || {});
+  const recentItems = computed(() => dashboardData.value?.recent_items || []);
+  const topMuseums = computed(() => dashboardData.value?.top_museums || []);
+  const languageStats = computed(
+    () => dashboardData.value?.language_stats || []
+  );
+  const topPersonas = computed(() => dashboardData.value?.top_personas || []);
+
   return {
     fetchDashboardData,
     dashboardData,
@@ -138,8 +146,8 @@ export function useDashboardData() {
     recentItems,
     topMuseums,
     languageStats,
-    topPersonas
-  }
+    topPersonas,
+  };
 }
 ```
 
@@ -161,92 +169,114 @@ Dashboard 页面将由以下组件构成：
 <template>
   <div class="dashboard-container p-4 md:p-6 space-y-6">
     <!-- 页面标题与日期选择器 -->
-    <div class="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-6">
+    <div
+      class="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-6"
+    >
       <h1 class="text-2xl md:text-3xl font-bold">Dashboard</h1>
       <div class="flex items-center gap-2">
-        <Button variant="outline" size="sm" @click="refreshData" :disabled="isLoading">
-          <Icon name="ph:refresh" class="mr-2 h-4 w-4" :class="{ 'animate-spin': isLoading }" />
-          {{ isLoading ? '加载中...' : '刷新数据' }}
+        <Button
+          variant="outline"
+          size="sm"
+          @click="refreshData"
+          :disabled="isLoading"
+        >
+          <Icon
+            name="ph:refresh"
+            class="mr-2 h-4 w-4"
+            :class="{ 'animate-spin': isLoading }"
+          />
+          {{ isLoading ? "加载中..." : "刷新数据" }}
         </Button>
         <DateRangePicker v-model="dateRange" />
       </div>
     </div>
-    
+
     <!-- 错误提示 -->
-    <div v-if="error" class="bg-red-50 border border-red-200 text-red-700 p-4 rounded-md">
+    <div
+      v-if="error"
+      class="bg-red-50 border border-red-200 text-red-700 p-4 rounded-md"
+    >
       <p class="font-medium">加载数据时出错</p>
       <p class="text-sm">{{ error.message }}</p>
-      <Button class="mt-2" variant="outline" size="sm" @click="fetchDashboardData">重试</Button>
+      <Button
+        class="mt-2"
+        variant="outline"
+        size="sm"
+        @click="fetchDashboardData"
+        >重试</Button
+      >
     </div>
-    
+
     <!-- 加载状态 -->
-    <div v-if="isLoading && !dashboardData" class="flex justify-center items-center h-60">
+    <div
+      v-if="isLoading && !dashboardData"
+      class="flex justify-center items-center h-60"
+    >
       <div class="text-center">
-        <Icon name="ph:spinner" class="animate-spin h-8 w-8 text-primary mx-auto mb-2" />
+        <Icon
+          name="ph:spinner"
+          class="animate-spin h-8 w-8 text-primary mx-auto mb-2"
+        />
         <p class="text-gray-500">加载数据中...</p>
       </div>
     </div>
-    
+
     <!-- 主要内容区域 -->
     <div v-if="dashboardData" class="space-y-6">
       <!-- 关键指标区 -->
       <div class="grid gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-4">
-        <MetricCard 
-          title="博物馆" 
-          :value="keyMetrics.total_museums" 
+        <MetricCard
+          title="博物馆"
+          :value="keyMetrics.total_museums"
           icon="ph:buildings"
         />
-        <MetricCard 
-          title="展厅" 
-          :value="keyMetrics.total_galleries" 
+        <MetricCard
+          title="展厅"
+          :value="keyMetrics.total_galleries"
           icon="ph:door-open"
         />
-        <MetricCard 
-          title="展品" 
-          :value="keyMetrics.total_objects" 
+        <MetricCard
+          title="展品"
+          :value="keyMetrics.total_objects"
           icon="ph:image-square"
         />
-        <MetricCard 
-          title="导览音频" 
-          :value="keyMetrics.total_audios" 
+        <MetricCard
+          title="导览音频"
+          :value="keyMetrics.total_audios"
           icon="ph:headphones"
         />
       </div>
-      
+
       <!-- 两列布局：博物馆分布和语言覆盖 -->
       <div class="grid gap-6 grid-cols-1 lg:grid-cols-2">
-        <ChartPanel 
-          title="博物馆内容分布" 
-          :data="museumChartData" 
+        <ChartPanel
+          title="博物馆内容分布"
+          :data="museumChartData"
           type="bar"
           height="350px"
         />
-        
-        <ChartPanel 
-          title="语言覆盖率" 
-          :data="languageChartData" 
+
+        <ChartPanel
+          title="语言覆盖率"
+          :data="languageChartData"
           type="horizontalBar"
           height="350px"
         />
       </div>
-      
+
       <!-- 最近内容和角色使用统计 -->
       <div class="grid gap-6 grid-cols-1 lg:grid-cols-2">
-        <ContentTimeline 
-          title="最新添加内容" 
-          :items="recentItems"
-        />
-        
-        <PersonaStats
-          title="角色使用统计"
-          :personas="topPersonas"
-        />
+        <ContentTimeline title="最新添加内容" :items="recentItems" />
+
+        <PersonaStats title="角色使用统计" :personas="topPersonas" />
       </div>
-      
+
       <!-- 快速访问区域 -->
-      <div class="grid gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5">
-        <QuickAccessCard 
-          v-for="item in quickAccessItems" 
+      <div
+        class="grid gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5"
+      >
+        <QuickAccessCard
+          v-for="item in quickAccessItems"
           :key="item.title"
           :title="item.title"
           :icon="item.icon"
@@ -259,110 +289,110 @@ Dashboard 页面将由以下组件构成：
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, computed } from 'vue'
-import { useDashboardData } from '~/composables/useDashboardData'
+import { ref, onMounted, computed } from "vue";
+import { useDashboardData } from "~/composables/useDashboardData";
 
 // 获取数据
-const { 
-  fetchDashboardData, 
-  dashboardData, 
-  isLoading, 
+const {
+  fetchDashboardData,
+  dashboardData,
+  isLoading,
   error,
   keyMetrics,
   recentItems,
   topMuseums,
   languageStats,
-  topPersonas
-} = useDashboardData()
+  topPersonas,
+} = useDashboardData();
 
 // 日期范围
 const dateRange = ref({
   from: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000),
-  to: new Date()
-})
+  to: new Date(),
+});
 
 // 刷新数据
 const refreshData = () => {
-  fetchDashboardData()
-}
+  fetchDashboardData();
+};
 
 // 博物馆图表数据
 const museumChartData = computed(() => ({
-  labels: topMuseums.value.map(m => m.museum_name),
+  labels: topMuseums.value.map((m) => m.museum_name),
   datasets: [
     {
-      label: '展品',
-      data: topMuseums.value.map(m => m.object_count),
-      backgroundColor: '#4f46e5'
+      label: "展品",
+      data: topMuseums.value.map((m) => m.object_count),
+      backgroundColor: "#4f46e5",
     },
     {
-      label: '展厅',
-      data: topMuseums.value.map(m => m.gallery_count),
-      backgroundColor: '#0ea5e9'
+      label: "展厅",
+      data: topMuseums.value.map((m) => m.gallery_count),
+      backgroundColor: "#0ea5e9",
     },
     {
-      label: '导览音频',
-      data: topMuseums.value.map(m => m.audio_guide_count),
-      backgroundColor: '#10b981'
-    }
-  ]
-}))
+      label: "导览音频",
+      data: topMuseums.value.map((m) => m.audio_guide_count),
+      backgroundColor: "#10b981",
+    },
+  ],
+}));
 
 // 语言图表数据
 const languageChartData = computed(() => ({
-  labels: languageStats.value.map(l => l.language),
+  labels: languageStats.value.map((l) => l.language),
   datasets: [
     {
-      label: '文本',
-      data: languageStats.value.map(l => l.text_count),
-      backgroundColor: '#8b5cf6'
+      label: "文本",
+      data: languageStats.value.map((l) => l.text_count),
+      backgroundColor: "#8b5cf6",
     },
     {
-      label: '音频',
-      data: languageStats.value.map(l => l.audio_count),
-      backgroundColor: '#ec4899'
-    }
-  ]
-}))
+      label: "音频",
+      data: languageStats.value.map((l) => l.audio_count),
+      backgroundColor: "#ec4899",
+    },
+  ],
+}));
 
 // 快速访问项
 const quickAccessItems = computed(() => [
-  { 
-    title: '博物馆管理', 
-    icon: 'ph:buildings', 
-    route: '/museums', 
-    count: keyMetrics.value?.total_museums || 0 
+  {
+    title: "博物馆管理",
+    icon: "ph:buildings",
+    route: "/museums",
+    count: keyMetrics.value?.total_museums || 0,
   },
-  { 
-    title: '展厅管理', 
-    icon: 'ph:door-open', 
-    route: '/galleries', 
-    count: keyMetrics.value?.total_galleries || 0 
+  {
+    title: "展厅管理",
+    icon: "ph:door-open",
+    route: "/galleries",
+    count: keyMetrics.value?.total_galleries || 0,
   },
-  { 
-    title: '展品管理', 
-    icon: 'ph:image-square', 
-    route: '/objects', 
-    count: keyMetrics.value?.total_objects || 0 
+  {
+    title: "展品管理",
+    icon: "ph:image-square",
+    route: "/objects",
+    count: keyMetrics.value?.total_objects || 0,
   },
-  { 
-    title: '音频管理', 
-    icon: 'ph:headphones', 
-    route: '/audio', 
-    count: keyMetrics.value?.total_audios || 0 
+  {
+    title: "音频管理",
+    icon: "ph:headphones",
+    route: "/audio",
+    count: keyMetrics.value?.total_audios || 0,
   },
-  { 
-    title: '角色管理', 
-    icon: 'ph:user', 
-    route: '/personas', 
-    count: keyMetrics.value?.total_personas || 0 
-  }
-])
+  {
+    title: "角色管理",
+    icon: "ph:user",
+    route: "/personas",
+    count: keyMetrics.value?.total_personas || 0,
+  },
+]);
 
 // 加载数据
 onMounted(() => {
-  fetchDashboardData()
-})
+  fetchDashboardData();
+});
 </script>
 ```
 
@@ -373,25 +403,34 @@ onMounted(() => {
 ```vue
 <template>
   <Card class="overflow-hidden">
-    <CardHeader class="flex flex-row items-center justify-between space-y-0 pb-2">
+    <CardHeader
+      class="flex flex-row items-center justify-between space-y-0 pb-2"
+    >
       <CardTitle class="text-sm font-medium">{{ title }}</CardTitle>
       <Icon :name="icon" class="h-4 w-4 text-muted-foreground" />
     </CardHeader>
     <CardContent>
       <div class="text-2xl font-bold">{{ formattedValue }}</div>
-      <div v-if="change !== undefined" class="text-xs text-muted-foreground flex items-center space-x-1">
-        <Icon 
-          :name="change >= 0 ? 'ph:arrow-up' : 'ph:arrow-down'" 
-          class="h-3 w-3" 
-          :class="change >= 0 ? 'text-emerald-500' : 'text-rose-500'" 
+      <div
+        v-if="change !== undefined"
+        class="text-xs text-muted-foreground flex items-center space-x-1"
+      >
+        <Icon
+          :name="change >= 0 ? 'ph:arrow-up' : 'ph:arrow-down'"
+          class="h-3 w-3"
+          :class="change >= 0 ? 'text-emerald-500' : 'text-rose-500'"
         />
         <span :class="change >= 0 ? 'text-emerald-500' : 'text-rose-500'">
           {{ Math.abs(change).toFixed(1) }}%
         </span>
         <span>from {{ compareLabel }}</span>
       </div>
-      <div v-if="secondaryValue" class="mt-2 pt-2 border-t text-xs text-muted-foreground">
-        {{ secondaryLabel }}: <span class="font-medium">{{ secondaryValue }}</span>
+      <div
+        v-if="secondaryValue"
+        class="mt-2 pt-2 border-t text-xs text-muted-foreground"
+      >
+        {{ secondaryLabel }}:
+        <span class="font-medium">{{ secondaryValue }}</span>
       </div>
     </CardContent>
   </Card>
@@ -413,11 +452,13 @@ onMounted(() => {
         <CardDescription v-if="description">{{ description }}</CardDescription>
       </div>
       <div v-if="filters" class="flex items-center space-x-2">
-        <Button v-for="filter in filters" 
-                :key="filter.value" 
-                :variant="activeFilter === filter.value ? 'default' : 'outline'"
-                size="sm"
-                @click="activeFilter = filter.value">
+        <Button
+          v-for="filter in filters"
+          :key="filter.value"
+          :variant="activeFilter === filter.value ? 'default' : 'outline'"
+          size="sm"
+          @click="activeFilter = filter.value"
+        >
           {{ filter.label }}
         </Button>
       </div>
@@ -443,17 +484,32 @@ onMounted(() => {
     </CardHeader>
     <CardContent class="p-0 overflow-auto max-h-[400px]">
       <div class="divide-y">
-        <div v-for="item in items" :key="item.id" class="p-4 hover:bg-gray-50 transition-colors">
+        <div
+          v-for="item in items"
+          :key="item.id"
+          class="p-4 hover:bg-gray-50 transition-colors"
+        >
           <div class="flex items-start gap-2">
-            <div v-if="getIcon(item.content_type)" class="rounded-full p-2 flex-shrink-0" :class="getIconBgColor(item.content_type)">
-              <Icon :name="getIcon(item.content_type)" class="h-4 w-4 text-white" />
+            <div
+              v-if="getIcon(item.content_type)"
+              class="rounded-full p-2 flex-shrink-0"
+              :class="getIconBgColor(item.content_type)"
+            >
+              <Icon
+                :name="getIcon(item.content_type)"
+                class="h-4 w-4 text-white"
+              />
             </div>
             <div class="flex-1 min-w-0">
               <div class="flex justify-between items-start">
                 <p class="font-medium text-sm truncate">{{ item.name }}</p>
-                <time class="text-xs text-gray-500">{{ formatTime(item.created_at) }}</time>
+                <time class="text-xs text-gray-500">{{
+                  formatTime(item.created_at)
+                }}</time>
               </div>
-              <p class="text-sm text-gray-600 line-clamp-2">{{ item.description }}</p>
+              <p class="text-sm text-gray-600 line-clamp-2">
+                {{ item.description }}
+              </p>
               <p v-if="item.museum_name" class="text-xs text-gray-500 mt-1">
                 {{ item.museum_name }}
               </p>

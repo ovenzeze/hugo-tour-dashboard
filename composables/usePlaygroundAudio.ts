@@ -1,10 +1,31 @@
 import { ref, type Ref } from 'vue';
-import { usePlaygroundUnifiedStore } from '~/stores/playgroundUnified';
+// import { usePlaygroundUnifiedStore } from '~/stores/playgroundUnified'; // Commented out
 import { toast } from 'vue-sonner';
 import type { ValidateScriptResponse } from '~/composables/useScriptValidator';
 
 export function usePlaygroundAudio(voicePerformanceSettingsRef: Ref<any>, podcastPerformanceConfig: Ref<any>, canProceedFromStep2: Ref<boolean>) {
-  const unifiedStore = usePlaygroundUnifiedStore();
+  // const unifiedStore = usePlaygroundUnifiedStore(); // Commented out
+  // Placeholder for unifiedStore
+  const unifiedStore = {
+    podcastId: ref<string | number | null>(null),
+    podcastSettings: ref<{ title?: string; language?: string; /* other needed fields */ }>({}),
+    validationResult: ref<ValidateScriptResponse | null>(null),
+    audioUrl: ref<string | null>(null),
+    outputFilename: ref<string | undefined>(undefined), // Added this property
+    synthesizeAudioPreviewForAllSegments: async (validationResult: any, podcastSettings: any, speakerAssignments: any) => {
+      toast.info('Audio preview (unifiedStore mock) is temporarily unavailable.');
+      return Promise.resolve({ successfulSegments: 0, failedSegments: 0, totalSegments: 0 });
+    },
+    synthesizeAudio: async () => {
+      toast.info('Audio synthesis (unifiedStore mock) is temporarily unavailable.');
+      return Promise.resolve({ success: false, finalAudioUrl: null, segmentResults: [] });
+    },
+    setFinalAudioUrl: (url: string | null) => {
+      unifiedStore.audioUrl.value = url;
+      console.log('unifiedStore.setFinalAudioUrl called (mock):', url);
+    },
+    // Add other properties/methods if they are accessed from this composable
+  };
 
   const isGeneratingAudioPreview = ref(false); // For step 2 preview generation
 
@@ -13,7 +34,7 @@ export function usePlaygroundAudio(voicePerformanceSettingsRef: Ref<any>, podcas
       toast.error("Voice configuration incomplete. Please assign voices to all roles/speakers.");
       return;
     }
-    if (!unifiedStore.podcastId) {
+    if (!unifiedStore.podcastId.value) {
       toast.error("Podcast ID is missing. Cannot synthesize segments. Please ensure script is validated and saved (Step 1).");
       return;
     }
@@ -43,21 +64,21 @@ export function usePlaygroundAudio(voicePerformanceSettingsRef: Ref<any>, podcas
         success: true,
         message: "Performance configuration applied for synthesis.",
         structuredData: {
-            podcastTitle: unifiedStore.podcastSettings.title || unifiedStore.validationResult?.structuredData?.podcastTitle || "Untitled Podcast",
+            podcastTitle: unifiedStore.podcastSettings.value.title || unifiedStore.validationResult.value?.structuredData?.podcastTitle || "Untitled Podcast",
             script: newStructuredScript,
             voiceMap: newVoiceMap,
-            language: unifiedStore.podcastSettings.language || unifiedStore.validationResult?.structuredData?.language || "en",
+            language: unifiedStore.podcastSettings.value.language || unifiedStore.validationResult.value?.structuredData?.language || "en",
         }
     };
-    unifiedStore.validationResult = updatedValidationData;
+    unifiedStore.validationResult.value = updatedValidationData;
 
 
     isGeneratingAudioPreview.value = true;
     try {
       console.log("[usePlaygroundAudio] Calling synthesizeAudioPreviewForAllSegments from unifiedStore for Step 2 'Generate Audio Preview'");
       await unifiedStore.synthesizeAudioPreviewForAllSegments(
-        unifiedStore.validationResult, 
-        unifiedStore.podcastSettings, 
+        unifiedStore.validationResult.value,
+        unifiedStore.podcastSettings.value,
         perfConfig.speakerAssignments
       );
     } catch (error) {
@@ -73,7 +94,7 @@ export function usePlaygroundAudio(voicePerformanceSettingsRef: Ref<any>, podcas
         toast.error("Performance configuration is missing. Please complete Step 2.");
         return;
     }
-    if (!unifiedStore.validationResult || !unifiedStore.podcastSettings) {
+    if (!unifiedStore.validationResult.value || !unifiedStore.podcastSettings.value) {
         toast.error("Missing critical data for synthesis (validation or settings).");
         return;
     }
@@ -113,12 +134,12 @@ export function usePlaygroundAudio(voicePerformanceSettingsRef: Ref<any>, podcas
   }
 
   function handleDownloadCurrentAudio() {
-    if (!unifiedStore.audioUrl) {
+    if (!unifiedStore.audioUrl.value) {
       toast.error('No audio available to download');
       return;
     }
-    console.log('[usePlaygroundAudio] Starting download for:', unifiedStore.audioUrl);
-    downloadWithFetch(unifiedStore.audioUrl, unifiedStore.outputFilename || 'podcast_output.mp3');
+    console.log('[usePlaygroundAudio] Starting download for:', unifiedStore.audioUrl.value);
+    downloadWithFetch(unifiedStore.audioUrl.value, unifiedStore.outputFilename.value || 'podcast_output.mp3');
   }
   
   function updateFinalAudioUrl(url: string | null) {

@@ -1,8 +1,21 @@
 // stores/playgroundUIStore.ts
-import { defineStore } from 'pinia';
-import { usePlaygroundSettingsStore } from './playgroundSettingsStore';
-import { usePlaygroundScriptStore } from './playgroundScriptStore';
-import { usePlaygroundProcessStore } from './playgroundProcessStore';
+import { defineStore, storeToRefs } from 'pinia';
+import { usePlaygroundSettingsStore } from '~/stores/playgroundSettingsStore';
+import { usePlaygroundScriptStore } from '~/stores/playgroundScriptStore';
+import { usePlaygroundProcessStore } from '~/stores/playgroundProcessStore';
+import { usePersonaCache } from '~/composables/usePersonaCache';
+import type { Persona } from '~/types/persona';
+import type { ScriptSegment } from '~/types/api/podcast'; // Added for segment.personaMatchStatus
+
+// Define the structure for assigned voice performance details
+export interface AssignedVoicePerformance {
+  voice_id?: string;
+  voice_model_identifier?: string | null;
+  persona_name?: string;
+  persona_id?: number;
+  tts_provider?: string | null;
+  match_status?: 'exact' | 'fallback' | 'none';
+}
 
 export const usePlaygroundUIStore = defineStore('playgroundUI', {
   state: () => ({
@@ -12,11 +25,64 @@ export const usePlaygroundUIStore = defineStore('playgroundUI', {
     audioUrl: null as string | null,
     finalAudioUrl: null as string | null,
     selectedPersonaIdForHighlighting: null as number | string | null,
+    currentlyPreviewingSegmentIndex: null as number | null, // Added state for current preview
+    isStep2ConfirmationDialogVisible: false, // Added state for this dialog
     createPodcastTrigger: 0,
     // UI-specific loading/error states can be added if needed,
     // distinct from processStore's API-specific states.
     // For example: isPageLoading: false, uiError: null as string | null,
   }),
+
+  getters: {
+    availableVoices(state): Persona[] {
+      const { personas } = usePersonaCache();
+      return personas.value;
+    },
+
+    assignedVoicePerformances(state): Record<string, AssignedVoicePerformance> {
+      const scriptStore = usePlaygroundScriptStore();
+      // Accessing parsedSegments directly from the store instance for reactivity within a getter
+      const parsedSegmentsDirect = scriptStore.parsedSegments;
+      const { getPersonaById } = usePersonaCache();
+      
+      const performances: Record<string, AssignedVoicePerformance> = {};
+
+      if (!parsedSegmentsDirect || parsedSegmentsDirect.length === 0) {
+        return performances;
+      }
+
+      for (const segment of parsedSegmentsDirect) {
+        if (segment.speaker && !performances[segment.speaker]) {
+          const personaId = segment.speakerPersonaId;
+          // Cast segment to include personaMatchStatus if it's not in the base ScriptSegment type
+          const matchStatus = (segment as ScriptSegment & { personaMatchStatus?: 'exact' | 'fallback' | 'none' }).personaMatchStatus;
+          
+          let details: AssignedVoicePerformance = {
+            persona_name: segment.speaker, // Default to speaker tag if no persona found
+            match_status: matchStatus || 'none',
+          };
+
+          if (personaId !== null && personaId !== undefined) {
+            const persona = getPersonaById(personaId);
+            if (persona) {
+              details = {
+                voice_id: persona.voice_id,
+                voice_model_identifier: persona.voice_model_identifier,
+                persona_name: persona.name,
+                persona_id: persona.persona_id,
+                tts_provider: persona.tts_provider,
+                match_status: matchStatus || 'exact', // If personaId exists, assume exact or fallback
+              };
+            } else {
+                 details.match_status = 'none'; // Persona ID existed but not found in cache
+            }
+          }
+          performances[segment.speaker] = details;
+        }
+      }
+      return performances;
+    },
+  },
 
   actions: {
     setCurrentStep(step: number) {
@@ -48,6 +114,14 @@ export const usePlaygroundUIStore = defineStore('playgroundUI', {
       this.selectedPersonaIdForHighlighting = id;
     },
 
+    setCurrentlyPreviewingSegmentIndex(index: number | null) {
+      this.currentlyPreviewingSegmentIndex = index;
+    },
+
+    setStep2ConfirmationDialogVisible(isVisible: boolean) {
+      this.isStep2ConfirmationDialogVisible = isVisible;
+    },
+
     triggerCreatePodcast() {
       this.createPodcastTrigger++;
       // This action primarily increments the trigger.
@@ -64,6 +138,8 @@ export const usePlaygroundUIStore = defineStore('playgroundUI', {
       this.audioUrl = null;
       this.finalAudioUrl = null;
       this.selectedPersonaIdForHighlighting = null;
+      this.currentlyPreviewingSegmentIndex = null; // Reset on global reset
+      this.isStep2ConfirmationDialogVisible = false; // Reset dialog visibility
       // createPodcastTrigger is usually not reset here, but incremented by triggerCreatePodcast
     },
 

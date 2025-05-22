@@ -16,6 +16,8 @@ export interface FullPodcastSettings {
   backgroundMusic?: string | undefined;
   elevenLabsProjectId?: string | undefined; // Specific to ElevenLabs
   ttsProvider?: 'elevenlabs' | 'volcengine'; // New field for TTS provider
+  language?: string; // Added field for podcast language
+  useTimestamps?: boolean; // Added for controlling timestamp usage in synthesis
 }
 
 export type { Persona };

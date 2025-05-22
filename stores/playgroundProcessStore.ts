@@ -1,7 +1,7 @@
 // stores/playgroundProcessStore.ts
 import { defineStore } from 'pinia';
-import { usePlaygroundSettingsStore } from './playgroundSettingsStore';
-import { usePlaygroundScriptStore } from './playgroundScriptStore';
+import { usePlaygroundSettingsStore } from '~/stores/playgroundSettingsStore';
+import { usePlaygroundScriptStore } from '~/stores/playgroundScriptStore';
 import { usePersonaCache } from '~/composables/usePersonaCache';
 import type { 
   PodcastCreateRequest, 
@@ -9,10 +9,10 @@ import type {
 } from '~/types/api/podcast';
 
 // Define specific API response types for clarity
-interface SynthesizeApiResponse {
+export interface SynthesizeApiResponse { // Export if needed elsewhere
   success: boolean;
   message?: string;
-  segmentResults?: Array<{
+  segmentResults?: Array<{ // Consider making this a named type if reused
     segmentIndex: number;
     audioUrl?: string;
     error?: string;
@@ -20,10 +20,17 @@ interface SynthesizeApiResponse {
   finalAudioUrl?: string; // If the API returns a single merged audio URL
 }
 
-interface PreviewSegmentsApiResponse {
+export interface SegmentPreview { // Define and export SegmentPreview
+  segmentIndex: number;
+  audioUrl?: string;
+  error?: string;
+  // Add any other fields that come from the API for a segment preview
+}
+
+export interface PreviewSegmentsApiResponse { // Export this interface
   success: boolean;
-  previewUrl?: string; 
-  segmentPreviews?: Array<{ segmentIndex: number; audioUrl?: string; error?: string }>;
+  previewUrl?: string;
+  segmentPreviews?: SegmentPreview[]; // Use the new SegmentPreview type
   message?: string;
 }
 
@@ -41,12 +48,32 @@ interface ValidateScriptApiResponse {
   // Potentially other validation feedback fields
 }
 
+// Define types for timeline API responses
+export interface TimelineItem { // Make sure this matches the structure from the API
+  speaker: string;
+  audioFile: string; // Or however the API returns segment identifiers
+  timestampFile: string;
+  duration: number;
+  startTime: number;
+  endTime: number;
+  // Add other fields if your timeline items have more data
+}
+
+export interface TimelineStatusResponse {
+  success: boolean;
+  message?: string;
+  timelineExists: boolean;
+  timelineUrl?: string | null;
+  timelineData?: TimelineItem[] | null;
+}
+
 
 export const usePlaygroundProcessStore = defineStore('playgroundProcess', {
   state: () => ({
     isLoading: false, // For /script processing
     isSynthesizing: false, // For /synthesize, /preview-segments
     isCombining: false, // For /combine-audio
+    isProcessingTimeline: false, // Specific loading state for timeline operations
     isValidating: false, // For /validate-script (if used)
     
     error: null as string | null,
@@ -56,6 +83,7 @@ export const usePlaygroundProcessStore = defineStore('playgroundProcess', {
     previewApiResponse: null as PreviewSegmentsApiResponse | null,
     combineAudioResponse: null as CombineAudioResponse | null,
     validateScriptApiResponse: null as ValidateScriptApiResponse | null,
+    timelineStatusResponse: null as TimelineStatusResponse | null, // New state for timeline
     
     podcastId: null as string | number | null,
   }),
@@ -65,7 +93,7 @@ export const usePlaygroundProcessStore = defineStore('playgroundProcess', {
       const settingsStore = usePlaygroundSettingsStore();
       const scriptStore = usePlaygroundScriptStore();
 
-      const hostId = settingsStore.getHostPersonaIdNumeric();
+      const hostId = settingsStore.getHostPersonaIdNumeric;
 
       if (hostId === undefined) {
         // Error should be set by getHostPersonaIdNumeric or handled by UI based on settingsStore.error
@@ -87,7 +115,7 @@ export const usePlaygroundProcessStore = defineStore('playgroundProcess', {
         determinedLanguage = hostPersona.language_support[0];
       }
       
-      const guestIds = settingsStore.getGuestPersonaIdsNumeric();
+      const guestIds = settingsStore.getGuestPersonaIdsNumeric;
 
       if (scriptStore.parsedSegments.length === 0 && scriptStore.scriptContent.trim() !== '') {
         // This indicates script content exists but parsing failed or yielded no segments.
@@ -132,6 +160,7 @@ export const usePlaygroundProcessStore = defineStore('playgroundProcess', {
       this.previewApiResponse = null;
       this.combineAudioResponse = null;
       this.validateScriptApiResponse = null;
+      this.timelineStatusResponse = null; // Reset timeline state
       this.podcastId = null;
     },
 
@@ -159,8 +188,8 @@ export const usePlaygroundProcessStore = defineStore('playgroundProcess', {
       try {
         const response = await $fetch<PodcastCreateResponse>('/api/podcast/process/script', {
           method: 'POST',
-          // @ts-ignore - Attempting to ignore persistent NitroFetchOptions type issue
-          body: requestBody as Record<string, any>,
+          // @ts-ignore - Reverting to ts-ignore for body type issue
+          body: requestBody,
         });
         
         this.scriptApiResponse = response;
@@ -172,8 +201,10 @@ export const usePlaygroundProcessStore = defineStore('playgroundProcess', {
         return response;
       } catch (err: any) {
         console.error('[generateScript] Error:', err);
-        this.error = err.data?.message || err.message || 'Failed to process script.';
-        throw err; 
+        const errorMessage = err.data?.message || err.message || 'Failed to process script.';
+        this.error = errorMessage;
+        console.log(`[generateScript] AI Script generation failed: ${errorMessage}`, err); // Added log
+        throw err;
       } finally {
         this.isLoading = false;
       }
@@ -204,8 +235,8 @@ export const usePlaygroundProcessStore = defineStore('playgroundProcess', {
         
         const response = await $fetch<SynthesizeApiResponse>('/api/podcast/process/synthesize', {
           method: 'POST',
-          // @ts-ignore - Attempting to ignore persistent NitroFetchOptions type issue
-          body: synthesisRequest as Record<string, any>,
+          // @ts-ignore - Reverting to ts-ignore for body type issue
+          body: synthesisRequest,
         });
         
         this.synthesizeApiResponse = response;
@@ -249,8 +280,8 @@ export const usePlaygroundProcessStore = defineStore('playgroundProcess', {
         
         const response = await $fetch<PreviewSegmentsApiResponse>('/api/podcast/preview-segments', {
           method: 'POST',
-          // @ts-ignore - Attempting to ignore persistent NitroFetchOptions type issue
-          body: previewRequest as Record<string, any>,
+          // @ts-ignore - Reverting to ts-ignore for body type issue
+          body: previewRequest,
         });
         
         this.previewApiResponse = response;
@@ -262,6 +293,72 @@ export const usePlaygroundProcessStore = defineStore('playgroundProcess', {
       } catch (err: any) {
         console.error('[synthesizeAudioPreviewForAllSegments] Error:', err);
         this.error = err.data?.message || err.message || 'Failed to preview audio segments.';
+        throw err;
+      } finally {
+        this.isSynthesizing = false;
+      }
+    },
+
+    async generateSegmentPreviews(segmentIndices: number[] | 'all' = 'all') {
+      if (!this.podcastId) {
+        this.error = 'Podcast ID is missing. Cannot generate segment previews.';
+        return null;
+      }
+      if (!this.scriptApiResponse || !this.scriptApiResponse.preparedSegments || this.scriptApiResponse.preparedSegments.length === 0) {
+        this.error = 'No prepared script segments available for preview from script API response.';
+        return null;
+      }
+
+      this.isSynthesizing = true; // Use the general synthesizing flag
+      this.error = null;
+      // Do not clear previewApiResponse here, allow it to accumulate results or be selectively updated.
+      const settingsStore = usePlaygroundSettingsStore();
+
+      let segmentsToPreview = this.scriptApiResponse.preparedSegments;
+      if (Array.isArray(segmentIndices)) {
+        segmentsToPreview = segmentIndices.map(index => this.scriptApiResponse!.preparedSegments![index]).filter(Boolean);
+      }
+      
+      if (segmentsToPreview.length === 0) {
+        this.error = 'No valid segments selected for preview.';
+        this.isSynthesizing = false;
+        return null;
+      }
+
+      try {
+        const previewRequest = {
+          podcastId: this.podcastId,
+          segments: segmentsToPreview,
+          ttsProvider: settingsStore.podcastSettings.ttsProvider,
+          synthesisParams: settingsStore.synthesisParams,
+        };
+
+        const response = await $fetch<PreviewSegmentsApiResponse>('/api/podcast/preview-segments', {
+          method: 'POST',
+          // @ts-ignore - Reverting to ts-ignore for body type issue
+          body: previewRequest,
+        });
+
+        if (response.success && response.segmentPreviews) {
+          // Merge new previews with existing ones if any
+          const existingPreviews = this.previewApiResponse?.segmentPreviews || [];
+          const updatedPreviewsMap = new Map(existingPreviews.map(p => [p.segmentIndex, p]));
+          response.segmentPreviews.forEach(newPreview => {
+            updatedPreviewsMap.set(newPreview.segmentIndex, newPreview);
+          });
+          this.previewApiResponse = {
+            success: true,
+            segmentPreviews: Array.from(updatedPreviewsMap.values()),
+            // Preserve existing previewUrl if this call doesn't provide a new one for combined preview
+            previewUrl: response.previewUrl || this.previewApiResponse?.previewUrl
+          };
+        } else if (!response.success) {
+          this.error = response.message || 'Failed to generate segment previews.';
+        }
+        return response;
+      } catch (err: any) {
+        console.error('[generateSegmentPreviews] Error:', err);
+        this.error = err.data?.message || err.message || 'Failed to generate segment previews.';
         throw err;
       } finally {
         this.isSynthesizing = false;
@@ -281,8 +378,8 @@ export const usePlaygroundProcessStore = defineStore('playgroundProcess', {
       try {
         const response = await $fetch<CombineAudioResponse>('/api/podcast/combine-audio', {
           method: 'POST',
-          // @ts-ignore - Attempting to ignore persistent NitroFetchOptions type issue
-          body: { podcastId: this.podcastId } as Record<string, any>,
+          // @ts-ignore - Reverting to ts-ignore for body type issue
+          body: { podcastId: this.podcastId },
         });
         
         this.combineAudioResponse = response;
@@ -330,8 +427,8 @@ export const usePlaygroundProcessStore = defineStore('playgroundProcess', {
         
         const response = await $fetch<ValidateScriptApiResponse>('/api/podcast/validate-script', {
           method: 'POST',
-          // @ts-ignore - Attempting to ignore persistent NitroFetchOptions type issue
-          body: validationRequest as Record<string, any>,
+          // @ts-ignore - Reverting to ts-ignore for body type issue
+          body: validationRequest,
         });
         
         this.validateScriptApiResponse = response;
@@ -349,5 +446,70 @@ export const usePlaygroundProcessStore = defineStore('playgroundProcess', {
         this.isValidating = false;
       }
     },
+
+    async fetchTimelineStatus() {
+      if (!this.podcastId) {
+        this.error = 'Podcast ID is missing. Cannot fetch timeline status.';
+        this.timelineStatusResponse = { success: false, timelineExists: false, message: 'Podcast ID missing.' };
+        return;
+      }
+      this.isProcessingTimeline = true;
+      this.error = null;
+      try {
+        const response = await $fetch<TimelineStatusResponse>(`/api/podcast/status?podcastId=${this.podcastId}`);
+        this.timelineStatusResponse = response;
+        if (!response.success) {
+            this.error = response.message || 'Failed to fetch timeline status.';
+        }
+      } catch (err: any) {
+        console.error('[fetchTimelineStatus] Error:', err);
+        const errorMessage = err.data?.message || err.message || 'Failed to fetch timeline status.';
+        this.error = errorMessage;
+        this.timelineStatusResponse = { success: false, timelineExists: false, message: errorMessage ?? undefined };
+      } finally {
+        this.isProcessingTimeline = false;
+      }
+    },
+
+    async generatePodcastTimeline() {
+      if (!this.podcastId) {
+        this.error = 'Podcast ID is missing. Cannot generate timeline.';
+        return null;
+      }
+      this.isProcessingTimeline = true;
+      this.error = null;
+      try {
+        const response = await $fetch<TimelineStatusResponse>('/api/podcast/process/timeline', {
+          method: 'POST',
+          // @ts-ignore - Reverting to ts-ignore for body type issue
+          body: { podcastId: this.podcastId },
+        });
+        this.timelineStatusResponse = response;
+        if (!response.success) {
+          this.error = response.message || 'Failed to generate timeline.';
+        }
+        return response;
+      } catch (err: any) {
+        console.error('[generatePodcastTimeline] Error:', err);
+        const errorMessage = err.data?.message || err.message || 'Failed to generate timeline.';
+        this.error = errorMessage;
+        this.timelineStatusResponse = { success: false, timelineExists: false, message: errorMessage ?? undefined }; // Update status on error
+        throw err; // Re-throw for the caller if needed
+      } finally {
+        this.isProcessingTimeline = false;
+      }
+    },
+
+    updateSegmentPreviewStatuses(segmentPreviews: SegmentPreview[]) {
+      if (!this.previewApiResponse) {
+        this.previewApiResponse = { success: true, segmentPreviews: [] };
+      }
+      const updatedPreviewsMap = new Map(this.previewApiResponse.segmentPreviews?.map(p => [p.segmentIndex, p]));
+      segmentPreviews.forEach(newPreview => {
+        updatedPreviewsMap.set(newPreview.segmentIndex, newPreview);
+      });
+      this.previewApiResponse.segmentPreviews = Array.from(updatedPreviewsMap.values());
+      this.previewApiResponse.success = true; // Assume success if we are updating with new statuses
+    }
   },
 });

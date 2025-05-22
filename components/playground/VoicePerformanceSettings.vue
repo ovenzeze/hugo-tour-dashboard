@@ -5,12 +5,12 @@
       
       <div class="flex-1 flex items-center space-x-4 px-4">
         <div class="flex items-center gap-2 flex-1" role="group" aria-labelledby="temperature-label">
-          <Label id="temperature-label" class="whitespace-nowrap text-sm" for="temperature-slider">Temperature: {{ unifiedStore.synthesisParams.temperature.toFixed(1) }}</Label>
+          <Label id="temperature-label" class="whitespace-nowrap text-sm" for="temperature-slider">Temperature: {{ settingsStore.synthesisParams.temperature?.toFixed(1) ?? 'N/A' }}</Label>
           <Slider
             id="temperature-slider"
             class="flex-1"
             :model-value="temperatureArray"
-            @update:model-value="(value: number[] | undefined) => { if (value && value.length > 0) unifiedStore.updateSynthesisParams({ temperature: value[0] }) }"
+            @update:model-value="(value: number[] | undefined) => { if (value && value.length > 0) settingsStore.updateSynthesisParams({ temperature: value[0] }) }"
             :min="0"
             :max="1"
             :step="0.1"
@@ -21,12 +21,12 @@
         </div>
         
         <div class="flex items-center gap-2 flex-1" role="group" aria-labelledby="speed-label">
-          <Label id="speed-label" class="whitespace-nowrap text-sm" for="speed-slider">Speed: {{ unifiedStore.synthesisParams.speed.toFixed(1) }}x</Label>
+          <Label id="speed-label" class="whitespace-nowrap text-sm" for="speed-slider">Speed: {{ settingsStore.synthesisParams.speed?.toFixed(1) ?? 'N/A' }}x</Label>
           <Slider
             id="speed-slider"
             class="flex-1"
             :model-value="speedArray"
-            @update:model-value="(value: number[] | undefined) => { if (value && value.length > 0) unifiedStore.updateSynthesisParams({ speed: value[0] }) }"
+            @update:model-value="(value: number[] | undefined) => { if (value && value.length > 0) settingsStore.updateSynthesisParams({ speed: value[0] }) }"
             :min="0.5"
             :max="2"
             :step="0.1"
@@ -50,22 +50,22 @@
     </div>
 
     <!-- Speaker Voice Assignment -->
-    <div v-if="parsedScriptSegments.length > 0" class="space-y-3" role="region" aria-labelledby="voice-assignment-heading">
+    <div v-if="parsedScriptSegmentsFromStore.length > 0" class="space-y-3" role="region" aria-labelledby="voice-assignment-heading">
       <div class="flex items-center justify-between pb-2 border-b">
         <h4 id="voice-assignment-heading" class="font-medium">Voice Assignment</h4>
       </div>
       
       <div class="space-y-3 max-h-[400px] overflow-y-auto pr-1" role="list">
         <SegmentVoiceAssignmentItem
-          v-for="(segment, index) in enhancedScriptSegments"
+          v-for="(segment, index) in previewableEnhancedSegments"
           :key="`segment-item-${index}`"
           :segment="segment"
           :segment-index="index"
-          :speaker-assignment="speakerAssignments[segment.speakerTag]"
-          :available-voices="[]"
-          :is-loading-voices="false"
+          :speaker-assignment="speakerAssignments[segment.speaker]"
+          :available-voices="personaCache.personas.value"
+          :is-loading-voices="personaCache.isLoading.value"
           :is-previewing-this-segment="isPreviewingSegment === index"
-          :is-global-loading="props.isGlobalPreviewLoading"
+          :is-global-loading="isGlobalPreviewLoading"
           :segment-state="segmentStates[index]"
           :audio-url="segmentPreviews[index]?.audioUrl ?? null"
           @preview-segment="previewSegment(segment, index)"
@@ -73,7 +73,7 @@
           @audio-pause-or-end="onSegmentPauseOrEnd(index)"
           :ref="(el: any) => setAudioRef(index, el && el.audioPlayerElement && typeof el.audioPlayerElement.value !== 'undefined' ? el.audioPlayerElement.value : null)"
           role="listitem"
-          :aria-label="`语音分配项 ${index + 1}: ${segment.speakerTag}`"
+          :aria-label="`语音分配项 ${index + 1}: ${segment.speaker}`"
           @keydown.enter="previewSegment(segment, index)"
           @keydown.space.prevent="previewSegment(segment, index)"
           tabindex="0"
@@ -93,7 +93,7 @@
       <span v-if="selectedHostPersona">{{ selectedHostPersona.name }} (Host)</span>
       <span v-if="selectedGuestPersonas.length > 0">
         <template v-if="selectedHostPersona">, </template>
-        {{ selectedGuestPersonas.map(g => g.name).join(', ') }}
+        {{ selectedGuestPersonas.map((g: Persona) => g.name).join(', ') }}
         (Guest<template v-if="selectedGuestPersonas.length > 1">s</template>)
       </span>
     </div>
@@ -103,351 +103,312 @@
 <script setup lang="ts">
 import { computed, onMounted, ref, watch, toRef, nextTick, onBeforeUnmount } from 'vue';
 import { toast } from 'vue-sonner';
-import { usePlaygroundUnifiedStore } from '../../stores/playgroundUnified';
-import type { Persona } from '../../types/persona';
-import { usePersonaCache } from '../../composables/usePersonaCache';
-
-import { useSegmentPreview, type PreviewableSegment } from '../../composables/useSegmentPreview';
-import { useVoiceManagement } from '../../composables/useVoiceManagement';
+import { usePlaygroundSettingsStore } from '~/stores/playgroundSettingsStore';
+import { usePlaygroundScriptStore } from '~/stores/playgroundScriptStore';
+import { usePlaygroundProcessStore } from '~/stores/playgroundProcessStore';
+import { usePlaygroundUIStore } from '~/stores/playgroundUIStore';
+import type { Persona } from '~/types/persona';
+import { usePersonaCache } from '~/composables/usePersonaCache';
+import { useSegmentPreview, type PreviewableSegment } from '~/composables/useSegmentPreview';
+import { useVoiceManagement } from '~/composables/useVoiceManagement';
 import SegmentVoiceAssignmentItem from './SegmentVoiceAssignmentItem.vue';
-import { Badge } from '~/components/ui/badge'; // Ensure Badge is imported
-// Icon component is typically auto-imported by Nuxt if placed in components/global or similar
+import { Badge } from '~/components/ui/badge';
+import type { ScriptSegment } from '~/types/api/podcast';
 
-const props = defineProps<{
-  scriptContent: string,
-  synthProgress?: { synthesized: number, total: number },
-  isGlobalPreviewLoading?: boolean
-}>();
-// Corrected defineEmits to include 'update:isValid'
-// If 'update:scriptContent', 'next', 'back' are confirmed unused, they can be removed later.
-const emit = defineEmits(['update:scriptContent', 'next', 'back', 'update:isValid', 'update:settings']);
+// Interface for the objects returned by enhancedScriptSegments.map()
+interface InternalEnhancedSegment {
+  id: string;
+  speaker: string;
+  text: string;
+  originalText: string;
+  currentText: string;
+  voiceId: string | null;
+  audioUrl: string | null;
+  isLoading: boolean;
+  isEditing: boolean;
+  ttsProvider: string | undefined;
+  assignedVoiceName: string;
+  roleType: 'host' | 'guest';
+  speakerPersonaId: number | null; // Changed from personaId to align with ScriptSegment
+  personaLanguage?: string;
+  personaAvatarUrl?: string;
+  personaMatchStatus?: 'exact' | 'fallback' | 'none'; // From ScriptSegment if available
+}
 
-const unifiedStore = usePlaygroundUnifiedStore();
+// Props are now sourced from stores
+// const props = defineProps<{...}>();
+const emit = defineEmits(['update:isValid', 'update:settings']); // Keep emits if parent still needs them for specific actions
+
+const settingsStore = usePlaygroundSettingsStore();
+const scriptStore = usePlaygroundScriptStore();
+const processStore = usePlaygroundProcessStore();
+const uiStore = usePlaygroundUIStore();
 const personaCache = usePersonaCache();
 
-const scriptContentRef = toRef(props, 'scriptContent');
+// Replace props with computed properties from stores
+const scriptContent = computed(() => scriptStore.scriptContent);
+const synthProgress = computed(() => { // Example: derive from processStore or uiStore
+  // This needs to be defined based on how progress is tracked in new stores
+  // For now, a placeholder:
+  const synthesizing = processStore.isSynthesizing; // Or a more granular progress from processStore/uiStore
+  const total = scriptStore.parsedSegments.length;
+  const synthesizedCount = segmentStates.value ? Object.values(segmentStates.value).filter(s => s?.status === 'success').length : 0;
+  return synthesizing || total > 0 ? { synthesized: synthesizedCount, total } : undefined;
+});
+const isGlobalPreviewLoading = computed(() => processStore.isSynthesizing); // Example;
 
-const temperatureArray = computed(() => [unifiedStore.synthesisParams.temperature]);
-const speedArray = computed(() => [unifiedStore.synthesisParams.speed]);
+const temperatureArray = computed(() => [settingsStore.synthesisParams.temperature ?? 0.7]);
+const speedArray = computed(() => [settingsStore.synthesisParams.speed ?? 1.0]);
 
-const scriptLanguage = computed(() => unifiedStore.validationResult?.structuredData?.language);
+// scriptLanguage can be derived from host persona or settings
+const scriptLanguage = computed(() => {
+    const host = selectedHostPersona.value;
+    if (host && host.language_support && host.language_support.length > 0) {
+        return host.language_support[0];
+    }
+    // processStore.scriptApiResponse (PodcastCreateResponse) does not have a language field.
+    // The language is part of the request (PodcastCreateRequest) or settings.
+    return settingsStore.podcastSettings.language || 'en-US'; // Fallback chain
+});
 
-// Optional: For a more user-friendly display of language names
 const scriptLanguageDisplayName = computed(() => {
   if (!scriptLanguage.value) return '';
   try {
-    // @ts-ignore Intl.DisplayNames might not be recognized by older TS configs but works in modern browsers
     return new Intl.DisplayNames([scriptLanguage.value], { type: 'language' }).of(scriptLanguage.value) || scriptLanguage.value;
   } catch (e) {
-    return scriptLanguage.value; // Fallback to language code if DisplayNames is not supported or fails
+    return scriptLanguage.value;
   }
 });
 
-const parsedScriptSegments = computed(() => {
-  if (scriptContentRef.value) {
-    const segments = [];
-    const script = scriptContentRef.value.trim();
-    if (!script) return [];
-
-    const segmentPattern = /^([A-Za-z0-9_\u4e00-\u9fa5]+):\s*([\s\S]*?)(?=(?:^[A-Za-z0-9_\u4e00-\u9fa5]+:|$))/gm;
-    let match;
-    while ((match = segmentPattern.exec(script)) !== null) {
-      const speakerTag = match[1];
-      const text = match[2].trim();
-      if (text) {
-        segments.push({ speakerTag, text });
-      }
-    }
-    return segments;
-  }
-  return [];
-});
+// Use parsedSegments from scriptStore directly
+const parsedScriptSegmentsFromStore = computed(() => scriptStore.parsedSegments);
 
 const selectedHostPersona = computed(() => {
-  if (!unifiedStore.podcastSettings.hostPersonaId) return undefined;
-  return personaCache.getPersonaById(unifiedStore.podcastSettings.hostPersonaId);
+  const hostId = settingsStore.getHostPersonaIdNumeric;
+  if (hostId === undefined) return undefined;
+  return personaCache.getPersonaById(hostId);
 });
 
 const selectedGuestPersonas = computed(() => {
-  if (!unifiedStore.podcastSettings.guestPersonaIds || unifiedStore.podcastSettings.guestPersonaIds.length === 0) return [];
-  return unifiedStore.podcastSettings.guestPersonaIds
-    .map((id: string | number | undefined) => personaCache.getPersonaById(id))
-    .filter((p: Persona | undefined): p is Persona => p !== undefined);
+  const guestIds = settingsStore.getGuestPersonaIdsNumeric;
+  if (!guestIds || guestIds.length === 0) return [];
+  return guestIds
+    .map((id: number) => personaCache.getPersonaById(id))
+    .filter((p): p is Persona => p !== undefined);
 });
 
-const getPersonaForSpeaker = (speakerTag: string) => {
-  const validationInfo = unifiedStore.validationResult?.structuredData?.voiceMap?.[speakerTag];
-  if (validationInfo?.personaId) {
-    const personaId = Number(validationInfo.personaId);
-    const matchingPersona = personaCache.getPersonaById(personaId);
-    if (matchingPersona) return matchingPersona;
-  }
-  
-  if (unifiedStore.validationResult?.structuredData?.script) {
-    const scriptEntry = unifiedStore.validationResult.structuredData.script.find(
-      entry => entry.name === speakerTag
-    );
-    if (scriptEntry) {
-      if (scriptEntry.role === 'host' && selectedHostPersona.value) return selectedHostPersona.value;
-      if (scriptEntry.role === 'guest' && selectedGuestPersonas.value.length > 0) {
-        // Try to find the guest persona using personaId from voiceMap (if speakerTag is in voiceMap and mapped to a selected guest)
-        if (validationInfo?.personaId) {
-            const guestFromValidation = selectedGuestPersonas.value.find(p => p.persona_id === Number(validationInfo.personaId));
-            if (guestFromValidation) return guestFromValidation;
-        }
-        // Fallback: if scriptEntry.name (the specific speaker tag name from script) matches a selected guest persona's name
-        const guestByNameInScript = selectedGuestPersonas.value.find(p => p.name === scriptEntry.name);
-        if (guestByNameInScript) return guestByNameInScript;
 
-        // Fallback: if the generic speakerTag (which might be "Guest1", "Guest2" or a character name used as speaker tag) matches a selected guest's name
-        const guestByGenericSpeakerTag = selectedGuestPersonas.value.find(p => p.name === speakerTag);
-        if (guestByGenericSpeakerTag) return guestByGenericSpeakerTag;
-
-        // Original simplest fallback: if only one guest is selected, or as a last resort.
-        if (selectedGuestPersonas.value.length > 0) return selectedGuestPersonas.value[0];
-      }
-    }
+const getPersonaForSpeaker = (speakerTag: string, segmentPersonaIdFromScript: number | null): Persona | undefined => {
+  // Priority 1: If segment already has a resolved personaId from scriptStore.parsedSegments
+  if (segmentPersonaIdFromScript !== null) {
+    const persona = personaCache.getPersonaById(segmentPersonaIdFromScript);
+    if (persona) return persona;
   }
+
+  // Fallback logic (similar to before, but using new stores)
+  // This might be simplified if scriptStore.parsedSegments always provides a reliable speakerPersonaId
+  const host = selectedHostPersona.value;
+  if (host && host.name === speakerTag) return host;
   
-  if (selectedHostPersona.value && selectedHostPersona.value.name === speakerTag) return selectedHostPersona.value;
-  const guestPersona = selectedGuestPersonas.value.find(p => p.name === speakerTag);
-  if (guestPersona) return guestPersona;
+  const guest = selectedGuestPersonas.value.find((p: Persona) => p.name === speakerTag);
+  if (guest) return guest;
+  
+  // Further fallback if speakerTag doesn't match a selected persona's name directly
+  // (e.g. if script uses "Narrator" but no "Narrator" persona is selected)
+  // This part might need refinement based on how speaker tags are intended to map if not exact names
   return undefined;
-};
+}; // End of getPersonaForSpeaker
 
-const enhancedScriptSegments = computed(() => {
-  return parsedScriptSegments.value.map(segment => {
-    const persona = getPersonaForSpeaker(segment.speakerTag);
-    const validationInfo = unifiedStore.validationResult?.structuredData?.voiceMap?.[segment.speakerTag];
+const enhancedScriptSegments = computed((): InternalEnhancedSegment[] => {
+  return parsedScriptSegmentsFromStore.value.map((segment: ScriptSegment, index: number): InternalEnhancedSegment => {
+    const personaFromId = segment.speakerPersonaId ? personaCache.getPersonaById(segment.speakerPersonaId) : undefined;
+    // Use getPersonaForSpeaker for more robust matching if direct ID doesn't yield a persona or for fallback.
+    // However, for enhancedScriptSegments, personaFromId based on segment.speakerPersonaId is primary.
+    const persona = personaFromId || getPersonaForSpeaker(segment.speaker, segment.speakerPersonaId);
 
-    let effectiveVoiceId = speakerAssignments.value[segment.speakerTag];
-    let effectiveVoiceName = 'Assign Voice';
-    let assignedProvider = persona?.tts_provider || unifiedStore.selectedProvider || 'elevenlabs';
+    const assignment = speakerAssignments.value[segment.speaker];
+
+    let effectiveVoiceId: string | null = assignment?.voiceId || persona?.voice_model_identifier || null;
+    let assignedProvider: string | undefined = assignment?.provider || persona?.tts_provider || settingsStore.podcastSettings.ttsProvider || 'elevenlabs';
+    let effectiveVoiceName: string = 'Assign Voice';
+
     let roleType: 'host' | 'guest' = 'guest';
-    if (unifiedStore.validationResult?.structuredData?.script) {
-      const scriptEntry = unifiedStore.validationResult.structuredData.script.find(
-        entry => entry.name === segment.speakerTag
-      );
-      if (scriptEntry) roleType = scriptEntry.role as 'host' | 'guest';
-    } else if (selectedHostPersona.value && selectedHostPersona.value.name === segment.speakerTag) {
+    if (selectedHostPersona.value && segment.speakerPersonaId === selectedHostPersona.value.persona_id) {
+      roleType = 'host';
+    } else if (selectedGuestPersonas.value.some((g: Persona) => g.persona_id === segment.speakerPersonaId)) {
+      roleType = 'guest';
+    } else if (segment.speaker === selectedHostPersona.value?.name) { // Fallback by name if ID not matched
       roleType = 'host';
     }
 
-    // 直接使用 voice_model_identifier 作为名称
     if (effectiveVoiceId) {
-      effectiveVoiceName = effectiveVoiceId;
-    }
-
-    // Determine personaId for this segment
-    let segmentPersonaId: string | undefined = undefined;
-    if (validationInfo?.personaId) {
-      segmentPersonaId = String(validationInfo.personaId);
+      const voiceOwner = personaCache.personas.value.find(p => p.voice_model_identifier === effectiveVoiceId);
+      effectiveVoiceName = voiceOwner?.name || String(effectiveVoiceId);
     } else if (persona) {
-      segmentPersonaId = String(persona.persona_id);
+      effectiveVoiceName = persona.name;
     }
 
     return {
-      ...segment,
-      id: `segment-${parsedScriptSegments.value.indexOf(segment)}`,
+      id: `segment-${index}`,
+      speaker: segment.speaker,
+      text: segment.text,
       originalText: segment.text,
       currentText: segment.text,
-      voiceId: effectiveVoiceId || null,
-      audioUrl: null, 
-      isLoading: false,
+      speakerPersonaId: segment.speakerPersonaId,
+      // @ts-ignore - personaMatchStatus is optional on ScriptSegment from store but we want to carry it if it exists
+      personaMatchStatus: (segment as any).personaMatchStatus,
+      voiceId: effectiveVoiceId,
+      audioUrl: segmentPreviews.value[index]?.audioUrl || null,
+      isLoading: segmentStates.value[index]?.status === 'loading',
       isEditing: false,
       ttsProvider: assignedProvider,
-      assignedVoiceName: effectiveVoiceId ? effectiveVoiceName : 'Assign Voice',
+      assignedVoiceName: effectiveVoiceId ? effectiveVoiceName : (persona ? persona.name : 'Assign Voice'),
       roleType: roleType,
-      personaId: segmentPersonaId,
       personaLanguage: persona?.language_support && persona.language_support.length > 0 ? persona.language_support[0] : undefined,
-      personaAvatarUrl: persona?.avatar_url || undefined
-    };
-  });
-});
+      personaAvatarUrl: persona?.avatar_url || undefined,
+    }; // Closes the object returned by map's callback
+  }); // Closes the .map() method call
+}); // Closes the computed() function call for enhancedScriptSegments
+
+// getPersonaForSpeaker is defined above (lines 201-220) and is accessible.
 
 const speakersInScript = computed(() => {
-  const speakerTags = new Set<string>();
-  parsedScriptSegments.value.forEach(segment => speakerTags.add(segment.speakerTag));
-  return Array.from(speakerTags);
+  const speakerNames = new Set<string>();
+  // Use parsedSegmentsFromStore which has the speaker names
+  parsedScriptSegmentsFromStore.value.forEach(segment => speakerNames.add(segment.speaker));
+  return Array.from(speakerNames);
 });
 
 const { speakerAssignments } = useVoiceManagement(
-  scriptContentRef, // Pass scriptContent as a ref
-  parsedScriptSegments, 
-  selectedHostPersona, 
+  // scriptContent, // Removed: scriptContent is not directly passed anymore
+  parsedScriptSegmentsFromStore, // Pass parsed segments from scriptStore (which should be Ref<ScriptSegment[]>)
+  selectedHostPersona,
   selectedGuestPersonas
 );
 
 const previewableEnhancedSegments = computed<PreviewableSegment[]>(() => {
-  // Guard against missing data
-  if (!parsedScriptSegments.value || !parsedScriptSegments.value.length || !personaCache.personas.value || !personaCache.personas.value.length) {
-    return [];
-  }
-
-  return parsedScriptSegments.value.map((parserSegment, index) => {
-    const persona = personaCache.getPersonaByName(parserSegment.speakerTag);
-    const roleType = getRoleType(parserSegment.speakerTag);
-    const personaId = persona ? String(persona.persona_id) : undefined;
-
-    let finalVoiceId: string | null = persona?.voice_model_identifier || null;
-    let finalTtsProvider: string | undefined = persona?.tts_provider;
-    let finalVoiceName: string | undefined = persona?.name;
-
-    const systemAssignedVoiceId = speakerAssignments.value[parserSegment.speakerTag];
-
-    if (systemAssignedVoiceId) {
-      finalVoiceId = systemAssignedVoiceId;
-      finalVoiceName = systemAssignedVoiceId;
-    } else if (persona && !finalVoiceId) { // If persona exists but had no default voice, ensure speaker name is used
-        // finalVoiceId would be null, finalTtsProvider would be persona's provider or undefined
-        // finalVoiceName would be persona's name or speakerTag
-    }
-    
-    if (!finalVoiceName) finalVoiceName = parserSegment.speakerTag; // Fallback voice name
-
-    const currentSegmentState = segmentStates.value[index];
-
+  return enhancedScriptSegments.value.map((segment: InternalEnhancedSegment): PreviewableSegment => {
     return {
-      // Fields from ParserOutputSegment
-      speakerTag: parserSegment.speakerTag,
-      text: parserSegment.text,
-
-      // Fields for PreviewableSegment & SegmentData (expected by SegmentVoiceAssignmentItem)
-      id: `segment-${index}`,
-      originalText: parserSegment.text,
-      currentText: parserSegment.text, 
-      voiceId: finalVoiceId,
-      ttsProvider: finalTtsProvider,
-      assignedVoiceName: finalVoiceName,
-      roleType: roleType,
-      personaId: personaId,
-      
-      audioUrl: currentSegmentState?.audioUrl || null,
-      isLoading: currentSegmentState?.status === 'loading',
-      isEditing: false, 
+      // Fields required by PreviewableSegment from composables/useSegmentPreview.ts
+      id: segment.id,
+      originalText: segment.originalText,
+      currentText: segment.currentText,
+      speaker: segment.speaker, // segment already has .speaker from InternalEnhancedSegment
+      text: segment.text,
+      voiceId: segment.voiceId,
+      audioUrl: segment.audioUrl,
+      isLoading: segment.isLoading,
+      isEditing: segment.isEditing,
+      ttsProvider: segment.ttsProvider,
+      assignedVoiceName: segment.assignedVoiceName,
+      roleType: segment.roleType,
+      // PreviewableSegment expects personaId: string | undefined. InternalEnhancedSegment has speakerPersonaId: number | null.
+      personaId: segment.speakerPersonaId !== null && segment.speakerPersonaId !== undefined ? String(segment.speakerPersonaId) : undefined,
+      personaLanguage: segment.personaLanguage,
+      personaAvatarUrl: segment.personaAvatarUrl,
+      // ParsedScriptSegment (base of PreviewableSegment) fields:
+      // speakerTag: segment.speaker, // If PreviewableSegment still expects speakerTag, map it from speaker
+      // text: segment.text, // Already mapped
     };
   });
 });
 
-const voiceOptions = computed(() => {
-  return [];
-});
+// voiceOptions computed can be removed if SegmentVoiceAssignmentItem handles voice selection internally using personaCache
 
-const { 
-  segmentPreviews, 
-  combinedPreviewUrl, 
+const {
+  segmentPreviews,
+  combinedPreviewUrl,
   segmentStates,
   isPreviewingSegment,
-  setAudioRef, 
+  setAudioRef,
   previewSegment,
-  previewAllSegments: previewAllSegmentsFromComposable, 
+  previewAllSegments: previewAllSegmentsFromComposable,
   onSegmentPlay,
   onSegmentPauseOrEnd
 } = useSegmentPreview(
-  previewableEnhancedSegments, 
-  speakerAssignments          
+  previewableEnhancedSegments,
+  speakerAssignments
 );
 
 async function handlePreviewAllSegments() {
   const result = await previewAllSegmentsFromComposable();
-  if (result === false) { 
+  if (result === false) {
     // Toast messages are handled within previewAllSegmentsFromComposable
-  } else {
-    // Potentially handle collective success if needed, though individual segment states are updated by the composable
   }
 }
 
 const canProceed = computed(() => {
-  if (!parsedScriptSegments.value || parsedScriptSegments.value.length === 0) return true;
-  if (speakersInScript.value.length === 0 && parsedScriptSegments.value.length > 0) {
-    // If there are script segments but no speakers identified (e.g. parsing issue), not valid.
-    // Or, if no speakers identified (empty script, etc.) then it's trivially "valid" if no voices needed.
-    // This depends on desired behavior for empty/unparseable scripts.
-    // Voice assignments are now handled directly in useVoiceManagement
-  }
-  // Ensure all speakers found in the script have an assignment
+  if (!parsedScriptSegmentsFromStore.value || parsedScriptSegmentsFromStore.value.length === 0) return true; // Allow proceeding if script is empty
   return speakersInScript.value.every(speakerTag =>
-    speakerAssignments.value[speakerTag] 
+    speakerAssignments.value[speakerTag]
   );
 });
 
 const canProceedToPreviewAll = computed(() => {
-  if (!canProceed.value) return false; // Basic requirements must be met
-  // Check if all segments that have a speaker tag actually have a voice assigned.
-  return parsedScriptSegments.value.every(seg => {
-    const hasSpeaker = speakersInScript.value.includes(seg.speakerTag);
-    if (!hasSpeaker) return true; // If for some reason a segment's speaker isn't in speakersInScript, ignore for this check
-    return !!speakerAssignments.value[seg.speakerTag];
+  if (!canProceed.value) return false;
+  return parsedScriptSegmentsFromStore.value.every(seg => {
+    return !!speakerAssignments.value[seg.speaker];
   });
 });
 
-// Helper to determine roleType - DEFINED AT SCRIPT SETUP SCOPE
 function getRoleType(speakerTag: string): 'host' | 'guest' {
-  // 使用personaCache和unifiedStore
-  if (selectedHostPersona.value && selectedHostPersona.value.name === speakerTag) {
+  const host = selectedHostPersona.value;
+  if (host && host.name === speakerTag) {
     return 'host';
   }
-  return 'guest'; 
+  // More robust guest check might be needed if speakerTag isn't always a direct guest name
+  const isGuest = selectedGuestPersonas.value.some((g: Persona) => g.name === speakerTag);
+  return isGuest ? 'guest' : 'guest'; // Default to guest if not host
 }
 
+
 onMounted(() => {
-  // 使用personaCache代替personaStore
   if (!personaCache.personas.value || personaCache.personas.value.length === 0) {
-    personaCache.fetchPersonas();
-  }
-  // 不再检查 availableVoices，因为它已被移除
-  if (false) {
-    // Initial fetch of voices if needed, though useVoiceManagement might handle this too.
-    // Consider if useVoiceManagement should be the sole responsible party for fetching voices.
+    if (!personaCache.isLoading.value) personaCache.fetchPersonas();
   }
   emit('update:isValid', canProceed.value);
 });
 
-// Expose methods for parent component (PlaygroundStep2Panel)
 defineExpose({
   isFormValid: canProceed,
   getPerformanceConfig: () => ({
     speakerAssignments: speakerAssignments.value,
-    // Note: synthesisParams are now managed by unifiedStore, not directly part of these settings
+    synthesisParams: settingsStore.synthesisParams, // Expose current synthesis params
   }),
-  generateAudio: handlePreviewAllSegments, 
+  generateAudio: handlePreviewAllSegments,
   areAllSegmentsPreviewed: computed(() => {
-    if (!parsedScriptSegments.value || parsedScriptSegments.value.length === 0) {
+    if (!parsedScriptSegmentsFromStore.value || parsedScriptSegmentsFromStore.value.length === 0) {
       return false;
     }
-    // Check if all segments have been generated (not necessarily previewed)
-    // We consider a segment as generated if it has any status (success, error, loading)
-    const generatedSegmentsCount = Object.values(segmentStates.value).filter(state => state !== undefined).length;
-    return generatedSegmentsCount === parsedScriptSegments.value.length;
+    const generatedSegmentsCount = Object.values(segmentStates.value).filter(state => state?.status === 'success' || state?.status === 'error').length;
+    return generatedSegmentsCount === parsedScriptSegmentsFromStore.value.length;
   })
 });
 
-// 新增键盘导航方法
 const decreaseTemperature = () => {
-  const currentTemp = unifiedStore.synthesisParams.temperature;
+  const currentTemp = settingsStore.synthesisParams.temperature ?? 0.7;
   const newTemp = Math.max(0, currentTemp - 0.1);
-  unifiedStore.updateSynthesisParams({ temperature: newTemp });
+  settingsStore.updateSynthesisParams({ temperature: parseFloat(newTemp.toFixed(1)) });
 };
 
 const increaseTemperature = () => {
-  const currentTemp = unifiedStore.synthesisParams.temperature;
+  const currentTemp = settingsStore.synthesisParams.temperature ?? 0.7;
   const newTemp = Math.min(1, currentTemp + 0.1);
-  unifiedStore.updateSynthesisParams({ temperature: newTemp });
+  settingsStore.updateSynthesisParams({ temperature: parseFloat(newTemp.toFixed(1)) });
 };
 
 const decreaseSpeed = () => {
-  const currentSpeed = unifiedStore.synthesisParams.speed;
+  const currentSpeed = settingsStore.synthesisParams.speed ?? 1.0;
   const newSpeed = Math.max(0.5, currentSpeed - 0.1);
-  unifiedStore.updateSynthesisParams({ speed: newSpeed });
+  settingsStore.updateSynthesisParams({ speed: parseFloat(newSpeed.toFixed(1)) });
 };
 
 const increaseSpeed = () => {
-  const currentSpeed = unifiedStore.synthesisParams.speed;
+  const currentSpeed = settingsStore.synthesisParams.speed ?? 1.0;
   const newSpeed = Math.min(2, currentSpeed + 0.1);
-  unifiedStore.updateSynthesisParams({ speed: newSpeed });
+  settingsStore.updateSynthesisParams({ speed: parseFloat(newSpeed.toFixed(1)) });
 };
 
-// 焦点管理
 const focusFirstInteractiveElement = () => {
   nextTick(() => {
     const firstInteractiveElement = document.querySelector('#temperature-slider, #speed-slider, audio, button') as HTMLElement;

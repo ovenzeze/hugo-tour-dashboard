@@ -2,7 +2,7 @@
 import { defineStore } from 'pinia';
 import type { ScriptSegment } from '~/types/api/podcast';
 import { usePersonaCache } from '~/composables/usePersonaCache';
-import { usePlaygroundSettingsStore } from './playgroundSettingsStore'; // Import settings store for fallback IDs
+import { usePlaygroundSettingsStore } from '~/stores/playgroundSettingsStore'; // Import settings store for fallback IDs
 
 export const usePlaygroundScriptStore = defineStore('playgroundScript', {
   state: () => ({
@@ -48,8 +48,8 @@ export const usePlaygroundScriptStore = defineStore('playgroundScript', {
       let currentSpeakerName = '';
       let currentTextLines: string[] = [];
 
-      const hostId = settingsStore.getHostPersonaIdNumeric();
-      const guestIds = settingsStore.getGuestPersonaIdsNumeric();
+      const hostId = settingsStore.getHostPersonaIdNumeric;
+      const guestIds = settingsStore.getGuestPersonaIdsNumeric;
       let fallbackPersonaId: number | null = null;
 
       if (hostId !== undefined) {
@@ -146,4 +146,20 @@ export const usePlaygroundScriptStore = defineStore('playgroundScript', {
       this.error = null;
     },
   },
+
+  getters: {
+    uniqueSpeakers(state): string[] {
+      if (!state.parsedSegments || state.parsedSegments.length === 0) {
+        return [];
+      }
+      const speakers = new Set(state.parsedSegments.map(segment => segment.speaker));
+      return Array.from(speakers);
+    },
+    isScriptEmpty(state): boolean {
+      return !state.scriptContent.trim();
+    },
+    hasParsingError(state): boolean {
+      return state.error !== null;
+    }
+  }
 });

@@ -1,20 +1,17 @@
 <template>
   <div class="flex flex-col flex-1 h-full">
     <VoicePerformanceSettings
-      :script-content="scriptContent"
-      :synth-progress="synthProgress"
-      :is-global-preview-loading="props.isGlobalPreviewLoading"
       class="w-full overflow-y-auto p-2 md:p-4 flex-1"
-      @update:script-content="emit('update:scriptContent', $event)"
       ref="voicePerformanceSettingsRef"
     />
-    <div v-if="audioUrl" class="p-4 border-t bg-background flex-shrink-0">
+    <!-- Display final/combined audio if available -->
+    <div v-if="displayAudioUrl" class="p-4 border-t bg-background flex-shrink-0">
       <p class="font-medium text-sm mb-2">Audio Preview:</p>
-      <audio :src="audioUrl" controls class="w-full"></audio>
-      <div v-if="podcastPerformanceConfig && audioUrl" class="mt-4 pt-3 border-t text-xs text-muted-foreground space-y-1">
+      <audio :src="displayAudioUrl" controls class="w-full"></audio>
+      <div class="mt-4 pt-3 border-t text-xs text-muted-foreground space-y-1">
         <p class="font-medium text-sm text-foreground mb-1">Podcast Audio Details:</p>
-        <p><strong>Type:</strong> {{ (podcastPerformanceConfig as any)?.provider || 'N/A' }}</p>
-        <p><strong>Voices:</strong> {{ getAssignedVoicesString() }}</p>
+        <p><strong>TTS Provider:</strong> {{ settingsStore.podcastSettings.ttsProvider || 'N/A' }}</p>
+        <p><strong>Assigned Voices:</strong> {{ assignedVoicesSummary }}</p>
       </div>
     </div>
   </div>
@@ -22,75 +19,60 @@
 
 <script setup lang="ts">
 import { ref, computed } from 'vue';
-import VoicePerformanceSettings from './VoicePerformanceSettings.vue'; // Assuming it's in the same directory or adjust path
-import { usePlaygroundUnifiedStore } from '~/stores/playgroundUnified';
+import VoicePerformanceSettings from './VoicePerformanceSettings.vue';
+import { usePlaygroundUIStore } from '~/stores/playgroundUIStore';
+import { usePlaygroundSettingsStore } from '~/stores/playgroundSettingsStore';
+import { usePlaygroundScriptStore } from '~/stores/playgroundScriptStore';
+import { usePersonaCache } from '~/composables/usePersonaCache';
+import type { Persona } from '~/types/persona';
 
-interface SynthProgress {
-  synthesized: number; // Changed from number | undefined
-  total: number;     // Changed from number | undefined
-}
+const uiStore = usePlaygroundUIStore();
+const settingsStore = usePlaygroundSettingsStore();
+const scriptStore = usePlaygroundScriptStore();
+const personaCache = usePersonaCache();
 
-// Define a more specific type for podcastPerformanceConfig if possible, based on its actual structure
-// For now, using 'any' as it was in the original component.
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-type PodcastPerformanceConfig = any;
+const voicePerformanceSettingsRef = ref<InstanceType<typeof VoicePerformanceSettings> | null>(null);
 
-interface Props {
-  scriptContent: string;
-  synthProgress?: SynthProgress; // Made the prop optional to align with VoicePerformanceSettings
-  audioUrl: string | null;
-  podcastPerformanceConfig: PodcastPerformanceConfig | null;
-  isGlobalPreviewLoading?: boolean; // Added new prop
-}
+// Determine which audio URL to display (prefer final, fallback to preview)
+const displayAudioUrl = computed(() => uiStore.finalAudioUrl || uiStore.audioUrl);
 
-const props = defineProps<Props>();
-const emit = defineEmits(['update:scriptContent']);
+const assignedVoicesSummary = computed(() => {
+  // Access speakerAssignments from the exposed getPerformanceConfig method of VoicePerformanceSettings
+  const performanceConfig = voicePerformanceSettingsRef.value?.getPerformanceConfig();
+  if (!performanceConfig || !performanceConfig.speakerAssignments) return 'N/A';
 
-const unifiedStore = usePlaygroundUnifiedStore();
-const voicePerformanceSettingsRef = ref(null);
+  const assignments = performanceConfig.speakerAssignments as Record<string, { voiceId: string; provider: string }>;
+  const uniqueSpeakers = scriptStore.uniqueSpeakers; // Assuming this getter exists in scriptStore
 
-const getAssignedVoicesString = () => {
-  if (!props.podcastPerformanceConfig) return 'N/A';
+  if (uniqueSpeakers.length === 0 || Object.keys(assignments).length === 0) return 'No voices assigned yet.';
 
-  const config = props.podcastPerformanceConfig as any;
-  if (!config.segments || !Array.isArray(config.segments)) return 'N/A';
-
-  const voiceMap = new Map<string, string>();
-
-  config.segments.forEach((segment: any) => {
-    if (segment.speakerTag && segment.voiceId) {
-      const voiceName = config.availableVoices?.find((v: any) => v.id === segment.voiceId)?.name || segment.voiceId;
-      voiceMap.set(segment.speakerTag, voiceName);
+  const summaryParts: string[] = [];
+  uniqueSpeakers.forEach(speakerName => {
+    const assignment = assignments[speakerName];
+    if (assignment && assignment.voiceId) {
+      // Try to find the persona name for the voiceId for a more friendly display
+      const personaForVoice = personaCache.personas.value.find(p => p.voice_model_identifier === assignment.voiceId);
+      const voiceDisplayName = personaForVoice?.name || assignment.voiceId;
+      summaryParts.push(`${speakerName}: ${voiceDisplayName}`);
+    } else {
+      summaryParts.push(`${speakerName}: Not Assigned`);
     }
   });
 
-  if (voiceMap.size === 0) return 'N/A';
+  return summaryParts.join('; ') || 'N/A';
+});
 
-  return Array.from(voiceMap.entries())
-    .map(([speaker, voice]) => `${speaker}: ${voice}`)
-    .join(', ');
-};
 
-// Expose methods or properties of VoicePerformanceSettings if needed by the parent
-// This allows the parent component to call methods on VoicePerformanceSettings
-// For example, to get performance config or check form validity.
+// Expose methods or properties of VoicePerformanceSettings if needed by the parent orchestrator (e.g., the main playground page)
+// This allows the main page to call methods on VoicePerformanceSettings via PlaygroundStep2Panel.
 defineExpose({
   getPerformanceConfig: () => {
-    return (voicePerformanceSettingsRef.value as any)?.getPerformanceConfig();
+    return voicePerformanceSettingsRef.value?.getPerformanceConfig();
   },
   isFormValid: computed(() => {
-    return (voicePerformanceSettingsRef.value as any)?.isFormValid;
+    return voicePerformanceSettingsRef.value?.isFormValid;
   }),
-  synthesizedSegmentsCount: computed(() => {
-    return (voicePerformanceSettingsRef.value as any)?.synthesizedSegmentsCount;
-  }),
-  totalSegmentsCount: computed(() => {
-    return (voicePerformanceSettingsRef.value as any)?.totalSegmentsCount;
-  }),
-  updateSegmentStats: (synthesized: number, total: number) => {
-    if (voicePerformanceSettingsRef.value && (voicePerformanceSettingsRef.value as any).updateSegmentStats) {
-      (voicePerformanceSettingsRef.value as any).updateSegmentStats(synthesized, total);
-    }
-  }
+  // synthesizedSegmentsCount and totalSegmentsCount might be derived from stores now
+  // updateSegmentStats is likely handled internally by VoicePerformanceSettings or via stores
 });
 </script>

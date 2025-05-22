@@ -1,14 +1,14 @@
 <template>
-  <AlertDialog :open="open" @update:open="emit('update:open', $event)">
+  <AlertDialog :open="isDialogVisible" @update:open="uiStore.setStep2ConfirmationDialogVisible($event)">
     <AlertDialogContent>
       <AlertDialogHeader>
         <AlertDialogTitle>Confirm Action</AlertDialogTitle>
         <AlertDialogDescription>
-          There are still {{ pendingSegmentsCount }} segments that haven't been synthesized. Are you sure you want to proceed to generate the final podcast?
+          There are still {{ pendingSegmentsCountComputed }} segments that haven't been synthesized or have failed. Are you sure you want to proceed to generate the final podcast?
         </AlertDialogDescription>
       </AlertDialogHeader>
       <AlertDialogFooter>
-        <AlertDialogCancel @click="emit('update:open', false)">Cancel</AlertDialogCancel>
+        <AlertDialogCancel @click="handleCancel">Cancel</AlertDialogCancel>
         <AlertDialogAction @click="handleConfirm">Confirm</AlertDialogAction>
       </AlertDialogFooter>
     </AlertDialogContent>
@@ -16,6 +16,12 @@
 </template>
 
 <script setup lang="ts">
+import { computed } from 'vue';
+import { storeToRefs } from 'pinia';
+import { usePlaygroundUIStore } from '@/stores/playgroundUIStore';
+import { usePlaygroundProcessStore } from '@/stores/playgroundProcessStore'; // To get segment statuses
+import { usePlaygroundScriptStore } from '@/stores/playgroundScriptStore'; // To get total segments from parsed script
+
 import {
   AlertDialog,
   AlertDialogAction,
@@ -27,17 +33,44 @@ import {
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
 
-interface Props {
-  open: boolean;
-  pendingSegmentsCount: number;
-}
+const uiStore = usePlaygroundUIStore();
+const processStore = usePlaygroundProcessStore();
+const scriptStore = usePlaygroundScriptStore();
 
-defineProps<Props>();
+const { isStep2ConfirmationDialogVisible: isDialogVisible } = storeToRefs(uiStore);
+const { previewApiResponse } = storeToRefs(processStore);
+const { parsedSegments } = storeToRefs(scriptStore);
 
-const emit = defineEmits(['update:open', 'confirm']);
+const pendingSegmentsCountComputed = computed(() => {
+  const totalSegments = parsedSegments.value.length;
+  if (totalSegments === 0) return 0;
+
+  const synthesizedOrSuccessfulPreviews = previewApiResponse.value?.segmentPreviews?.filter(p => p.audioUrl && !p.error).length || 0;
+  
+  // A more accurate count would be total segments minus those successfully synthesized.
+  // If previewApiResponse doesn't cover all segments or only reflects last preview attempt,
+  // this logic might need refinement based on how segment synthesis status is truly tracked.
+  // For now, assuming previewApiResponse.segmentPreviews gives status for all relevant segments.
+  
+  // Let's count segments that are NOT successful (no audioUrl or has error)
+  let pendingCount = 0;
+  for (let i = 0; i < totalSegments; i++) {
+    const preview = previewApiResponse.value?.segmentPreviews?.find(p => p.segmentIndex === i);
+    if (!preview || !preview.audioUrl || preview.error) {
+      pendingCount++;
+    }
+  }
+  return pendingCount;
+});
+
+const emit = defineEmits(['confirm']); // Removed 'update:open'
+
+const handleCancel = () => {
+  uiStore.setStep2ConfirmationDialogVisible(false);
+};
 
 const handleConfirm = () => {
   emit('confirm');
-  emit('update:open', false); // Close dialog on confirm
+  uiStore.setStep2ConfirmationDialogVisible(false);
 };
 </script>

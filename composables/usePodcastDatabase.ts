@@ -50,6 +50,7 @@ export const usePodcastDatabase = () => {
   const fetchPodcastById = async (podcastId: string) => {
     loadingSelected.value = true;
     error.value = null;
+    console.log(`[usePodcastDatabase] Starting fetchPodcastById for ID: ${podcastId}`);
     try {
       const client = useSupabaseClient<SupabaseClient>();
       const { data, error: dbError } = await client
@@ -62,17 +63,20 @@ export const usePodcastDatabase = () => {
         throw dbError;
       }
       selectedPodcast.value = data as Podcast;
+      console.log('[usePodcastDatabase] fetchPodcastById successful. Selected podcast:', JSON.parse(JSON.stringify(selectedPodcast.value)));
     } catch (e: any) {
       error.value = e.message;
-      console.error(`Error fetching podcast with ID ${podcastId}:`, e);
+      console.error(`[usePodcastDatabase] Error fetching podcast with ID ${podcastId}:`, e);
     } finally {
       loadingSelected.value = false;
+      console.log(`[usePodcastDatabase] fetchPodcastById finished. LoadingSelected: ${loadingSelected.value} Error: ${error.value}`);
     }
   };
 
   const createPodcast = async (newPodcastData: { title: string; topic?: string; host_persona_id?: number; creator_persona_id?: number; cover_image_url?: string | null }) => {
     loading.value = true;
     error.value = null;
+    console.log('[usePodcastDatabase] Starting createPodcast with data:', JSON.parse(JSON.stringify(newPodcastData)));
     try {
       const client = useSupabaseClient<SupabaseClient>();
       const { data, error: dbError } = await client
@@ -105,18 +109,21 @@ export const usePodcastDatabase = () => {
         };
         podcasts.value = [newPodcastEntryDto as any, ...podcasts.value as any[]] as Podcast[];
         selectedPodcast.value = newPodcastEntryDto as Podcast;
+        console.log('[usePodcastDatabase] createPodcast successful. New podcast:', JSON.parse(JSON.stringify(selectedPodcast.value)), 'Updated podcasts list:', JSON.parse(JSON.stringify(podcasts.value)));
       }
     } catch (e: any) {
       error.value = e.message;
-      console.error('Error creating podcast:', e);
+      console.error('[usePodcastDatabase] Error creating podcast:', e);
     } finally {
       loading.value = false;
+      console.log(`[usePodcastDatabase] createPodcast finished. Loading: ${loading.value} Error: ${error.value}`);
     }
   };
 
   const updatePodcast = async (podcastId: string, updates: Partial<Podcast>) => {
     loading.value = true;
     error.value = null;
+    console.log(`[usePodcastDatabase] Starting updatePodcast for ID: ${podcastId} with updates:`, JSON.parse(JSON.stringify(updates)));
     try {
       const client = useSupabaseClient<SupabaseClient>();
       const { data, error: dbError } = await client
@@ -138,20 +145,23 @@ export const usePodcastDatabase = () => {
         if (selectedPodcast.value?.podcast_id === podcastId) {
           selectedPodcast.value = { ...selectedPodcast.value, ...data } as any; // Avoid deep type instantiation
         }
+        console.log('[usePodcastDatabase] updatePodcast successful. Updated data:', JSON.parse(JSON.stringify(data)), 'Updated podcasts list:', JSON.parse(JSON.stringify(podcasts.value)));
       }
       return data as Podcast;
     } catch (e: any) {
       error.value = e.message;
-      console.error(`Error updating podcast ${podcastId}:`, e);
+      console.error(`[usePodcastDatabase] Error updating podcast ${podcastId}:`, e);
       throw e; // Re-throw to allow caller to handle
     } finally {
       loading.value = false;
+      console.log(`[usePodcastDatabase] updatePodcast finished. Loading: ${loading.value} Error: ${error.value}`);
     }
   };
 
   const deletePodcast = async (podcastId: string) => {
     loading.value = true;
     error.value = null;
+    console.log(`[usePodcastDatabase] Starting deletePodcast for ID: ${podcastId}`);
     try {
       const client = useSupabaseClient<SupabaseClient>();
       const { error: dbError } = await client
@@ -170,11 +180,13 @@ export const usePodcastDatabase = () => {
       if (selectedPodcast.value?.podcast_id === podcastId) {
         selectedPodcast.value = null;
       }
+      console.log(`[usePodcastDatabase] deletePodcast successful for ID: ${podcastId}. Updated podcasts list:`, JSON.parse(JSON.stringify(podcasts.value)));
     } catch (e: any) {
       error.value = e.message;
-      console.error(`Error deleting podcast with ID ${podcastId}:`, e);
+      console.error(`[usePodcastDatabase] Error deleting podcast with ID ${podcastId}:`, e);
     } finally {
       loading.value = false;
+      console.log(`[usePodcastDatabase] deletePodcast finished. Loading: ${loading.value} Error: ${error.value}`);
     }
   };
 
@@ -198,9 +210,10 @@ export const usePodcastDatabase = () => {
       console.log(`Resynthesis for all segments of podcast ${podcastId} (simulated) complete.`);
     } catch (e: any) {
       error.value = e.message;
-      console.error(`Error resynthesizing all segments for podcast ${podcastId}:`, e);
+      console.error(`[usePodcastDatabase] Error resynthesizing all segments for podcast ${podcastId}:`, e);
     } finally {
       loading.value = false;
+      console.log(`[usePodcastDatabase] resynthesizeAllSegments finished. Loading: ${loading.value} Error: ${error.value}`);
     }
   };
 
@@ -219,9 +232,10 @@ export const usePodcastDatabase = () => {
       console.log(`Resynthesis for segment ${segmentId} (simulated) complete.`);
     } catch (e: any) {
       error.value = e.message;
-      console.error(`Error resynthesizing segment ${segmentId}:`, e);
+      console.error(`[usePodcastDatabase] Error resynthesizing segment ${segmentId}:`, e);
     } finally {
       loading.value = false;
+      console.log(`[usePodcastDatabase] resynthesizeSegment finished. Loading: ${loading.value} Error: ${error.value}`);
     }
   };
 

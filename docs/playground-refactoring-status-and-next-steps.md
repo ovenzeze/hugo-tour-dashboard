@@ -45,6 +45,29 @@ The original monolithic `stores/playgroundUnified.ts` has been **emptied** and i
     *   **Status**: Created and implemented.
         *   Includes a global `resetAllPlaygroundStates` action that calls reset methods on the other playground stores.
         *   `loadPresetScript` action now updates script content via `playgroundScriptStore` and uses English preset scripts.
+### 2.1.1. Confirmed Store Design Principles and Data Flow
+
+Following a detailed review and design discussion, the four new stores will adhere to the following principles to ensure clarity, maintainability, and alignment with backend APIs:
+
+*   **Clear Data Flow**:
+    *   User input (podcast settings, script content) is primarily captured and managed by `playgroundSettingsStore` and `playgroundScriptStore` respectively.
+    *   `playgroundScriptStore`'s `parseScript` action is responsible for processing raw script content into `ScriptSegment[]` (as defined in `types/api/podcast.d.ts`), including mapping speaker names to `speakerPersonaId` using `usePersonaCache` and fallback logic via `playgroundSettingsStore`.
+    *   `playgroundProcessStore` orchestrates API calls. Its `processScript` action constructs the `PodcastCreateRequest` payload using data from `playgroundSettingsStore` and `playgroundScriptStore` (specifically the `parsedSegments`). The response from `/api/podcast/process/script` (containing `podcastId` and `preparedSegments`) is stored within `playgroundProcessStore`.
+    *   Subsequent synthesis calls (`synthesizeAllPreparedSegments` action in `playgroundProcessStore`) use the stored `podcastId` and `preparedSegmentsFromApi` to build the `SynthesizeRequestBody` for the `/api/podcast/process/synthesize` endpoint. Global TTS settings from `playgroundSettingsStore` are also included.
+    *   The results of synthesis (individual segment audio URLs and statuses) are stored in `playgroundProcessStore` (e.g., in `synthesisResultsPerSegment`).
+    *   `playgroundUIStore` primarily manages UI-specific states (e.g., current step, loading indicators derived from `playgroundProcessStore`, active audio previews) and does not directly handle core data mutations or API logic.
+
+*   **`speaker` Field Unification**:
+    *   The core data structure for script segments, `ScriptSegment` (defined in `types/api/podcast.d.ts`), uses the field `speaker: string`. This field represents the resolved speaker name after parsing and Persona mapping/fallback.
+    *   `playgroundScriptStore.parsedSegments` will store an array of these `ScriptSegment` objects.
+    *   All frontend composables (e.g., `useVoiceManagement`, `useSegmentPreview`) and UI components (`VoicePerformanceSettings.vue`, etc.) that consume or manipulate script segments should be updated to use the `speaker: string` field consistently, rather than any alternative like `speakerTag`. If a distinction between the raw tag from the script and the resolved speaker name is needed for specific UI purposes, `playgroundScriptStore` can consider adding an optional, UI-only field like `originalSpeakerTag?: string` to its `parsedSegments`' items, but the primary identifier remains `speaker`.
+
+*   **Modularity and Composables**:
+    *   The separation into four stores promotes modularity.
+    *   Complex, reusable logic within stores (e.g., advanced script parsing if it evolves, detailed voice assignment heuristics) should be encapsulated in dedicated composable functions, which are then utilized by the store actions. This keeps store files focused on state management and action dispatching.
+
+*   **API Contract Adherence**:
+    *   All data structures used for API requests and responses will strictly adhere to the types defined in `types/api/podcast.d.ts` and the established backend API contracts.
 
 ### 2.2. Key API Endpoint and Service Decisions:
 

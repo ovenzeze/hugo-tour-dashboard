@@ -89,13 +89,13 @@
 
 <script setup lang="ts">
 import { computed, onMounted, ref, watch, type Ref } from 'vue';
-import PlaygroundStepper from '@/components/playground/PlaygroundStepper.vue';
-import PlaygroundStep1Panel from '@/components/playground/PlaygroundStep1Panel.vue';
-import PlaygroundStep2Panel from '@/components/playground/PlaygroundStep2Panel.vue';
-// import PlaygroundStep3Panel from '@/components/playground/PlaygroundStep3Panel.vue'; // Step 3 panel might not be used directly if modal handles final state
-import PlaygroundFooterActions from '@/components/playground/PlaygroundFooterActions.vue';
-// import Step2ConfirmationDialog from '@/components/playground/Step2ConfirmationDialog.vue'; // Replaced by new modal for synthesis
-import PodcastSynthesisModal from '@/components/podcasts/PodcastSynthesisModal.vue';
+import PlaygroundStepper from '~/components/playground/PlaygroundStepper.vue';
+import PlaygroundStep1Panel from '~/components/playground/PlaygroundStep1Panel.vue';
+import PlaygroundStep2Panel from '~/components/playground/PlaygroundStep2Panel.vue';
+// import PlaygroundStep3Panel from '~/components/playground/PlaygroundStep3Panel.vue'; // Step 3 panel might not be used directly if modal handles final state
+import PlaygroundFooterActions from '~/components/playground/PlaygroundFooterActions.vue';
+// import Step2ConfirmationDialog from '~/components/playground/Step2ConfirmationDialog.vue'; // Replaced by new modal for synthesis
+import PodcastSynthesisModal from '~/components/podcasts/PodcastSynthesisModal.vue';
 import type { ModalStatus, ConfirmData, ProcessingData, SuccessData, ErrorData } from '../components/podcasts/PodcastSynthesisModalTypes';
 import type { CombineAudioResponse } from '~/types/podcast';
 
@@ -105,13 +105,14 @@ import { usePlaygroundUnifiedStore } from '~/stores/playgroundUnified';
 import { usePersonaCache } from '~/composables/usePersonaCache';
 import type { Persona } from '~/types/persona';
 
-import { usePlaygroundStepper, type PlaygroundStep } from '@/composables/usePlaygroundStepper';
-import { usePlaygroundScript } from '@/composables/usePlaygroundScript';
-import { usePlaygroundAudio } from '@/composables/usePlaygroundAudio';
-import { usePlaygroundWorkflow } from '@/composables/usePlaygroundWorkflow';
-import { useGlobalAudioInterceptor } from '@/composables/useGlobalAudioInterceptor';
+import { usePlaygroundStepper, type PlaygroundStep } from '~/composables/usePlaygroundStepper';
+import { usePlaygroundScript } from '~/composables/usePlaygroundScript';
+import { usePlaygroundAudio } from '~/composables/usePlaygroundAudio';
+import { usePlaygroundWorkflow } from '~/composables/usePlaygroundWorkflow';
+import { useGlobalAudioInterceptor } from '~/composables/useGlobalAudioInterceptor';
 
 const unifiedStore = usePlaygroundUnifiedStore();
+
 const personaCache = usePersonaCache();
 
 const router = useRouter();
@@ -135,20 +136,20 @@ const errorDataForModal = ref<ErrorData>({ errorMessage: 'An unknown error occur
 
 
 // Script related states - now primarily from unifiedStore
-const isScriptGenerating = computed(() => unifiedStore.isLoading && unifiedStore.currentStep === 1); // Example, adjust step condition
-const mainEditorContent = computed(() => unifiedStore.scriptContent); // Already correct for PlaygroundStep1Panel if it uses store directly
-const scriptError = computed(() => unifiedStore.error);
+const isScriptGenerating = computed(() => unifiedStore.isCurrentlyLoading && unifiedStore.currentPlaygroundStep === 1); // Use getters
+const mainEditorContent = computed(() => unifiedStore.currentScriptContent); // Use getter
+const scriptError = computed(() => unifiedStore.currentError); // Use getter
 
 // Placeholder for aiScriptStep and aiScriptStepText - these should come from unifiedStore
-const aiScriptStep = computed(() => unifiedStore.aiScriptGenerationStep || 0); // Assuming a new state in unifiedStore
-const aiScriptStepText = computed(() => unifiedStore.aiScriptGenerationStepText || ''); // Assuming a new state in unifiedStore
+const aiScriptStep = computed(() => unifiedStore.currentAiScriptStep || 0); // Use getter
+const aiScriptStepText = computed(() => unifiedStore.currentAiScriptStepText || ''); // Use getter
 
 
 // highlightedScript logic - can remain in component, using unifiedStore data
 const highlightedScript = computed(() => {
-  const script = unifiedStore.scriptContent;
+  const script = unifiedStore.currentScriptContent; // Use getter
   // Assuming selectedPersonaIdForHighlighting will be part of unifiedStore state or props
-  const selectedPersonaId = unifiedStore.selectedPersonaIdForHighlighting; 
+  const selectedPersonaId = unifiedStore.currentSelectedPersonaIdForHighlighting; // Use getter
 
   if (!script || selectedPersonaId === null) {
     return script; // Return raw script if no persona selected or no script
@@ -160,9 +161,9 @@ const highlightedScript = computed(() => {
     return script; // Return raw script if persona not found
   }
 
-  const lines = script.split('\n');
+  const lines = script.split('\n'); // Corrected: script is already a string here
   let html = '';
-  lines.forEach(line => {
+  lines.forEach((line: string) => {
     // Basic highlighting: wrap lines starting with the persona's name
     // This can be made more robust (e.g., case-insensitive, handle multi-line segments)
     if (line.trim().startsWith(`${selectedPersonaName}:`)) {
@@ -259,10 +260,14 @@ const canGeneratePodcast = computed(() => {
 const {
   isGeneratingAudioPreview, // This is the individual segment preview loading state from usePlaygroundAudio
   // generateAudioPreview, // We will wrap this to manage global state
-  handleToolbarSynthesizePodcastAudio,
-  handleDownloadCurrentAudio,
-  updateFinalAudioUrl,
+  // isGeneratingAudioPreview, // This was from usePlaygroundAudio, unifiedStore might have its own
+  // generateAudioPreview,
+  handleToolbarSynthesizePodcastAudio, // This likely needs to call unifiedStore.synthesizeAudio
+  handleDownloadCurrentAudio, // This might use unifiedStore.currentAudioUrl
+  updateFinalAudioUrl, // This should call unifiedStore.setFinalAudioUrl
 } = usePlaygroundAudio(voicePerformanceSettingsRef, podcastPerformanceConfig, canProceedFromStep2);
+// TODO: Review usePlaygroundAudio and integrate its functionality with unifiedStore if necessary,
+// or ensure unifiedStore provides the reactive properties usePlaygroundAudio needs.
 
 
 // 直接调用audioStore的synthesizeAllSegmentsConcurrently方法，确保数据一路透传
@@ -272,7 +277,7 @@ async function generateAllSegmentsAudioPreview() {
     return;
   }
 
-  if (!unifiedStore.podcastId) {
+  if (!unifiedStore.currentPodcastId) { // Use getter
     toast.error("Podcast ID is missing. Cannot synthesize segments. Please ensure script is validated and saved (Step 1).");
     return;
   }
@@ -291,9 +296,9 @@ async function generateAllSegmentsAudioPreview() {
 
     // 直接调用 unifiedStore 的方法，传递必要的参数
     // TODO: Implement synthesizeAudioPreviewForAllSegments in unifiedStore with appropriate logic
-    const result = await unifiedStore.synthesizeAudioPreviewForAllSegments( // unifiedStore
-      unifiedStore.validationResult, // unifiedStore
-      unifiedStore.podcastSettings, // unifiedStore
+    const result = await unifiedStore.synthesizeAudioPreviewForAllSegments(
+      unifiedStore.currentValidationResult, // Use getter
+      unifiedStore.currentPodcastSettingsSnapshot, // Use getter (or a more specific settings object from unifiedStore)
       currentSpeakerAssignments
     );
     // const result = await audioStore.synthesizeAllSegmentsConcurrently(
@@ -345,16 +350,16 @@ const getCurrentStepTitle = computed(() => {
   return step ? step.title : 'Podcast Creation';
 });
 
-watch(() => unifiedStore.createPodcastTrigger, () => {
-  if (currentStepIndex.value !== 2) {
-    goToStep(1);
-    unifiedStore.resetPlaygroundState();
-    if(podcastPerformanceConfig.value) podcastPerformanceConfig.value = null;
-  }
-}, { immediate: true });
+// watch(() => unifiedStore.createPodcastTrigger, () => { // createPodcastTrigger removed from unifiedStore for now
+//   if (currentStepIndex.value !== 2) {
+//     goToStep(1);
+//     unifiedStore.resetPlaygroundState();
+//     if(podcastPerformanceConfig.value) podcastPerformanceConfig.value = null;
+//   }
+// }, { immediate: true });
 
 const isGeneratingOverall = computed(() => {
-  return unifiedStore.isLoading || // unifiedStore.isLoading should cover script generation and synthesis
+  return unifiedStore.isCurrentlyLoading || // Use getter
          isValidating.value ||       // This is from usePlaygroundScript composable
          isGlobalPreviewLoading.value || // Global preview loading state
          isProcessingWorkflowStep.value;
@@ -402,11 +407,11 @@ async function onSynthesizeAudioForPodcast(payload: { useTimestamps: boolean, sy
 }
 
 function handlePlayCurrentAudio() {
-  if (!unifiedStore.audioUrl) { // unifiedStore
+  if (!unifiedStore.currentAudioUrl) { // Use getter
     toast.error('No audio available to play');
     return;
   }
-  const audio = new Audio(unifiedStore.audioUrl); // unifiedStore
+  const audio = new Audio(unifiedStore.currentAudioUrl); // Use getter
   audio.play().catch(error => {
     toast.error('Playback failed: ' + (error as Error).message);
   });
@@ -429,12 +434,12 @@ const handleModalConfirmSynthesis = async () => {
   processingDataForModal.value = { progress: 0, currentStage: 'Starting synthesis...' };
 
   // Log values for pre-checks
-  console.log('unifiedStore.scriptValidationResult:', JSON.stringify(unifiedStore.validationResult, null, 2)); // unifiedStore
+  console.log('unifiedStore.currentValidationResult:', JSON.stringify(unifiedStore.currentValidationResult, null, 2)); // Use getter
   console.log('podcastPerformanceConfig.value (before checks):', JSON.stringify(podcastPerformanceConfig.value, null, 2));
   console.log('voicePerformanceSettingsRef.value?.isFormValid (before checks):', voicePerformanceSettingsRef.value?.isFormValid);
-  console.log('unifiedStore.podcastId (before checks):', unifiedStore.podcastId); // unifiedStore
+  console.log('unifiedStore.currentPodcastId (before checks):', unifiedStore.currentPodcastId); // Use getter
 
-  if (!unifiedStore.validationResult || !unifiedStore.validationResult.success || !unifiedStore.validationResult.structuredData?.script?.length) { // unifiedStore
+  if (!unifiedStore.currentValidationResult || !unifiedStore.currentValidationResult.success || !unifiedStore.currentValidationResult.structuredData?.script?.length) { // Use getter
     synthesisStatusForModal.value = 'error';
     errorDataForModal.value = { errorMessage: 'Script validation data is missing or invalid. Please ensure the script is validated and segments are configured.' };
     toast.error(`Podcast "${podcastNameForModal.value}" synthesis failed: No valid script segments.`);
@@ -460,7 +465,7 @@ const handleModalConfirmSynthesis = async () => {
   }
 
   // Add check for podcastId
-  if (!unifiedStore.podcastId) { // unifiedStore
+  if (!unifiedStore.currentPodcastId) { // Use getter
     synthesisStatusForModal.value = 'error';
     errorDataForModal.value = { errorMessage: 'Podcast ID is missing. Cannot synthesize segments. Please ensure the script has been saved.' };
     toast.error(`Podcast "${podcastNameForModal.value}" synthesis failed: Podcast ID missing.`);
@@ -469,7 +474,7 @@ const handleModalConfirmSynthesis = async () => {
 
   try {
     // Log critical data for debugging
-    console.log('Validation Result Script (inside try):', JSON.stringify(unifiedStore.validationResult?.structuredData?.script, null, 2)); // unifiedStore
+    console.log('Validation Result Script (inside try):', JSON.stringify(unifiedStore.currentValidationResult?.structuredData?.script, null, 2)); // Use getter
     
     const currentSpeakerAssignmentsConfig = voicePerformanceSettingsRef.value.getPerformanceConfig();
     console.log('Current Speaker Assignments Config from getPerformanceConfig():', JSON.stringify(currentSpeakerAssignmentsConfig, null, 2));
@@ -493,9 +498,9 @@ const handleModalConfirmSynthesis = async () => {
 
     // Call the actual synthesis function from the audio store
     // TODO: Replace with unifiedStore action and ensure parameters are correct
-    const synthesisResult = await unifiedStore.synthesizeAudio({ // Placeholder for new unified action, arguments might differ
-      validationResult: unifiedStore.validationResult, // unifiedStore
-      podcastSettings: unifiedStore.podcastSettings, // unifiedStore
+    const synthesisResult = await unifiedStore.synthesizeAudio({
+      validationResult: unifiedStore.currentValidationResult, // Use getter
+      podcastSettings: unifiedStore.currentPodcastSettingsSnapshot, // Use getter (or a more specific settings object)
       speakerAssignments: formattedSpeakerAssignments
     });
     // const synthesisResult = await audioStore.synthesizeAllSegmentsConcurrently(
@@ -520,9 +525,9 @@ const handleModalConfirmSynthesis = async () => {
       }
     }
 
-    if (unifiedStore.error) { // unifiedStore, assuming error state
+    if (unifiedStore.currentError) { // Use getter
       synthesisStatusForModal.value = 'error';
-      errorDataForModal.value = { errorMessage: unifiedStore.error }; // unifiedStore
+      errorDataForModal.value = { errorMessage: unifiedStore.currentError }; // Use getter
       toast.error(`Podcast "${podcastNameForModal.value}" synthesis failed.`);
     } else {
       // After successful segment synthesis, trigger the final audio combination
@@ -532,12 +537,12 @@ const handleModalConfirmSynthesis = async () => {
       const combineResponse = await $fetch<CombineAudioResponse>('/api/podcast/combine-audio', {
         method: 'POST',
         body: {
-          podcastId: unifiedStore.podcastId, // unifiedStore
+          podcastId: unifiedStore.currentPodcastId, // Use getter
         },
       } as any);
 
       if (combineResponse && combineResponse.audioUrl) {
-        unifiedStore.setFinalAudioUrl(combineResponse.audioUrl); // unifiedStore (action to be created)
+        unifiedStore.setFinalAudioUrl(combineResponse.audioUrl);
         synthesisStatusForModal.value = 'success';
         successDataForModal.value = {
           podcastDuration: combineResponse.duration || 'N/A', // Assuming backend returns duration
@@ -619,12 +624,12 @@ const handleShowSynthesisModal = async () => {
   // 检查是否有音频片段已经生成
   try {
     // 直接从API获取当前播客的片段状态，确保数据是最新的
-    if (!unifiedStore.podcastId) { // unifiedStore
+    if (!unifiedStore.currentPodcastId) { // Use getter
       toast.error("播客ID缺失，请先保存脚本。");
       return;
     }
     
-    const response = await $fetch(`/api/podcast/${unifiedStore.podcastId}/segments-status`, { // unifiedStore
+    const response = await $fetch(`/api/podcast/${unifiedStore.currentPodcastId}/segments-status`, { // Use getter
       method: 'GET'
     });
     
@@ -662,11 +667,14 @@ const handleShowSynthesisModal = async () => {
   }
   
   // 获取播客名称
-  if (!unifiedStore.podcastSettings.title && mainEditorContent.value) { // unifiedStore
+  // Accessing unifiedStore.podcastSettings.value directly is not ideal if it's meant to be a snapshot or from settingsStore
+  // For now, assuming unifiedStore.currentPodcastSettingsSnapshot or a dedicated getter for title
+  const currentSettings = unifiedStore.currentPodcastSettingsSnapshot; // Or a more direct getter if available
+  if (!currentSettings.title && mainEditorContent.value) {
     const firstLine = mainEditorContent.value.split('\n')[0];
     podcastNameForModal.value = firstLine.length > 50 ? firstLine.substring(0, 47) + '...' : firstLine || 'New Podcast';
   } else {
-    podcastNameForModal.value = unifiedStore.podcastSettings.title || 'New Podcast'; // unifiedStore
+    podcastNameForModal.value = currentSettings.title || 'New Podcast';
   }
 
   // 直接提交任务，不显示确认对话框
@@ -674,7 +682,7 @@ const handleShowSynthesisModal = async () => {
 };
 
 // 导入封面生成相关的composable
-import { usePodcastCoverGenerator } from '@/composables/usePodcastCoverGenerator';
+import { usePodcastCoverGenerator } from '~/composables/usePodcastCoverGenerator';
 const { generateAndSavePodcastCover } = usePodcastCoverGenerator();
 
 // 直接提交播客合成任务
@@ -716,18 +724,21 @@ const handleSubmitPodcastSynthesis = async () => {
     }
     
     // 生成封面图片
-    if (unifiedStore.podcastId && unifiedStore.podcastSettings.title) { // unifiedStore
+    const currentPId = unifiedStore.currentPodcastId; // Use getter
+    const currentSettingsForCover = unifiedStore.currentPodcastSettingsSnapshot; // Use getter
+
+    if (currentPId && currentSettingsForCover.title) {
       // 调用封面生成API，但不触发刷新
       generateAndSavePodcastCover(
-        unifiedStore.podcastId.toString(), // unifiedStore
-        unifiedStore.podcastSettings.title, // unifiedStore
-        unifiedStore.podcastSettings.topic // unifiedStore
+        String(currentPId),
+        currentSettingsForCover.title,
+        currentSettingsForCover.topic
       )
         .then(() => {
-          console.log(`[handleSubmitPodcastSynthesis] Cover generation process initiated for podcast ${unifiedStore.podcastId}.`); // unifiedStore
+          console.log(`[handleSubmitPodcastSynthesis] Cover generation process initiated for podcast ${currentPId}.`);
         })
         .catch(coverError => {
-          console.error(`[handleSubmitPodcastSynthesis] Error initiating cover generation for podcast ${unifiedStore.podcastId}:`, coverError); // unifiedStore
+          console.error(`[handleSubmitPodcastSynthesis] Error initiating cover generation for podcast ${currentPId}:`, coverError);
         });
     }
     
@@ -736,12 +747,12 @@ const handleSubmitPodcastSynthesis = async () => {
     const combineResponse = await $fetch<CombineAudioResponse>('/api/podcast/combine-audio', {
       method: 'POST',
       body: {
-        podcastId: unifiedStore.podcastId, // unifiedStore
+        podcastId: unifiedStore.currentPodcastId, // Use getter
       },
     } as any);
 
     if (combineResponse && combineResponse.audioUrl) {
-      unifiedStore.setFinalAudioUrl(combineResponse.audioUrl); // unifiedStore (action to be created)
+      unifiedStore.setFinalAudioUrl(combineResponse.audioUrl);
       toast.success(`播客"${podcastNameForModal.value}"合成完成！`);
     } else {
       toast.error(`播客"${podcastNameForModal.value}"合成失败：无法获取最终音频URL。`);

@@ -1,88 +1,68 @@
 // composables/podcast/usePodcastTimeline.ts
-import { ref, computed, watch, type Ref } from 'vue'
-import { toast } from 'vue-sonner'
+import { computed, watch, type Ref } from 'vue';
+import { storeToRefs } from 'pinia';
+import { usePlaygroundProcessStore, type TimelineItem } from '@/stores/playgroundProcessStore'; // Import TimelineItem
+import { toast } from 'vue-sonner';
 
-interface TimelineItem {
-  speaker: string;
-  audioFile: string;
-  timestampFile: string;
-  duration: number;
-  startTime: number;
-  endTime: number;
-}
 
 export function usePodcastTimeline(
-  podcastId: Ref<string | undefined>,
+  podcastId: Ref<string | undefined>, // This ref comes from the component, derived from processStore.podcastId
   onTimelineGenerated?: () => Promise<void> // Callback for after timeline generation
 ) {
-  const timelineData = ref<TimelineItem[]>([])
-  const timelineUrl = ref<string | null>(null)
-  const isGeneratingTimeline = ref(false)
+  const processStore = usePlaygroundProcessStore();
 
-  const isTimelineGenerated = computed(() => timelineData.value.length > 0 && timelineUrl.value !== null)
+  const {
+    timelineStatusResponse,
+    isProcessingTimeline, // Use this instead of local isGeneratingTimeline
+    error: processError
+  } = storeToRefs(processStore);
+
+  // Computed properties deriving from store state
+  const timelineData = computed(() => timelineStatusResponse.value?.timelineData || []);
+  const timelineUrl = computed(() => timelineStatusResponse.value?.timelineUrl || null);
+  
+  const isTimelineGenerated = computed(() =>
+    timelineStatusResponse.value?.success === true &&
+    timelineStatusResponse.value?.timelineExists === true &&
+    (timelineData.value.length > 0 || !!timelineUrl.value) // Ensure either data or URL exists
+  );
+
   const totalDuration = computed(() => {
-    return timelineData.value.reduce((total, segment) => total + (segment.duration || 0), 0)
-  })
+    return timelineData.value.reduce((total, segment) => total + (segment.duration || 0), 0);
+  });
 
   function formatDuration(seconds: number): string {
-    const minutes = Math.floor(seconds / 60)
-    const remainingSeconds = Math.floor(seconds % 60)
-    return `${minutes}:${remainingSeconds.toString().padStart(2, '0')}`
+    const minutes = Math.floor(seconds / 60);
+    const remainingSeconds = Math.floor(seconds % 60);
+    return `${minutes}:${remainingSeconds.toString().padStart(2, '0')}`;
   }
 
   async function checkTimelineStatus() {
     if (!podcastId.value) {
-      timelineUrl.value = null
-      timelineData.value = []
-      return
+      // processStore.timelineStatusResponse = null; // Or an action to clear it
+      return;
     }
-    try {
-      const response = await fetch(`/api/podcast/status?podcastId=${podcastId.value}`)
-      const data = await response.json()
-
-      if (data.timelineExists) {
-        timelineUrl.value = data.timelineUrl
-        timelineData.value = data.timelineData || []
-      } else {
-        timelineUrl.value = null
-        timelineData.value = []
-      }
-    } catch (error) {
-      console.error('Error checking timeline status:', error)
-      toast.error('Failed to check timeline status', { description: error instanceof Error ? error.message : 'Unknown error' })
-      timelineUrl.value = null
-      timelineData.value = []
+    await processStore.fetchTimelineStatus();
+    // Toasting for errors can be handled globally by watching processStore.error in a UI component,
+    // or if specific to this action, check processStore.error after the call.
+    if (processStore.error && !timelineStatusResponse.value?.success) {
+        toast.error('Failed to check timeline status', { description: processStore.error });
     }
   }
 
   async function generateTimeline() {
-    if (!podcastId.value || isGeneratingTimeline.value) return
+    if (!podcastId.value || isProcessingTimeline.value) return;
 
-    isGeneratingTimeline.value = true
-    try {
-      const response = await fetch('/api/podcast/process/timeline', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ podcastId: podcastId.value })
-      })
-
-      const data = await response.json()
-
-      if (data.success) {
-        timelineUrl.value = data.timelineUrl
-        timelineData.value = data.timelineData || []
-        toast.success('Timeline generated successfully')
-        if (onTimelineGenerated) {
-          await onTimelineGenerated()
-        }
-      } else {
-        toast.error('Failed to generate timeline', { description: data.message })
+    const response = await processStore.generatePodcastTimeline();
+    if (response?.success) {
+      toast.success('Timeline generation initiated.');
+      // The store state (timelineStatusResponse) is updated by the action.
+      // Watchers or computed properties will react to this change.
+      if (onTimelineGenerated && response.timelineExists) { // Ensure timeline actually generated
+        await onTimelineGenerated();
       }
-    } catch (error) {
-      console.error('Error generating timeline:', error)
-      toast.error('Failed to generate timeline', { description: error instanceof Error ? error.message : 'Unknown error' })
-    } finally {
-      isGeneratingTimeline.value = false
+    } else {
+      toast.error('Failed to generate timeline', { description: processStore.error || response?.message || 'Unknown error' });
     }
   }
   
@@ -91,24 +71,24 @@ export function usePodcastTimeline(
     window.open(url, '_blank');
   }
 
-  watch(() => podcastId.value, async (newId) => {
+  watch(podcastId, async (newId) => {
     if (newId) {
-      await checkTimelineStatus()
+      await checkTimelineStatus(); // Fetch status when podcastId changes and is valid
     } else {
-      timelineData.value = []
-      timelineUrl.value = null
+      // processStore.timelineStatusResponse = null; // Or an action to clear it
+      // This will clear timelineData and timelineUrl via their computed properties
     }
-  }, { immediate: true })
+  }, { immediate: true });
 
   return {
-    timelineData,
-    timelineUrl,
-    isGeneratingTimeline,
-    isTimelineGenerated,
-    totalDuration,
+    timelineData, // computed
+    timelineUrl,  // computed
+    isGeneratingTimeline: isProcessingTimeline, // reactive ref from store
+    isTimelineGenerated, // computed
+    totalDuration,       // computed
     formatDuration,
-    checkTimelineStatus,
-    generateTimeline,
+    checkTimelineStatus, // async function calling store action
+    generateTimeline,    // async function calling store action
     handleViewTimelineJSON,
-  }
+  };
 }

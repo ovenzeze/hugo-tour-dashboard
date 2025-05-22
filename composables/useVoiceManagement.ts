@@ -1,161 +1,143 @@
-// Fixed import statement
-import { usePlaygroundUnifiedStore } from '../stores/playgroundUnified';
+// Removed: import { usePlaygroundUnifiedStore } from '../stores/playgroundUnified';
 import { usePersonaCache } from '../composables/usePersonaCache';
-import { toast } from 'vue-sonner';
+// Removed: import { toast } from 'vue-sonner'; // Not used in this composable
 import type { Persona } from '~/types/persona';
-import type { Tables } from '~/types/supabase';
-import { useRuntimeConfig } from 'nuxt/app';
+// Removed: import type { Tables } from '~/types/supabase'; // Not directly used
+// Removed: import { useRuntimeConfig } from 'nuxt/app'; // Not directly used
 
+// Voice interface can remain if it's a useful abstraction internally or for other components
 export interface Voice {
-  id: string;
-  name: string;
+  id: string; // voice_model_identifier
+  name: string; // Persona name or voice name
   personaId: number | null;
   description?: string | null;
   avatarUrl?: string | null;
-  provider?: string;
+  provider?: string; // 'elevenlabs' | 'volcengine'
 }
 
-export interface ParsedScriptSegment {
-  speakerTag: string;
+// This interface defines the structure of segments as processed or expected by this composable.
+// It should use 'speaker' to align with the rest of the application (e.g., ScriptSegment type).
+export interface ProcessedScriptSegmentForVoiceManagement {
+  speaker: string;
   text: string;
+  speakerPersonaId?: number | null; // Optional, but useful if available from upstream parsing
 }
 
 export function useVoiceManagement(
-  scriptContent: Ref<string>,
-  parsedScriptSegments: Ref<ParsedScriptSegment[]>,
+  // scriptContent: Ref<string>, // Raw script content is less relevant if parsed segments are provided
+  // The composable should operate on already parsed segments from playgroundScriptStore.
+  // These segments should conform to ScriptSegment from types/api/podcast.d.ts or a compatible structure.
+  parsedSegments: Ref<{ speaker: string; text: string; speakerPersonaId: number | null }[]>,
   selectedHostPersona: Ref<Persona | undefined>,
   selectedGuestPersonas: Ref<Persona[]>
 ) {
-  const unifiedStore = usePlaygroundUnifiedStore();
+  // Removed: const unifiedStore = usePlaygroundUnifiedStore();
   const personaCache = usePersonaCache();
-  const runtimeConfig = useRuntimeConfig();
+  // Removed: const runtimeConfig = useRuntimeConfig();
 
+  // Stores assignments: speakerName -> { voiceId (voice_model_identifier), provider }
   const speakerAssignments = ref<Record<string, { voiceId: string; provider: string }>>({});
 
+  // speakersInScript should now derive from the input `parsedSegments`
   const speakersInScript = computed(() => {
-    if (scriptContent.value) {
-      const speakerPattern = /^([A-Za-z0-9_\u4e00-\u9fa5]+):/gm;
-      const matches = [...scriptContent.value.matchAll(speakerPattern)];
-      const uniqueSpeakers = [...new Set(matches.map(match => match[1]))];
-      
-      uniqueSpeakers.forEach(speaker => {
-        if (!(speaker in speakerAssignments.value)) {
-          speakerAssignments.value[speaker] = { voiceId: '', provider: '' };
-        }
-      });
-      
-      Object.keys(speakerAssignments.value).forEach(assignedSpeaker => {
-        if (!uniqueSpeakers.includes(assignedSpeaker)) {
-          delete speakerAssignments.value[assignedSpeaker];
-        }
-      });
-      
-      return uniqueSpeakers;
+    // Ensure parsedSegments.value is accessed, and it's an array before mapping
+    if (!parsedSegments.value || !Array.isArray(parsedSegments.value)) {
+      return [];
     }
-    return [];
+    const uniqueSpeakers = new Set(parsedSegments.value.map(segment => segment.speaker));
+    const speakersArray = Array.from(uniqueSpeakers);
+
+    // Initialize or clean up assignments based on current speakers in script
+    speakersArray.forEach(speaker => {
+      if (!(speaker in speakerAssignments.value)) {
+        speakerAssignments.value[speaker] = { voiceId: '', provider: '' };
+      }
+    });
+    Object.keys(speakerAssignments.value).forEach(assignedSpeaker => {
+      if (!speakersArray.includes(assignedSpeaker)) {
+        delete speakerAssignments.value[assignedSpeaker];
+      }
+    });
+    return speakersArray;
   });
 
-  function findPersonaBySpeakerName(speakerTag: string): Persona | undefined {
-    const normalizedSpeakerTag = speakerTag.replace(/\s+/g, '').toLowerCase();
-    if (selectedHostPersona.value && selectedHostPersona.value.name.replace(/\s+/g, '').toLowerCase() === normalizedSpeakerTag) {
+  function findPersonaBySpeakerName(speakerName: string): Persona | undefined {
+    const normalizedSpeakerName = String(speakerName || '').replace(/\s+/g, '').toLowerCase();
+    if (selectedHostPersona.value && selectedHostPersona.value.name.replace(/\s+/g, '').toLowerCase() === normalizedSpeakerName) {
       return selectedHostPersona.value;
     }
-    return selectedGuestPersonas.value.find(p => p.name.replace(/\s+/g, '').toLowerCase() === normalizedSpeakerTag);
+    return selectedGuestPersonas.value.find(p => p.name.replace(/\s+/g, '').toLowerCase() === normalizedSpeakerName);
   }
 
   function assignVoicesToSpeakers() {
     console.info('[useVoiceManagement] Entering assignVoicesToSpeakers.');
-    const localSpeakers = speakersInScript.value; 
-    const localPersonas = personaCache.personas.value;
+    const localSpeakers = speakersInScript.value;
+    const allAvailablePersonas = personaCache.personas.value; // All personas from cache
 
-    if (localPersonas.length === 0) {
+    if (allAvailablePersonas.length === 0) {
       console.warn('[useVoiceManagement] Personas not loaded yet. Skipping voice assignment.');
       return;
     }
 
-    // Initialize newAssignments with existing assignments
     const newAssignments: Record<string, { voiceId: string; provider: string }> = { ...speakerAssignments.value };
 
     localSpeakers.forEach(speaker => {
-      // Only assign a voice if the speaker doesn't already have one assigned
-      // Check if the voiceId is empty, as newAssignments[speaker] will be an object { voiceId: '', provider: '' } for unassigned speakers
+      // Only attempt to auto-assign if not already manually assigned or if current assignment is empty
       if (!newAssignments[speaker] || !newAssignments[speaker].voiceId) {
-        let persona = findPersonaBySpeakerName(speaker);
+        // Try to find a persona whose name matches the speaker name from the script
+        let persona = findPersonaBySpeakerName(speaker); // Checks selected host/guests first
 
-        // Fallback: If not found in selected personas (via findPersonaBySpeakerName),
-        // try searching directly in all available personas from the store (localPersonas).
-        if (!persona) {
-          const normalizedSpeakerTag = speaker.replace(/\s+/g, '').toLowerCase();
-          const fallbackPersona = localPersonas.find(p => p.name.replace(/\s+/g, '').toLowerCase() === normalizedSpeakerTag);
-          if (fallbackPersona) {
-            persona = fallbackPersona;
-            console.log(`[useVoiceManagement] Found persona for '${speaker}' via fallback search in localPersonas.`);
+        if (!persona) { // If not among selected, check all available personas
+          const normalizedSpeakerName = String(speaker || '').replace(/\s+/g, '').toLowerCase();
+          persona = allAvailablePersonas.find(p => String(p.name || '').replace(/\s+/g, '').toLowerCase() === normalizedSpeakerName);
+          if (persona) {
+            console.log(`[useVoiceManagement] Found persona for '${speaker}' by matching name in allAvailablePersonas.`);
           }
         }
+        
+        // If a segment from `parsedSegments` has a speakerPersonaId, prioritize that
+        const segmentWithThisSpeaker = parsedSegments.value.find(s => s.speaker === speaker && s.speakerPersonaId !== null && s.speakerPersonaId !== undefined);
+        if (segmentWithThisSpeaker && segmentWithThisSpeaker.speakerPersonaId) {
+            const personaFromSegmentId = personaCache.getPersonaById(segmentWithThisSpeaker.speakerPersonaId);
+            if (personaFromSegmentId) {
+                persona = personaFromSegmentId; // Prioritize persona matched by ID from script store
+                console.log(`[useVoiceManagement] Prioritized persona for '${speaker}' using speakerPersonaId from scriptStore: ${persona.name}`);
+            }
+        }
+
 
         let voiceId = '';
+        let provider = '';
 
         if (persona) {
-          if (persona.voice_model_identifier) {
-            voiceId = persona.voice_model_identifier;
-            console.log(`[useVoiceManagement] Assigned voice '${voiceId}' from voice_model_identifier to speaker '${speaker}'.`);
-          } else if (persona.tts_provider === 'volcengine' && persona.description) {
-            // Attempt to parse voice ID from description for Volcengine
-            const match = persona.description.match(/实例ID\/名称:\s*(.+)/);
-            if (match && match[1]) {
-              voiceId = match[1].trim();
-              console.log(`[useVoiceManagement] Parsed and assigned voice '${voiceId}' from description for Volcengine speaker '${speaker}'.`);
-            } else {
-              console.warn(`[useVoiceManagement] For Volcengine speaker '${speaker}' (persona: ${persona.name}), voice_model_identifier is missing and description ('${persona.description}') does not contain a parsable ID using regex /实例ID\\/名称:\\s*(.+)/.`);
-            }
+          voiceId = persona.voice_model_identifier || '';
+          // Ensure tts_provider is accessed safely, it's optional on Persona type
+          provider = persona.tts_provider || '';
+          
+          if (voiceId) {
+            console.log(`[useVoiceManagement] Assigned voice '${voiceId}' and provider '${provider}' from persona '${persona.name}' to speaker '${speaker}'.`);
+          } else {
+            console.warn(`[useVoiceManagement] Persona '${persona.name}' found for speaker '${speaker}', but is missing voice_model_identifier.`);
           }
+        } else {
+            console.warn(`[useVoiceManagement] No persona found for speaker '${speaker}'. Voice not assigned.`);
+        }
+        
+        // If provider is still empty but voiceId suggests one (legacy or specific format)
+        if (voiceId && !provider) {
+            if (voiceId.includes('_mars_') || voiceId.includes('_volc_')) {
+                provider = 'volcengine';
+            } else if (voiceId.includes('_eleven_')) {
+                provider = 'elevenlabs';
+            }
+            if (provider) {
+                 console.log(`[useVoiceManagement] Derived provider '${provider}' for voiceId '${voiceId}' for speaker '${speaker}'.`);
+            }
         }
 
-        if (voiceId) {
-          let provider = '';
-          if (voiceId.includes('_mars_') || voiceId.includes('_volc_')) {
-            provider = 'volcengine';
-          } else if (voiceId.includes('_eleven_')) {
-            provider = 'elevenlabs';
-          } else if (persona && persona.tts_provider) { // Use persona.tts_provider if voiceId doesn't specify
-            provider = persona.tts_provider.replace(/^'|'$/g, ''); // Remove leading/trailing single quotes
-            console.log(`[useVoiceManagement] Using provider '${provider}' from persona.tts_provider for voiceId '${voiceId}' for speaker '${speaker}'.`);
-          } else {
-            // If no rule matches and no persona.tts_provider, provider remains empty.
-            // This aligns with the requirement not to infer or default if not explicitly available.
-            console.warn(`[useVoiceManagement] Could not determine provider for voiceId '${voiceId}' for speaker '${speaker}'. Provider will be empty.`);
-          }
-          newAssignments[speaker] = { voiceId, provider };
-        } else {
-          // Keep it as empty if no persona/voice found or parsed
-          newAssignments[speaker] = { voiceId: '', provider: '' };
-          console.warn(`[useVoiceManagement] No voice assigned for speaker '${speaker}'.`);
-        }
+        newAssignments[speaker] = { voiceId, provider: provider || '' }; // Ensure provider is at least an empty string
       } else {
-        // Ensure provider is also considered for "already assigned"
-        const existingAssignment = newAssignments[speaker];
-        if (existingAssignment && existingAssignment.voiceId && !existingAssignment.provider) {
-            // If voiceId exists but provider is missing, try to derive it now
-            let provider = '';
-            const currentVoiceId = existingAssignment.voiceId;
-            if (currentVoiceId.includes('_mars_') || currentVoiceId.includes('_volc_')) {
-                provider = 'volcengine';
-            } else if (currentVoiceId.includes('_eleven_')) {
-                provider = 'elevenlabs';
-            } else {
-                const personaForExisting = findPersonaBySpeakerName(speaker);
-                if (personaForExisting && personaForExisting.tts_provider) {
-                    provider = personaForExisting.tts_provider.replace(/^'|'$/g, ''); // Remove leading/trailing single quotes
-                    console.log(`[useVoiceManagement] Updated missing provider to '${provider}' from persona.tts_provider for existing voiceId '${currentVoiceId}' for speaker '${speaker}'.`);
-                } else {
-                    console.warn(`[useVoiceManagement] Still could not determine provider for existing voiceId '${currentVoiceId}' for speaker '${speaker}'. Provider remains empty.`);
-                }
-            }
-            newAssignments[speaker] = { voiceId: currentVoiceId, provider };
-            console.log(`[useVoiceManagement] Updated assignment for speaker '${speaker}' with derived provider: ${JSON.stringify(newAssignments[speaker])}`);
-        } else {
-            console.log(`[useVoiceManagement] Speaker '${speaker}' already has a voice and provider assigned: ${JSON.stringify(existingAssignment)}. Skipping automatic assignment.`);
-        }
+         console.log(`[useVoiceManagement] Speaker '${speaker}' already has an assignment: ${JSON.stringify(newAssignments[speaker])}. Skipping automatic assignment.`);
       }
     });
 
@@ -166,30 +148,24 @@ export function useVoiceManagement(
     console.info('[useVoiceManagement] Final speakerAssignments:', JSON.parse(JSON.stringify(speakerAssignments.value)));
   }
 
-  watch(scriptContent, () => {
-    // speakersInScript will update, which in turn triggers the watch below
-  }, { deep: true });
-
-  watch(() => personaCache.personas.value, (newPersonas, oldPersonas) => {
-    if (newPersonas.length > 0) {
-      console.log('[useVoiceManagement] Personas loaded or changed. Re-assigning voices.');
-      assignVoicesToSpeakers();
-    }
-  }, { immediate: true, deep: true });
-
-  watch([speakersInScript, () => personaCache.personas.value], () => {
-    console.log('[useVoiceManagement] speakersInScript or personas changed. Re-assigning voices.');
+  // Watch for changes in parsed segments, or selected personas, or the persona cache itself
+  watch([parsedSegments, selectedHostPersona, selectedGuestPersonas, () => personaCache.personas.value], () => {
+    console.log('[useVoiceManagement] Detected change in parsed segments, selected personas, or persona cache. Re-assigning voices.');
     assignVoicesToSpeakers();
-  }, { deep: true });
-  
-  const getVoiceInfoForSpeaker = (speakerTag: string): { voiceId: string, provider: string } => {
-    return speakerAssignments.value[speakerTag] || { voiceId: '', provider: '' };
+  }, { deep: true, immediate: true });
+  // `immediate: true` ensures assignVoicesToSpeakers is called once initially.
+  // The internal logic of assignVoicesToSpeakers checks if personas are loaded.
+
+  // Removed redundant watch on personaCache.personas.value as it's covered above.
+
+  const getVoiceInfoForSpeaker = (speakerName: string): { voiceId: string; provider: string } => {
+    return speakerAssignments.value[speakerName] || { voiceId: '', provider: '' };
   };
 
   return {
     speakerAssignments,
     speakersInScript,
     assignVoicesToSpeakers,
-    getVoiceInfoForSpeaker // Renamed from getVoiceIdForSpeaker
+    getVoiceInfoForSpeaker
   };
 }

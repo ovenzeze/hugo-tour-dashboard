@@ -5,6 +5,7 @@ import { createPodcastServer, addPodcastSegmentsServer } from '~/server/utils/po
 import { getPersonasByLanguage, type AutoSelectedPersona } from "../../../utils/personaFetcher";
 import { consola } from 'consola';
 import type { PodcastCreateRequest, PodcastCreateResponse, ScriptSegment } from '~/types/api/podcast';
+import { randomUUID } from 'crypto';
 
 // Removed unused internal Persona interface
 // Removed unused internal RequestBody interface
@@ -46,9 +47,8 @@ export default defineEventHandler(async (event): Promise<PodcastCreateResponse> 
       }
     }
     
-    // 3. Generate a podcastId (simple version for now)
-    // In a real app, this would be a unique ID, possibly from a database or a UUID generator.
-    const generatedPodcastId = `${podcastTitle.toLowerCase().replace(/\s+/g, '_').replace(/[^a-z0-9_]/gi, '')}_${Date.now()}`;
+    // 3. Generate a proper UUID for podcastId
+    const generatedPodcastId = randomUUID();
 
     // 4. Simulate saving data to a database (actual DB logic to be added later)
     // const podcastRecord = await createPodcastServer(event, body); // Example call
@@ -60,7 +60,7 @@ export default defineEventHandler(async (event): Promise<PodcastCreateResponse> 
     const response: PodcastCreateResponse = {
       success: true,
       // podcastId: podcastRecord?.podcast_id || generatedPodcastId, // If using DB service
-      podcastId: generatedPodcastId, // Use generated ID for now
+      podcastId: generatedPodcastId, // Use generated UUID
       preparedSegments: script.map((segment, index) => ({
         segmentIndex: index,
         text: segment.text,
