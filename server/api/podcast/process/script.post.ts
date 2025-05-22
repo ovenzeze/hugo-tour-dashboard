@@ -6,31 +6,8 @@ import { getPersonasByLanguage, type AutoSelectedPersona } from "../../../utils/
 import { consola } from 'consola';
 import type { PodcastCreateRequest, PodcastCreateResponse, ScriptSegment } from '~/types/api/podcast';
 
-interface Persona { 
-  id: number; 
-  name: string;
-  voice_model_identifier: string;
-}
-
-interface RequestBody {
-  podcastTitle: string;
-  script: ScriptSegment[];
-  personas: { 
-    hostPersona?: Partial<Persona>; 
-    guestPersonas?: Partial<Persona>[];
-  };
-  voiceMap?: Record<string, { personaId: number; voice_model_identifier: string }>; // Added voiceMap, made optional
-  language: string;
-  topic?: string;
-  host_persona_id?: number; 
-  guest_persona_id?: number; 
-  creator_persona_id?: number; 
-  total_duration_ms?: number; 
-  total_word_count?: number; 
-  museumId?: number;
-  galleryId?: number;
-  objectId?: number;
-}
+// Removed unused internal Persona interface
+// Removed unused internal RequestBody interface
 
 export default defineEventHandler(async (event): Promise<PodcastCreateResponse> => {
   try {

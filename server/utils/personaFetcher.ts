@@ -108,3 +108,56 @@ function processPersonaData(data: any[], languageCodeForLog: string): AutoSelect
   consola.success(`[personaFetcher] Processed and validated ${typedData.length} personas (originally for lang: ${languageCodeForLog}).`);
   return typedData;
 }
+
+/**
+ * Fetches a single persona by its ID from the database.
+ * @param event H3Event
+ * @param personaId The ID of the persona to fetch.
+ * @returns A single persona object or null if not found or an error occurs.
+ */
+export async function getPersonaById(
+  event: H3Event,
+  personaId: number
+): Promise<AutoSelectedPersona | null> {
+  consola.info(`[personaFetcher] Fetching persona by ID: ${personaId}`);
+  if (typeof personaId !== 'number' || isNaN(personaId)) {
+    consola.warn(`[personaFetcher] Invalid personaId provided: ${personaId}. Must be a number.`);
+    return null;
+  }
+
+  const supabase = await serverSupabaseClient<Database>(event);
+
+  const { data, error } = await supabase
+    .from('personas')
+    .select('persona_id, name, description, voice_model_identifier, tts_provider, language_support, voice_description, status')
+    .eq('persona_id', personaId)
+    .eq('status', 'active') // Ensure only active personas are fetched
+    .single(); // Expect a single result
+
+  if (error) {
+    if (error.code === 'PGRST116') { // PostgREST error code for "No rows found"
+      consola.warn(`[personaFetcher] No active persona found with ID: ${personaId}`);
+    } else {
+      consola.error(`[personaFetcher] Error fetching persona by ID ${personaId}:`, error.message);
+    }
+    return null;
+  }
+
+  if (!data) {
+    consola.warn(`[personaFetcher] No data returned for persona ID: ${personaId} (this should ideally be caught by error.code PGRST116)`);
+    return null;
+  }
+  
+  consola.success(`[personaFetcher] Successfully fetched persona ID: ${data.persona_id} raw from DB.`);
+  
+  // Use processPersonaData to ensure consistent data structure and validation, even for a single item
+  // Wrap data in an array for processPersonaData and expect a single item or empty array back
+  const processed = processPersonaData([data as any], `ID ${personaId}`); // Cast to any as data is single, processPersonaData expects array
+  if (processed.length > 0) {
+    consola.success(`[personaFetcher] Successfully processed persona ID: ${processed[0].persona_id}.`);
+    return processed[0];
+  } else {
+    consola.warn(`[personaFetcher] Persona ID ${personaId} was fetched but failed processing/validation.`);
+    return null;
+  }
+}
