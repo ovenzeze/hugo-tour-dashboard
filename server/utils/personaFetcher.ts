@@ -6,8 +6,11 @@ import { consola } from 'consola';
 export interface AutoSelectedPersona {
   persona_id: number;
   name: string;
-  voice_model_identifier: string;
-  // Add any other fields needed from your persona table, like 'language_code' if it exists
+  description: string | null;
+  voice_model_identifier: string | null; // Can be null from DB
+  tts_provider: string | null; // Can be null from DB
+  language_support: string[] | null;
+  voice_description: string | null;
 }
 
 /**
@@ -20,82 +23,57 @@ export interface AutoSelectedPersona {
 export async function getPersonasByLanguage(
   event: H3Event,
   languageCode: string,
-  limit: number = 10
+  limit?: number // Limit is now optional
 ): Promise<AutoSelectedPersona[]> {
-  consola.info(`[personaFetcher] Fetching up to ${limit} personas for language: ${languageCode}`);
+  consola.info(`[personaFetcher] Fetching personas for language: ${languageCode}${limit ? ` (limit: ${limit})` : ''}`);
   const supabase = await serverSupabaseClient<Database>(event);
   
-  // 首先尝试获取支持特定语言的人物
-  consola.info(`[personaFetcher] Attempting to fetch personas with language_support containing: ${languageCode}`);
-  const { data, error } = await supabase
+  let query = supabase
     .from('personas')
-    .select('persona_id, name, voice_model_identifier, language_support') 
-    .contains('language_support', [languageCode]) // 正确的语法：检查language_support数组是否包含languageCode
-    .limit(limit);
+    .select('persona_id, name, description, voice_model_identifier, tts_provider, language_support, voice_description, status')
+    .eq('status', 'active');
+
+  // Apply language filter if a specific language is requested
+  const langLower = languageCode ? languageCode.toLowerCase() : '';
+  if (langLower && langLower !== 'all' && langLower !== '*') {
+    let targetLanguageCode = languageCode;
+    // Normalize common variations to a primary code assumed to be in the DB
+    if (langLower === 'en') {
+      targetLanguageCode = 'en-US'; // Assume en-US is the primary English code in DB
+      consola.info(`[personaFetcher] Normalized language 'en' to 'en-US' for query.`);
+    } else if (langLower === 'zh') {
+      targetLanguageCode = 'zh-CN'; // Assume zh-CN is the primary Chinese code in DB
+      consola.info(`[personaFetcher] Normalized language 'zh' to 'zh-CN' for query.`);
+    } else if (langLower === 'zh-hans'){
+      targetLanguageCode = 'zh-CN'; // Treat zh-hans as zh-CN
+      consola.info(`[personaFetcher] Normalized language 'zh-hans' to 'zh-CN' for query.`);
+    }
+    // For other specific codes like 'en-US', 'zh-CN', use them directly.
+    
+    query = query.contains('language_support', [targetLanguageCode]);
+    consola.info(`[personaFetcher] Applied language filter for: ${targetLanguageCode} (originally ${languageCode})`);
+  } else {
+    consola.info(`[personaFetcher] No specific language filter applied (or 'all'/'*' requested), fetching all active personas.`);
+  }
+
+  if (limit) {
+    query = query.limit(limit);
+    consola.info(`[personaFetcher] Applying limit: ${limit}`);
+  }
+
+  const { data, error } = await query;
 
   if (error) {
-    consola.error('[personaFetcher] Error fetching personas by language. Query was for language_support containing languageCode. Error:', error);
-    
-    // 如果查询出错，尝试获取所有人物作为备选
-    consola.info('[personaFetcher] Attempting to fetch all personas as fallback');
-    const fallbackResult = await supabase
-      .from('personas')
-      .select('persona_id, name, voice_model_identifier, language_support')
-      .limit(limit);
-      
-    if (fallbackResult.error) {
-      consola.error('[personaFetcher] Error fetching all personas as fallback:', fallbackResult.error);
-      return [];
-    }
-    
-    if (!fallbackResult.data || fallbackResult.data.length === 0) {
-      consola.warn('[personaFetcher] No personas found in fallback query');
-      return [];
-    }
-    
-    consola.success(`[personaFetcher] Fetched ${fallbackResult.data.length} personas as fallback`);
-    // 输出每个人物的language_support字段以便调试
-    fallbackResult.data.forEach(p => {
-      consola.info(`[personaFetcher] Persona ${p.name} (ID: ${p.persona_id}) has language_support: ${JSON.stringify(p.language_support)}`);
-    });
-    
-    // 如果有人物数据，则返回处理后的结果
-    return processPersonaData(fallbackResult.data, languageCode);
+    consola.error(`[personaFetcher] Error fetching personas (lang: ${languageCode}, limit: ${limit}):`, error.message);
+    return [];
   }
 
-  // 如果没有找到支持特定语言的人物
-  if (!data || data.length === 0) { 
-    consola.warn(`[personaFetcher] No personas found with language_support containing: ${languageCode}`);
-    
-    // 尝试获取所有人物作为备选
-    consola.info('[personaFetcher] Attempting to fetch all personas as fallback');
-    const fallbackResult = await supabase
-      .from('personas')
-      .select('persona_id, name, voice_model_identifier, language_support')
-      .limit(limit);
-      
-    if (fallbackResult.error || !fallbackResult.data || fallbackResult.data.length === 0) {
-      consola.warn('[personaFetcher] No personas found in fallback query');
-      return [];
-    }
-    
-    consola.success(`[personaFetcher] Fetched ${fallbackResult.data.length} personas as fallback`);
-    // 输出每个人物的language_support字段以便调试
-    fallbackResult.data.forEach(p => {
-      consola.info(`[personaFetcher] Persona ${p.name} (ID: ${p.persona_id}) has language_support: ${JSON.stringify(p.language_support)}`);
-    });
-    
-    // 如果有人物数据，则返回处理后的结果
-    return processPersonaData(fallbackResult.data, languageCode);
+  if (!data || data.length === 0) {
+    consola.warn(`[personaFetcher] No personas found matching criteria (lang: ${languageCode}, limit: ${limit})`);
+    return [];
   }
   
-  // 输出找到的支持特定语言的人物信息
-  consola.success(`[personaFetcher] Found ${data.length} personas supporting language: ${languageCode}`);
-  data.forEach(p => {
-    consola.info(`[personaFetcher] Persona ${p.name} (ID: ${p.persona_id}) supports language: ${languageCode}`);
-  });
-  
-  // 处理并返回数据
+  consola.success(`[personaFetcher] Successfully fetched ${data.length} personas raw from DB.`);
   return processPersonaData(data, languageCode);
 }
 
@@ -105,33 +83,28 @@ export async function getPersonasByLanguage(
  * @param languageCode 当前语言代码（用于日志输出）
  * @returns 处理后的符合AutoSelectedPersona接口的人物数组
  */
-function processPersonaData(data: any[], languageCode: string): AutoSelectedPersona[] {
-  // Define a type for the data structure returned by our specific select query
-  type SelectedPersonaFields = {
-    persona_id: number;
-    name: string;
-    voice_model_identifier: string | null; // From DB schema, can be null
-    language_support: string[] | null;     // From DB schema, can be null
-  };
+function processPersonaData(data: any[], languageCodeForLog: string): AutoSelectedPersona[] {
+  type DbPersona = Database['public']['Tables']['personas']['Row'];
 
-  const typedData: AutoSelectedPersona[] = (data as SelectedPersonaFields[]).map((p: SelectedPersonaFields) => {
-    // 如果voice_model_identifier为null，使用默认值
-    const voiceModelId = p.voice_model_identifier || "default_voice_model";
-    
-    // 检查必要字段是否存在且类型正确
-    if (typeof p.persona_id !== 'number' || typeof p.name !== 'string') {
-      consola.warn(`[personaFetcher] Persona object from DB (id: ${p.persona_id}, name: ${p.name}) has missing/invalid essential fields. Skipping.`);
-      return null; 
-    }
-    
-    // 返回符合AutoSelectedPersona接口的对象
-    return {
-      persona_id: p.persona_id,
-      name: p.name,
-      voice_model_identifier: voiceModelId,
-    };
-  }).filter((p): p is AutoSelectedPersona => p !== null); // Type guard to ensure correct type after filter
+  const typedData: AutoSelectedPersona[] = data
+    .map((p: DbPersona) => {
+      if (typeof p.persona_id !== 'number' || typeof p.name !== 'string') {
+        consola.warn(`[personaFetcher] Persona from DB (id: ${p.persona_id}, name: ${p.name}) has missing/invalid essential fields. Skipping.`);
+        return null;
+      }
+      return {
+        persona_id: p.persona_id,
+        name: p.name,
+        description: p.description || null,
+        // Ensure voice_model_identifier is passed, even if null, or provide a default if your logic requires it
+        voice_model_identifier: p.voice_model_identifier || null,
+        tts_provider: p.tts_provider || null,
+        language_support: p.language_support || null,
+        voice_description: p.voice_description || null,
+      };
+    })
+    .filter((p): p is AutoSelectedPersona => p !== null);
 
-  consola.success(`[personaFetcher] Processed and validated ${typedData.length} personas for language ${languageCode}.`);
+  consola.success(`[personaFetcher] Processed and validated ${typedData.length} personas (originally for lang: ${languageCodeForLog}).`);
   return typedData;
 }

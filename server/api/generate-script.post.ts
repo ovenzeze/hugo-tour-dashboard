@@ -41,34 +41,40 @@ export default defineEventHandler(async (event: H3Event) => {
   let effectiveHostPersona: EffectivePersona | undefined = body.hostPersona;
   let effectiveGuestPersonas: EffectivePersona[] = body.guestPersonas || [];
 
-  if (!effectiveHostPersona) {
-    consola.info(`[generate-script] No host persona provided by client for language ${language}. Attempting to auto-select.`);
-    try {
-      const availablePersonas = await getPersonasByLanguage(event, language, 10);
+  // Fetch all available personas for the given language, with a soft limit for LLM context
+  // The personaFetcher limit is now optional, we can fetch more and then cap at 100 for the LLM.
+  const allLlmCandidatePersonas = await getPersonasByLanguage(event, language, 150); // Fetch up to 150 initially
 
-      if (availablePersonas.length > 0) {
-        // Convert AutoSelectedPersona to EffectivePersona (they are compatible)
-        const allEffectivePersonas: EffectivePersona[] = availablePersonas.map(p => ({
-          persona_id: p.persona_id,
-          name: p.name,
-          voice_model_identifier: p.voice_model_identifier,
-        }));
-        
-        effectiveHostPersona = allEffectivePersonas.shift(); // Take the first as host
-        effectiveGuestPersonas = allEffectivePersonas;    // Remaining are potential guests
-        consola.info(`[generate-script] Auto-selected host: ${effectiveHostPersona?.name}, Guests: ${effectiveGuestPersonas.map(p => p.name).join(', ')}`);
-      } else {
-        consola.warn(`[generate-script] No personas found for language ${language}. Proceeding with default "Host" name and empty voice map. This might cause issues downstream.`);
-        // effectiveHostPersona remains undefined, effectiveGuestPersonas remains empty.
-        // The prompt will use "Host" and an empty voiceMapJson.
-        // Consider if an error should be thrown here if personas are mandatory for a good script.
-      }
-    } catch (fetchError: any) {
-        consola.error(`[generate-script] Error auto-selecting personas: ${fetchError.message}`, fetchError);
-        // Decide how to handle: proceed with defaults or throw error?
-        // For now, proceed with defaults as per the warning above.
-    }
+  if (!effectiveHostPersona && allLlmCandidatePersonas.length > 0) {
+    consola.info(`[generate-script] No host persona provided by client for language ${language}. Attempting to auto-select from ${allLlmCandidatePersonas.length} candidates.`);
+    
+    // Convert AutoSelectedPersona to EffectivePersona, ensuring all fields from AutoSelectedPersona are mapped
+    const mappedCandidates: EffectivePersona[] = allLlmCandidatePersonas.map(p => ({
+      persona_id: p.persona_id,
+      name: p.name,
+      // Ensure voice_model_identifier is handled, even if null from AutoSelectedPersona
+      voice_model_identifier: p.voice_model_identifier || "default_voice_model_if_null_in_auto_selected",
+      // Include other relevant fields if needed by EffectivePersona, though it's minimal now
+    }));
+
+    effectiveHostPersona = mappedCandidates.shift(); // Take the first as host
+    effectiveGuestPersonas = mappedCandidates;    // Remaining are potential guests for default selection
+    consola.info(`[generate-script] Auto-selected default host: ${effectiveHostPersona?.name}, Default guests: ${effectiveGuestPersonas.map(p => p.name).join(', ')}`);
+  } else if (!effectiveHostPersona) {
+    consola.warn(`[generate-script] No personas found for language ${language} and none provided by client. Proceeding with default "Host" name.`);
   }
+
+  // Prepare the list of (up to 100) available personas for the LLM prompt
+  const personasForLlmPrompt = allLlmCandidatePersonas.slice(0, 100).map(p => ({
+    persona_id: p.persona_id,
+    name: p.name,
+    description: p.description,
+    tts_provider: p.tts_provider,
+    language_support: p.language_support,
+    voice_description: p.voice_description,
+    // voice_model_identifier is also available in p if needed here, but voiceMap handles specific models for selected roles
+  }));
+  const availablePersonasJsonString = JSON.stringify(personasForLlmPrompt, null, 2);
 
   // --- Construct the prompt ---
   const storage = useStorage('assets:server');
@@ -111,6 +117,7 @@ export default defineEventHandler(async (event: H3Event) => {
   const voiceMapJsonString = JSON.stringify(voiceMap, null, 2);
 
   // Get current date and time for time-based museum selection
+  // This part seems unrelated to the persona changes but is kept as is.
   const now = new Date();
   const currentTimeString = now.toLocaleString("en-US", {
     hour: "numeric", minute: "numeric", hour12: true,
@@ -132,19 +139,33 @@ export default defineEventHandler(async (event: H3Event) => {
     ? '' 
     : `Please use ${languageName} to generate the podcast script.\n`;
 
-  let promptContent = languageInstruction + promptTemplate
-    .replace("{{title}}", podcastSettings.title || "Suggest an Engaging Title")
-    .replace("{{topic}}", podcastSettings.topic || "A Fascinating Topic")
-    .replace("{{hostName}}", effectiveHostPersona?.name || "Host") 
-    .replace("{{guestNames}}", guestNames) 
-    .replace("{{style}}", podcastSettings.style || "conversational")
-    .replace("{{keywords}}", podcastSettings.keywords || "none")
-    .replace("{{numberOfSegments}}", (podcastSettings.numberOfSegments || 3).toString())
-    .replace("{{backgroundMusic}}", podcastSettings.backgroundMusic || "none")
-    .replace("{{voiceMapJson}}", voiceMapJsonString)
-    .replace("{{currentTime}}", currentTimeString);
+  // Helper for global replace
+  const replaceAll = (str: string, find: string, replace: string) => {
+    // Escape special characters in "find" string for RegExp
+    const escapedFind = find.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    return str.replace(new RegExp(escapedFind, 'g'), replace);
+  };
 
-  promptContent = promptContent.replace(/\{\{.*?\}\}/g, "").trim();
+  let tempPromptContent = languageInstruction + promptTemplate;
+
+  tempPromptContent = replaceAll(tempPromptContent, "{{title}}", podcastSettings.title || "Suggest an Engaging Title");
+  tempPromptContent = replaceAll(tempPromptContent, "{{topic}}", podcastSettings.topic || "A Fascinating Topic");
+  tempPromptContent = replaceAll(tempPromptContent, "{{hostName}}", effectiveHostPersona?.name || "Host");
+  tempPromptContent = replaceAll(tempPromptContent, "{{guestNames}}", guestNames);
+  tempPromptContent = replaceAll(tempPromptContent, "{{style}}", podcastSettings.style || "conversational");
+  tempPromptContent = replaceAll(tempPromptContent, "{{keywords}}", podcastSettings.keywords || "none");
+  tempPromptContent = replaceAll(tempPromptContent, "{{numberOfSegments}}", (podcastSettings.numberOfSegments || 3).toString());
+  tempPromptContent = replaceAll(tempPromptContent, "{{backgroundMusic}}", podcastSettings.backgroundMusic || "none");
+  tempPromptContent = replaceAll(tempPromptContent, "{{voiceMapJson}}", voiceMapJsonString);
+  tempPromptContent = replaceAll(tempPromptContent, "{{availablePersonasJson}}", availablePersonasJsonString);
+  tempPromptContent = replaceAll(tempPromptContent, "{{currentTime}}", currentTimeString);
+
+  // Clean up any remaining unreplaced placeholders (optional, good practice)
+  // This regex will find {{any_chars_here}}
+  let promptContent = tempPromptContent.replace(/\{\{.*?\}\}/g, (match) => {
+    consola.warn(`[generate-script] Unreplaced placeholder in prompt after specific replaces: ${match}`);
+    return ""; // Replace with empty string
+  }).trim();
 
   const llmProvider = 'groq';
   consola.info(`[generate-script] Using LLM service with provider: '${llmProvider}', template: ${promptFilePath}`);
