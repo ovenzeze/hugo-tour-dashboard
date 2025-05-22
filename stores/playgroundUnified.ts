@@ -335,6 +335,31 @@ export const usePlaygroundUnifiedStore = defineStore('playgroundUnified', {
           this.podcastId = response.podcastId;
           this.validationResult = response;
           console.log('[playgroundUnified] Podcast created successfully:', response.podcastId);
+          
+          // 📸 生成封面图片
+          try {
+            const settingsStore = usePlaygroundSettingsStore();
+            const podcastTitle = settingsStore.podcastSettings.title || 'Untitled Podcast';
+            const podcastTopic = settingsStore.podcastSettings.topic || '';
+            
+            // 动态导入封面生成功能
+            const { usePodcastCoverGenerator } = await import('~/composables/usePodcastCoverGenerator');
+            const { generateAndSavePodcastCover } = usePodcastCoverGenerator();
+            
+            // 异步生成封面，不阻塞主流程
+            generateAndSavePodcastCover(
+              String(response.podcastId),
+              podcastTitle,
+              podcastTopic
+            ).then(() => {
+              console.log(`[playgroundUnified] Cover generation initiated for podcast ${response.podcastId}`);
+            }).catch(coverError => {
+              console.error(`[playgroundUnified] Cover generation failed for podcast ${response.podcastId}:`, coverError);
+            });
+          } catch (coverError) {
+            console.error('[playgroundUnified] Failed to import cover generator:', coverError);
+          }
+          
           return { success: true, message: 'Podcast创建成功' };
         } else {
           throw new Error(response.message || 'Podcast创建失败');
