@@ -260,9 +260,7 @@ const handleSynthesizePodcast = async () => {
   try {
     const result = await unifiedStore.synthesizeAudio();
     if (result.success) {
-      if (unifiedStore.currentStep === 2) {
-        unifiedStore.setCurrentStep(3);
-      }
+      // synthesizeAudio内部已经自动切换到步骤3，这里不需要重复切换
       toast.success(result.message || '音频合成成功', {
         description: '播客音频合成完成！'
       });

@@ -360,7 +360,7 @@ export const usePlaygroundUnifiedStore = defineStore('playgroundUnified', {
             console.error('[playgroundUnified] Failed to import cover generator:', coverError);
           }
           
-          return { success: true, message: 'Podcast创建成功' };
+          return { success: true, message: 'Podcast创建成功，现在可以进行音频合成' };
         } else {
           throw new Error(response.message || 'Podcast创建失败');
         }
@@ -426,7 +426,9 @@ export const usePlaygroundUnifiedStore = defineStore('playgroundUnified', {
             // 异步模式：开始监控任务状态
             console.log('[playgroundUnified] Starting async task monitoring:', response.taskId);
             await this.monitorAsyncTask(response.taskId);
-            return { success: true, message: '音频合成任务已提交' };
+            // 异步任务完成后自动切换到步骤3
+            this.setCurrentStep(3);
+            return { success: true, message: '音频合成完成！' };
           } else {
             // 同步模式：直接处理结果或使用模拟进度
             if (segmentCount <= 3) {
@@ -435,8 +437,10 @@ export const usePlaygroundUnifiedStore = defineStore('playgroundUnified', {
             }
             this.processSynthesisResults(response);
             this.isSynthesizing = false; // 确保在同步完成时重置状态
+            // 同步任务完成后自动切换到步骤3
+            this.setCurrentStep(3);
             console.log('[playgroundUnified] Audio synthesis completed synchronously');
-            return { success: true, message: '音频合成成功', response };
+            return { success: true, message: '音频合成成功！', response };
           }
         } else {
           throw new Error(response.message || '音频合成失败');

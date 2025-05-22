@@ -192,51 +192,30 @@ const onStepLeave = (el: Element) => {
 const handleNextStep = async () => {
   if (currentStepIndex.value < 3) {
     if (currentStepIndex.value === 1) {
-      // 从第1步到第2步，需要验证脚本
+      // 从第1步到第2步，需要验证脚本并创建Podcast
       if (!unifiedStore.hasValidScript) {
         toast.error('请先完成脚本编写或AI生成');
         return;
       }
       
-      // 检查是否是用户自带脚本（非AI生成）
-      const isUserScript = unifiedStore.scriptContent.trim() && !unifiedStore.aiScriptGenerationStep;
-      
-      if (isUserScript) {
-        // 用户自带脚本：先进行智能分析
-        console.log('[playground] Analyzing user script...');
-        toast.info('正在分析脚本内容和提取说话者信息...');
-        
-        try {
-          const analysisResult = await unifiedStore.analyzeUserScript();
-          
-          if (analysisResult.success) {
-            toast.success(analysisResult.message);
-            console.log('[playground] Script analysis successful, proceeding to validation...');
-            // 分析成功后继续验证和创建Podcast
-            handleProceedWithoutValidation();
-          } else {
-            toast.error(analysisResult.message || '脚本分析失败');
-            return;
-          }
-        } catch (error: any) {
-          console.error('[playground] Script analysis error:', error);
-          toast.error(`脚本分析失败: ${error.message || '未知错误'}`);
-          return;
+      try {
+        const result = await unifiedStore.validateAndCreatePodcast();
+        if (result.success) {
+          // 验证成功后切换到第2步
+          goToStep(2);
+          toast.success(result.message);
+        } else {
+          toast.error(result.message || '脚本验证失败');
         }
-      } else {
-        // AI生成的脚本：直接验证
-        handleProceedWithoutValidation();
+      } catch (error: any) {
+        console.error('[playground] Validation error:', error);
+        toast.error(`验证失败: ${error.message || '未知错误'}`);
       }
     } else if (currentStepIndex.value === 2) {
-      // 从第2步到第3步，可以调用现有的workflow逻辑
-      if (handleNextFromStep2) {
-        handleNextFromStep2();
-      } else {
-        goToStep(3);
-      }
+      // 从第2步到第3步，直接跳转（因为合成是可选的）
+      goToStep(3);
       return;
     }
-    goToStep(currentStepIndex.value + 1);
   }
 };
 
