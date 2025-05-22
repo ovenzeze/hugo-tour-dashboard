@@ -38,12 +38,18 @@ Please return the result in JSON format, structured as shown in the example belo
 *   You are provided with a list of `Available Personas: {{availablePersonasJson}}`. This is your primary source for selecting speakers.
 *   The fields `Host: {{hostName}}` and `Guests: {{guestNames}}` provide suggested initial roles. You may use these or choose other more suitable personas from the `Available Personas` list.
 *   The `Voice Map: {{voiceMapJson}}` provides the voice details for these suggested initial roles.
-*   For any speaker you include in the `script.name` field:
-    *   The speaker's name **MUST** exactly match the `name` of a persona found in the `Available Personas: {{availablePersonasJson}}` list.
+*   **CRITICAL**: For any speaker in the script, you MUST use the `"speaker"` field (NOT "name") in each script segment:
+    *   The value in `script[].speaker` **MUST** exactly match the `name` of a persona found in the `Available Personas: {{availablePersonasJson}}` list.
 *   For the `voiceMap` object you return:
     *   The keys **MUST** be the exact names of the speakers used in the script.
     *   The `personaId` and `voice_model_identifier` for each speaker **MUST** be taken directly from their corresponding entry in the `Available Personas: {{availablePersonasJson}}` list.
 *   **Do NOT invent new speaker names or alter their details.** The `voiceMap` you return must accurately reflect the personas chosen from the `Available Personas` list and used in the script, using their original `name`, `personaId`, and `voice_model_identifier` from that list.
+
+**VERY IMPORTANT JSON FORMAT REQUIREMENTS:**
+*   Each script segment MUST use `"speaker"` field (NOT "name")
+*   Each script segment MUST use `"role"` field  
+*   Each script segment MUST use `"text"` field
+*   The exact format is: `{"speaker": "PersonaName", "role": "host|guest", "text": "content"}`
 
 Example JSON structure:
 {
@@ -51,16 +57,16 @@ Example JSON structure:
 "language": "Suggested language code (e.g., en, zh-CN, es). This MUST match the language used in the script.",
 "script": [
 {
-"name": "{{hostName}}", // MUST be the exact host name from input
+"speaker": "{{hostName}}", // MUST be the exact host name from input - USE "speaker" NOT "name"
 "role": "host",
 "text": "Speaker's text content, can include ElevenLabs SSML <break> tags for pauses."
 },
 {
-"name": "AN_EXACT_GUEST_NAME_FROM_INPUT_guestNames", // MUST be one of the exact guest names from {{guestNames}} if a guest speaks
+"speaker": "AN_EXACT_GUEST_NAME_FROM_INPUT_guestNames", // MUST be one of the exact guest names from {{guestNames}} if a guest speaks - USE "speaker" NOT "name"
 "role": "guest",
 "text": "Speaker's text content..."
 }
-// ... more script segments, always using exact names from {{hostName}} or {{guestNames}}
+// ... more script segments, always using exact "speaker" field (NOT "name") from {{hostName}} or {{guestNames}}
 ],
 "voiceMap": {
 // The keys here MUST be the exact names from {{hostName}} and {{guestNames}} that are actually used in the script.

@@ -1,5 +1,5 @@
 <template>
-  <div class="flex-1 p-4 flex flex-col items-center justify-center bg-background h-full space-y-6">
+  <div class="flex-1 p-2 md:p-4 flex flex-col items-center justify-center bg-background h-full space-y-4 md:space-y-6 step3-container">
     <template v-if="finalAudioUrl">
       <div class="w-full max-w-md text-center">
         <h3 class="text-xl font-semibold mb-4 text-primary">Podcast Ready!</h3>
@@ -15,11 +15,11 @@
       <!-- Buttons will be handled by PlaygroundFooterActions.vue -->
     </template>
     <template v-else-if="isGeneratingOverall">
-      <div class="flex flex-col items-center justify-center h-full">
-        <Icon name="ph:spinner" class="h-12 w-12 animate-spin text-primary mb-4" />
-        <p class="text-center text-lg font-medium">Synthesizing Podcast...</p>
-        <p class="text-center text-sm text-muted-foreground mt-2">Please wait while the final audio is being generated.</p>
-      </div>
+      <AudioSynthesisProgress 
+        :is-processing="true"
+        :progress-data="synthesisProgressData"
+        :show-time-estimate="true"
+      />
     </template>
     <template v-else-if="synthesizeError">
       <div class="text-center text-destructive">
@@ -39,21 +39,24 @@
 </template>
 
 <script setup lang="ts">
+import { computed } from 'vue';
 import { storeToRefs } from 'pinia';
 import { usePlaygroundProcessStore } from '~/stores/playgroundProcessStore';
 import { usePlaygroundSettingsStore } from '~/stores/playgroundSettingsStore';
 import { usePlaygroundUIStore } from '~/stores/playgroundUIStore'; // Added UI Store
+import { usePlaygroundUnifiedStore } from '~/stores/playgroundUnified';
 import type { Persona } from '~/types/persona';
 import type { AssignedVoicePerformance } from '~/stores/playgroundUIStore'; // Import the interface
+import AudioSynthesisProgress from './AudioSynthesisProgress.vue';
 
 const playgroundProcessStore = usePlaygroundProcessStore();
 const playgroundSettingsStore = usePlaygroundSettingsStore();
 const playgroundUIStore = usePlaygroundUIStore(); // Instantiate UI Store
+const unifiedStore = usePlaygroundUnifiedStore();
 
-const {
-  isSynthesizing: isGeneratingOverall, // Aliased for template compatibility
-  error: synthesizeError, // Use the general error from process store
-} = storeToRefs(playgroundProcessStore);
+// Use unifiedStore for synthesis state instead of playgroundProcessStore
+const isGeneratingOverall = computed(() => unifiedStore.isSynthesizing);
+const synthesizeError = computed(() => unifiedStore.error);
 
 const {
   podcastSettings, // Get the whole object to access ttsProvider
@@ -67,6 +70,53 @@ const {
 
 // Computed property for selectedTtsProvider for cleaner template access
 const selectedTtsProvider = computed(() => podcastSettings.value.ttsProvider);
+
+// Computed property for synthesis progress data
+const synthesisProgressData = computed(() => {
+  const totalSegments = unifiedStore.parsedSegments?.length || 0;
+  
+  // If synthesis is in progress but no progress data yet, initialize
+  if (unifiedStore.isSynthesizing && !unifiedStore.synthesisProgress && totalSegments > 0) {
+    return {
+      completed: 0,
+      total: totalSegments,
+      currentSegment: 0,
+      segments: unifiedStore.parsedSegments?.map((segment, index) => ({
+        status: index === 0 ? 'processing' as const : 'waiting' as const,
+        speaker: segment.speaker,
+        text: segment.text
+      })) || []
+    };
+  }
+  
+  // Get progress from unified store if available
+  if (unifiedStore.synthesisProgress) {
+    return {
+      completed: unifiedStore.synthesisProgress.completed,
+      total: unifiedStore.synthesisProgress.total,
+      currentSegment: unifiedStore.synthesisProgress.currentSegment,
+      segments: unifiedStore.parsedSegments?.map((segment, index) => ({
+        status: index < unifiedStore.synthesisProgress!.completed ? 'completed' as const :
+                index === unifiedStore.synthesisProgress!.currentSegment ? 'processing' as const :
+                'waiting' as const,
+        speaker: segment.speaker,
+        text: segment.text
+      }))
+    };
+  }
+  
+  // Fallback to basic progress when not synthesizing
+  return {
+    completed: 0,
+    total: totalSegments,
+    currentSegment: undefined,
+    segments: unifiedStore.parsedSegments?.map((segment, index) => ({
+      status: 'waiting' as const,
+      speaker: segment.speaker,
+      text: segment.text
+    })) || []
+  };
+});
 
 const getAssignedVoicesString = () => {
   const performances = assignedVoicePerformances.value; // This is now Record<string, AssignedVoicePerformance>
@@ -90,3 +140,27 @@ const getAssignedVoicesString = () => {
     .join(', ');
 };
 </script>
+
+<style scoped>
+.step3-container {
+  animation: fadeInUp 0.5s ease-out;
+}
+
+@keyframes fadeInUp {
+  from {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* 移动端优化 */
+@media (max-width: 768px) {
+  .step3-container {
+    padding: 1rem 0.5rem;
+  }
+}
+</style>

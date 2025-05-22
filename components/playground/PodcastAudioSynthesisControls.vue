@@ -186,7 +186,7 @@
         >
           <Icon name="ph:spinner" v-if="finalizationManager.isProcessingFinal.value" class="w-5 h-5 mr-2 animate-spin" />
           <Icon name="ph:broadcast" v-else class="w-5 h-5 mr-2" />
-          {{ finalizationManager.isProcessingFinal.value ? 'Merging...' : 'Synthesize Final Podcast' }}
+          {{ finalizationManager.isProcessingFinal.value ? 'Processing...' : 'Synthesize Final Podcast' }}
         </Button>
         
         <div v-if="!finalizationManager.canMergeFinalAudio.value && !segmentsManager.segmentsLoading.value" class="text-sm text-muted-foreground text-center">

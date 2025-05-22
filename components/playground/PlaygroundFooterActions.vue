@@ -2,8 +2,9 @@
   <CardFooter class="border-t p-3 flex flex-col md:flex-row justify-between items-center flex-shrink-0 bg-background gap-2 md:gap-4">
     <!-- Left Button Group -->
     <div class="flex flex-col md:flex-row items-stretch md:items-center gap-2 md:gap-2 w-full md:w-auto">
+      <!-- Previous Button -->
       <Button
-        v-if="currentStep > 1"
+        v-if="unifiedStore.currentStep > 1"
         variant="outline"
         @click="handlePreviousStep"
         class="w-full md:w-auto"
@@ -11,6 +12,8 @@
         <Icon name="ph:arrow-left" class="w-4 h-4 mr-2" />
         Previous
       </Button>
+      
+      <!-- Reset Button -->
       <Button
         variant="ghost"
         @click="handleReset"
@@ -19,160 +22,155 @@
         <Icon name="ph:arrow-counter-clockwise" class="w-4 h-4 mr-2" />
         Reset
       </Button>
-      <!-- Step 1 specific buttons: AI Script and Use Preset -->
-      <template v-if="currentStep === 1">
-        <TooltipProvider>
-          <Tooltip :delay-duration="200">
-            <TooltipTrigger as-child>
-              <Button
-                @click="handleGenerateAiScript"
-                :disabled="isAnyLoading"
-                :variant="!isScriptEmpty ? 'outline' : 'default'"
-                class="w-full md:w-auto relative overflow-hidden group"
-              >
-                <div class="flex items-center justify-center">
-                  <div v-if="isGeneratingScript" class="absolute inset-0 bg-primary/10 animate-pulse"></div>
-                  <div class="flex items-center justify-center relative z-10">
-                    <Icon
-                      v-if="isGeneratingScript"
-                      name="ph:sparkle"
-                      class="w-5 h-5 animate-pulse text-primary"
-                    />
-                    <Icon
-                      v-else
-                      name="ph:brain"
-                      class="w-5 h-5 mr-2 group-hover:rotate-12 transition-transform duration-300"
-                    />
-                    <span v-if="isGeneratingScript">AI Creating...</span>
-                    <span v-else>AI Script</span>
-                  </div>
-                </div>
-              </Button>
-            </TooltipTrigger>
-            <TooltipContent>
-              <p>Use AI to automatically generate a podcast script based on your settings</p>
-            </TooltipContent>
-          </Tooltip>
-        </TooltipProvider>
-        <TooltipProvider>
-          <Tooltip :delay-duration="200">
-            <TooltipTrigger as-child>
-              <Button
-                variant="outline"
-                @click="handleUsePresetScript"
-                :disabled="isAnyLoading"
-                class="w-full md:w-auto group"
-              >
-                <Icon
-                  name="ph:book-open-text"
-                  class="w-4 h-4 mr-2 group-hover:scale-110 transition-transform duration-300"
-                />
-                <span>Use Preset</span>
-              </Button>
-            </TooltipTrigger>
-            <TooltipContent>
-              <p>Load a preset example script for quick testing</p>
-            </TooltipContent>
-          </Tooltip>
-        </TooltipProvider>
+      
+      <!-- Step 1 specific buttons -->
+      <template v-if="unifiedStore.currentStep === 1">
+        <!-- AI Script Button -->
+        <Button
+          @click="handleGenerateAiScript"
+          :disabled="unifiedStore.isLoading || (!unifiedStore.canGenerateAi)"
+          :variant="!unifiedStore.isScriptEmpty ? 'outline' : 'default'"
+          class="w-full md:w-auto relative overflow-hidden group"
+        >
+          <div class="flex items-center justify-center">
+            <Icon
+              v-if="unifiedStore.isLoading"
+              name="ph:spinner"
+              class="w-4 h-4 mr-2 animate-spin text-primary"
+            />
+            <Icon
+              v-else
+              name="ph:brain"
+              class="w-4 h-4 mr-2 group-hover:rotate-12 transition-transform duration-300"
+            />
+            <span v-if="unifiedStore.isLoading">AI Creating...</span>
+            <span v-else>AI Script</span>
+          </div>
+          
+          <!-- Pulsing Effect for Loading -->
+          <div 
+            v-if="unifiedStore.isLoading"
+            class="absolute inset-0 bg-primary/10 animate-pulse"
+          />
+        </Button>
+        
+        <!-- Use Preset Button -->
+        <Button
+          variant="outline"
+          @click="handleUsePresetScript"
+          :disabled="unifiedStore.isLoading"
+          class="w-full md:w-auto group"
+        >
+          <Icon
+            name="ph:book-open-text"
+            class="w-4 h-4 mr-2 group-hover:scale-110 transition-transform duration-300"
+          />
+          <span>Use Preset</span>
+        </Button>
       </template>
     </div>
     
     <!-- Right Main Action Button Group -->
     <div class="flex flex-col md:flex-row items-stretch md:items-center gap-2 md:gap-2 w-full md:w-auto justify-end">
       <!-- Step 1: Next Button -->
-      <template v-if="currentStep === 1">
-        <TooltipProvider>
-          <Tooltip :delay-duration="200">
-            <TooltipTrigger as-child>
-              <Button
-                variant="default"
-                :disabled="isScriptEmpty || isAnyLoading || processStore.isValidating || isProcessingNextStepComputed"
-                @click="handleProceedToStep2"
-                class="w-full md:w-auto relative overflow-hidden group"
-              >
-                <div class="flex items-center justify-center">
-                  <div v-if="processStore.isValidating || isProcessingNextStepComputed" class="absolute inset-0 bg-primary/10 animate-pulse"></div>
-                  <div class="flex items-center justify-center relative z-10">
-                    <Icon
-                      v-if="processStore.isValidating || isProcessingNextStepComputed"
-                      name="ph:spinner"
-                      class="w-4 h-4 mr-2 animate-spin text-primary"
-                    />
-                    <span v-if="processStore.isValidating">Validating...</span>
-                    <span v-else-if="isProcessingNextStepComputed">Processing...</span>
-                    <span v-else>Next</span>
-                    <Icon v-if="!processStore.isValidating && !isProcessingNextStepComputed" name="ph:arrow-right" class="w-4 h-4 ml-2" />
-                  </div>
-                </div>
-              </Button>
-            </TooltipTrigger>
-            <TooltipContent v-if="processStore.isValidating">
-              <p>Validating script and preparing next step...</p>
-            </TooltipContent>
-            <TooltipContent v-else-if="isProcessingNextStepComputed">
-              <p>Processing and preparing next step...</p>
-            </TooltipContent>
-            <TooltipContent v-else-if="isScriptEmpty">
-              <p>Please enter or generate a script to proceed.</p>
-            </TooltipContent>
-          </Tooltip>
-        </TooltipProvider>
+      <template v-if="unifiedStore.currentStep === 1">
+        <Button
+          variant="default"
+          :disabled="!unifiedStore.canProceedToStep2 || unifiedStore.isValidating"
+          @click="handleProceedToStep2"
+          class="w-full md:w-auto relative overflow-hidden group"
+        >
+          <div class="flex items-center justify-center">
+            <Icon
+              v-if="unifiedStore.isValidating"
+              name="ph:spinner"
+              class="w-4 h-4 mr-2 animate-spin text-primary"
+            />
+            <span v-if="unifiedStore.isValidating">
+              <template v-if="isAnalyzingUserScript">
+                Analyzing...
+              </template>
+              <template v-else>
+                Validating...
+              </template>
+            </span>
+            <span v-else>Next</span>
+            <Icon v-if="!unifiedStore.isValidating" name="ph:arrow-right" class="w-4 h-4 ml-2" />
+          </div>
+        </Button>
       </template>
       
-      <!-- Step 2: Preview and Synthesize Buttons -->
-      <template v-if="currentStep === 2">
+      <!-- Step 2: Synthesize Button -->
+      <template v-if="unifiedStore.currentStep === 2">
         <Button
-          variant="outline"
-          @click="handleGenerateAudioPreview"
-          :disabled="!canProceedFromStep2Computed || processStore.isSynthesizing"
-          class="w-full md:w-auto"
+          variant="default"
+          :disabled="!unifiedStore.canSynthesize || unifiedStore.isSynthesizing"
+          @click="handleSynthesizePodcast"
+          class="w-full md:w-auto relative overflow-hidden"
         >
-          <Icon v-if="processStore.isSynthesizing && isPreviewing" name="ph:spinner-gap" class="w-4 h-4 mr-2 animate-spin" />
-          <Icon v-else name="ph:broadcast" class="w-4 h-4 mr-2" />
-          {{ (processStore.isSynthesizing && isPreviewing) ? 'Generating Preview...' : 'Generate Audio Preview' }}
+          <div class="flex items-center justify-center">
+            <Icon v-if="unifiedStore.isSynthesizing" name="ph:spinner-gap" class="w-4 h-4 mr-2 animate-spin" />
+            <Icon v-else name="ph:rocket-launch" class="w-4 h-4 mr-2" />
+            
+            <span v-if="unifiedStore.isSynthesizing && unifiedStore.synthesisProgress">
+              Synthesizing... {{ Math.round((unifiedStore.synthesisProgress.completed / unifiedStore.synthesisProgress.total) * 100) }}%
+            </span>
+            <span v-else-if="unifiedStore.isSynthesizing">
+              Synthesizing... 0%
+            </span>
+            <span v-else>
+              Synthesize Podcast
+            </span>
+          </div>
+          
+          <!-- Progress Bar -->
+          <div 
+            v-if="unifiedStore.isSynthesizing && unifiedStore.synthesisProgress"
+            class="absolute bottom-0 left-0 h-1 bg-primary/20 transition-all duration-300"
+            :style="{ width: `${Math.round((unifiedStore.synthesisProgress.completed / unifiedStore.synthesisProgress.total) * 100)}%` }"
+          />
         </Button>
-        <TooltipProvider>
-          <Tooltip :delay-duration="200">
-            <TooltipTrigger as-child>
-              <Button
-                variant="default"
-                :disabled="!isPodcastGenerationAllowedComputed || processStore.isSynthesizing"
-                @click="handleSynthesizePodcast"
-                class="w-full md:w-auto"
-              >
-                <Icon v-if="processStore.isSynthesizing && !isPreviewing" name="ph:spinner-gap" class="w-4 h-4 mr-2 animate-spin" />
-                <Icon v-else name="ph:rocket-launch" class="w-4 h-4 mr-2" />
-                {{ (processStore.isSynthesizing && !isPreviewing) ? 'Synthesizing...' : 'Synthesize Podcast' }}
-              </Button>
-            </TooltipTrigger>
-            <TooltipContent v-if="!isPodcastGenerationAllowedComputed">
-              <p>Ensure script is parsed and all voices are assigned. Preview generation might be required by some logic.</p>
-            </TooltipContent>
-          </Tooltip>
-        </TooltipProvider>
       </template>
       
       <!-- Step 3: Download and Re-synthesize Buttons -->
-      <template v-if="currentStep === 3">
+      <template v-if="unifiedStore.currentStep === 3">
         <Button
-          v-if="finalAudioUrl"
+          v-if="unifiedStore.finalAudioUrl"
           variant="outline"
+          size="sm"
           @click="handleDownloadAudio"
           class="w-full md:w-auto"
         >
-          <Icon name="ph:download-simple" class="w-4 h-4 mr-2" />
-          Download Audio
+          <Icon name="ph:download-simple" class="w-3 h-3 md:w-4 md:h-4 mr-2" />
+          <span class="hidden sm:inline">Download Audio</span>
+          <span class="sm:hidden">Download</span>
         </Button>
         <Button
           @click="handleSynthesizePodcast"
-          :disabled="isAnyLoading || processStore.isSynthesizing"
+          :disabled="unifiedStore.isSynthesizing"
           variant="default"
-          class="w-full md:w-auto"
+          size="sm"
+          class="w-full md:w-auto relative"
         >
-          <Icon v-if="processStore.isSynthesizing" name="ph:spinner-gap" class="w-4 h-4 mr-2 animate-spin" />
-          <Icon v-else name="ph:arrows-clockwise" class="w-4 h-4 mr-2" />
-          {{ processStore.isSynthesizing ? 'Re-synthesizing...' : 'Re-Synthesize Podcast' }}
+          <Icon v-if="unifiedStore.isSynthesizing" name="ph:spinner-gap" class="w-3 h-3 md:w-4 md:h-4 mr-2 animate-spin" />
+          <Icon v-else name="ph:arrows-clockwise" class="w-3 h-3 md:w-4 md:h-4 mr-2" />
+          
+          <!-- 移动端显示简化文本，桌面端显示完整文本 -->
+          <span v-if="unifiedStore.isSynthesizing" class="text-sm">
+            <span class="hidden sm:inline">Re-synthesizing...</span>
+            <span class="sm:hidden">Processing...</span>
+          </span>
+          <span v-else class="text-sm">
+            <span class="hidden sm:inline">Re-Synthesize Podcast</span>
+            <span class="sm:hidden">Re-Synthesize</span>
+          </span>
+          
+          <!-- 进度指示器 -->
+          <div 
+            v-if="unifiedStore.isSynthesizing && unifiedStore.synthesisProgress"
+            class="absolute bottom-0 left-0 h-0.5 bg-primary-foreground/30 transition-all duration-300"
+            :style="{ width: `${Math.round((unifiedStore.synthesisProgress.completed / unifiedStore.synthesisProgress.total) * 100)}%` }"
+          />
         </Button>
       </template>
     </div>
@@ -180,319 +178,120 @@
 </template>
 
 <script setup lang="ts">
-import { computed, ref } from 'vue';
-import { storeToRefs } from 'pinia';
+import { computed } from 'vue';
 import { Button } from '@/components/ui/button';
 import { CardFooter } from '@/components/ui/card';
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
-
-import { usePlaygroundUIStore } from '~/stores/playgroundUIStore';
-import { usePlaygroundProcessStore } from '~/stores/playgroundProcessStore';
 import { usePlaygroundUnifiedStore } from '~/stores/playgroundUnified';
-import { usePlaygroundSettingsStore } from '~/stores/playgroundSettingsStore';
-import { usePersonaCache } from '~/composables/usePersonaCache';
+import { toast } from 'vue-sonner';
 
-const uiStore = usePlaygroundUIStore();
-const processStore = usePlaygroundProcessStore();
-const unifiedStore = usePlaygroundUnifiedStore(); // Use unified store instead of script store
-const settingsStore = usePlaygroundSettingsStore(); // Instantiate settings store
+// === MVP版本：只使用统一 store ===
+const unifiedStore = usePlaygroundUnifiedStore();
 
-const { currentStep, finalAudioUrl } = storeToRefs(uiStore);
-const { isLoading: isGeneratingScript, isSynthesizing, isValidating, error: processError } = storeToRefs(processStore);
-const { scriptContent, parsedSegments, error: scriptError } = storeToRefs(unifiedStore); // Use unified store
-const { podcastSettings } = storeToRefs(settingsStore); // For TTS provider, etc.
-
-// Computed properties for script state
-const isScriptEmpty = computed(() => unifiedStore.isScriptEmpty);
-const uniqueSpeakers = computed(() => {
-  const speakers = new Set(unifiedStore.parsedSegments.map(segment => segment.speaker));
-  return Array.from(speakers);
+// === 计算属性 ===
+const isAnalyzingUserScript = computed(() => {
+  return unifiedStore.isValidating && 
+         unifiedStore.scriptContent.trim() && 
+         !unifiedStore.aiScriptGenerationStep;
 });
 
-const isPreviewing = ref(false); // Local state to differentiate preview synthesis from full synthesis
+// === 简化的按钮处理函数 ===
 
-// --- Computed Properties for Button States ---
-const isAnyLoading = computed(() =>
-  processStore.isLoading || processStore.isSynthesizing || processStore.isCombining || processStore.isValidating
-);
-
-const isProcessingNextStepComputed = computed(() => {
-  // Example: if current step is 1 and script is being processed for step 2
-  return currentStep.value === 1 && processStore.isLoading;
-});
-
-const canProceedFromStep2Computed = computed(() => {
-  if (isScriptEmpty.value || unifiedStore.error) return false;
-  // Check if all unique speakers have a valid persona assigned
-  const { assignedVoicePerformances } = storeToRefs(uiStore); // Get it here for reactivity
-  if (!uniqueSpeakers.value.length) return false; // No speakers, no proceed
-  return uniqueSpeakers.value.every(speaker =>
-    assignedVoicePerformances.value[speaker] &&
-    (assignedVoicePerformances.value[speaker].match_status === 'exact' || assignedVoicePerformances.value[speaker].match_status === 'fallback') && // Ensure persona is found
-    (assignedVoicePerformances.value[speaker].voice_id || assignedVoicePerformances.value[speaker].voice_model_identifier) // Ensure voice ID is present
-  );
-});
-
-const isPodcastGenerationAllowedComputed = computed(() => {
-  // Similar to canProceedFromStep2, but could have additional checks like all segments previewed (if that becomes a feature)
-  // For now, let's assume it's the same as being able to proceed from step 2
-  // And also ensure there's a podcastId from script processing
-  return canProceedFromStep2Computed.value && !!processStore.podcastId;
-});
-
-
-// --- Event Handlers ---
+// 1. 步骤导航
 const handlePreviousStep = () => {
-  if (currentStep.value > 1) {
-    uiStore.setCurrentStep(currentStep.value - 1);
+  if (unifiedStore.currentStep > 1) {
+    unifiedStore.setCurrentStep(unifiedStore.currentStep - 1);
   }
 };
 
 const handleReset = () => {
-  uiStore.resetAllPlaygroundStates();
+  unifiedStore.resetPlaygroundState();
+  toast.info('Playground已重置', {
+    description: '所有数据已清空，可以开始新的播客制作。'
+  });
 };
 
+// 2. AI脚本生成（简化版）
 const handleGenerateAiScript = async () => {
   try {
-    console.log('[handleGenerateAiScript] Starting AI script generation...');
-    processStore.error = null;
-    
-    // Call the AI script generation endpoint
-    const aiResponse = await generateAiScript();
-    console.log('[handleGenerateAiScript] AI Response received:', JSON.stringify(aiResponse, null, 2));
-    
-    // The API directly returns the parsed response, not wrapped in success
-    if (aiResponse && typeof aiResponse === 'object') {
-      const { script, podcastTitle, language, voiceMap } = aiResponse as any;
-      
-      // Validate that we have a script array
-      if (!Array.isArray(script) || script.length === 0) {
-        console.error('[handleGenerateAiScript] No valid script array found in response:', aiResponse);
-        processStore.error = 'AI response does not contain a valid script';
-        return;
-      }
-      
-      console.log('[handleGenerateAiScript] Processing script with', script.length, 'segments');
-      
-      // Convert AI response to script content format expected by scriptStore
-      // Support both 'name' and 'speaker' fields for flexibility
-      const scriptContent = script
-        .filter((segment: any) => {
-          const speakerName = segment?.name || segment?.speaker;
-          const isValid = segment && 
-                         typeof speakerName === 'string' && speakerName.trim() &&
-                         typeof segment.text === 'string' && segment.text.trim();
-          if (!isValid) {
-            console.warn('[handleGenerateAiScript] Filtering out invalid segment:', segment);
-          }
-          return isValid;
-        })
-        .map((segment: any) => {
-          const speakerName = segment.name || segment.speaker;
-          return `${speakerName}: ${segment.text}`;
-        })
-        .join('\n');
-      
-      if (!scriptContent.trim()) {
-        console.error('[handleGenerateAiScript] Generated script content is empty after processing');
-        processStore.error = 'AI generated script is empty or contains no valid segments';
-        return;
-      }
-      
-      console.log('[handleGenerateAiScript] Final script content:', scriptContent);
-      
-      // Update the unified store with the generated content
-      unifiedStore.updateScriptContent(scriptContent);
-      console.log('[handleGenerateAiScript] Script content updated in unified store successfully');
-      
-      // Update settings with AI-provided metadata
-      if (typeof podcastTitle === 'string' && podcastTitle.trim()) {
-        console.log('[handleGenerateAiScript] Updating podcast title:', podcastTitle);
-        settingsStore.setPodcastTitle(podcastTitle);
-      }
-      
-      if (typeof language === 'string' && language.trim()) {
-        console.log('[handleGenerateAiScript] Updating language:', language);
-        settingsStore.updatePodcastSettings({ language: language });
-      }
-      
-      // Log voice mapping for debugging "undefined" names issue
-      if (voiceMap && typeof voiceMap === 'object') {
-        console.log('[handleGenerateAiScript] AI provided voice map:', voiceMap);
-        // TODO: Could potentially use this to auto-assign voices to speakers
-      }
-      
-      console.log('[handleGenerateAiScript] AI script generation completed successfully');
-      
+    const result = await unifiedStore.generateAiScript();
+    if (result.success) {
+      toast.success(result.message, {
+        description: '脚本内容已更新，请查看编辑器。'
+      });
     } else {
-      console.error('[handleGenerateAiScript] AI response is not a valid object:', aiResponse);
-      processStore.error = 'AI script generation failed - invalid response format';
+      toast.error(result.message);
     }
-  } catch (e: any) {
-    console.error('[handleGenerateAiScript] Error during AI script generation:', e);
-    processStore.error = `AI script generation failed: ${e?.message || 'Unknown error'}`;
-  }
-};
-
-// Helper function to call AI script generation endpoint
-const generateAiScript = async () => {
-  console.log('[generateAiScript] Starting...');
-  processStore.isLoading = true;
-  processStore.error = null;
-  
-  try {
-    const requestBody: any = {
-      podcastSettings: {
-        title: settingsStore.podcastSettings.title,
-        topic: settingsStore.podcastSettings.topic,
-        numberOfSegments: 4, // Default number of segments
-        style: settingsStore.podcastSettings.style || 'conversational',
-        keywords: settingsStore.podcastSettings.keywords?.join(', ') || '',
-        language: settingsStore.podcastSettings.language || 'en-US',
-        // museumId, galleryId, objectId are not in the current type definition
-        // but may be needed by the API, so we'll add them conditionally
-        ...(settingsStore.podcastSettings as any).museumId && { museumId: (settingsStore.podcastSettings as any).museumId },
-        ...(settingsStore.podcastSettings as any).galleryId && { galleryId: (settingsStore.podcastSettings as any).galleryId },
-        ...(settingsStore.podcastSettings as any).objectId && { objectId: (settingsStore.podcastSettings as any).objectId },
-      }
-    };
-
-    // Add host persona if available
-    const hostId = settingsStore.getHostPersonaIdNumeric;
-    if (hostId !== undefined) {
-      const { getPersonaById } = usePersonaCache();
-      const hostPersona = getPersonaById(hostId);
-      if (hostPersona) {
-        requestBody.hostPersona = {
-          persona_id: hostPersona.persona_id,
-          name: hostPersona.name,
-          voice_model_identifier: hostPersona.voice_model_identifier || 'default_voice'
-        };
-      }
-    }
-
-    // Add guest personas if available
-    const guestIds = settingsStore.getGuestPersonaIdsNumeric;
-    if (guestIds.length > 0) {
-      const { getPersonaById } = usePersonaCache();
-      requestBody.guestPersonas = guestIds.map(id => {
-        const persona = getPersonaById(id);
-        return persona ? {
-          persona_id: persona.persona_id,
-          name: persona.name,
-          voice_model_identifier: persona.voice_model_identifier || 'default_voice'
-        } : null;
-      }).filter(Boolean);
-    }
-
-    console.log('[generateAiScript] Request body:', JSON.stringify(requestBody, null, 2));
-    
-    const response = await $fetch('/api/generate-script', {
-      method: 'POST',
-      body: requestBody,
+  } catch (error: any) {
+    toast.error('AI脚本生成失败', {
+      description: error.message || '请检查网络连接后重试。'
     });
-
-    console.log('[generateAiScript] Raw API response:', response);
-
-    // The API returns the parsed response directly
-    return response;
-  } catch (err: any) {
-    console.error('[generateAiScript] Error:', err);
-    throw new Error(err.data?.message || err.message || 'Failed to generate AI script');
-  } finally {
-    processStore.isLoading = false;
   }
 };
 
+// 3. 使用预设脚本
 const handleUsePresetScript = () => {
-  // Default preset, or could be made dynamic
-  uiStore.loadPresetScript('default');
+  unifiedStore.loadPresetScript();
+  toast.success('预设脚本已加载', {
+    description: '您可以直接使用或修改这个示例脚本。'
+  });
 };
 
+// 4. 进入步骤2（验证和创建Podcast）
 const handleProceedToStep2 = async () => {
-  if (isScriptEmpty.value) {
-    unifiedStore.error = "Script content is empty. Please write or generate a script.";
-    return;
-  }
-  if (unifiedStore.error) {
-     // Error already set in unifiedStore by parseScript
-    return;
-  }
-  // Optional: Add a validation step here if needed before proceeding
-  // For now, directly go to next step if script is not empty and no parsing error
-  uiStore.setCurrentStep(2);
-};
-
-const handleGenerateAudioPreview = async () => {
-  if (!canProceedFromStep2Computed.value) {
-    // This should ideally be caught by button's disabled state, but as a safeguard:
-    processStore.error = "Cannot generate preview. Ensure script is valid and voices are assigned.";
-    return;
-  }
-  isPreviewing.value = true;
   try {
-    await processStore.synthesizeAudioPreviewForAllSegments();
-    // Response is handled by playgroundProcessStore.previewApiResponse
-    // UI components (like SegmentVoiceAssignmentItem) would then use this response.
-  } catch (e) {
-    console.error("Audio preview generation failed:", e);
-  } finally {
-    isPreviewing.value = false;
-  }
-};
-
-const handleSynthesizePodcast = async () => {
-  // Check conditions based on current step
-  if (currentStep.value === 2 && !isPodcastGenerationAllowedComputed.value) {
-    processStore.error = "Cannot synthesize podcast. Ensure script is valid, voices assigned, and podcast ID exists.";
-    return;
-  }
-  
-  isPreviewing.value = false; // Ensure this is false for full synthesis
-  try {
-    const synthResponse = await processStore.synthesizeAudio();
-    if (synthResponse?.success && synthResponse.finalAudioUrl) {
-      uiStore.setFinalAudioUrl(synthResponse.finalAudioUrl);
-      // Only move to step 3 if we're currently in step 2 (initial synthesis)
-      // If we're in step 3, we're re-synthesizing, so stay in step 3
-      if (currentStep.value === 2) {
-        uiStore.setCurrentStep(3);
-      }
-    } else if (synthResponse?.success && synthResponse.segmentResults && !synthResponse.finalAudioUrl) {
-      // This case implies segments were synthesized but not yet combined.
-      console.warn("Synthesis successful but no final audio URL. Segments might need combining.");
-      // Attempt to combine if segments were produced
-      if (processStore.synthesizeApiResponse?.segmentResults?.some(r => r.audioUrl)) {
-        const combineResponse = await processStore.combineAudio();
-        if (combineResponse?.success && combineResponse.audioUrl) {
-          uiStore.setFinalAudioUrl(combineResponse.audioUrl);
-          if (currentStep.value === 2) {
-            uiStore.setCurrentStep(3);
-          }
-        } else {
-           processStore.error = combineResponse?.message || "Failed to combine audio segments after synthesis.";
-        }
-      } else {
-         processStore.error = synthResponse?.message || "Synthesis completed but no audio was produced.";
-      }
+    const result = await unifiedStore.validateAndCreatePodcast();
+    if (result.success) {
+      unifiedStore.setCurrentStep(2);
+      toast.success(result.message || '脚本验证成功', {
+        description: '现在可以进行音频合成了。'
+      });
+    } else {
+      toast.error(result.message || '脚本验证失败');
     }
-    // Error is handled by processStore if !synthResponse.success
-  } catch (e) {
-    console.error("Podcast synthesis failed:", e);
+  } catch (error: any) {
+    toast.error('脚本验证失败', {
+      description: error.message || '请检查脚本格式和设置。'
+    });
   }
 };
 
+// 5. 合成播客音频
+const handleSynthesizePodcast = async () => {
+  try {
+    const result = await unifiedStore.synthesizeAudio();
+    if (result.success) {
+      if (unifiedStore.currentStep === 2) {
+        unifiedStore.setCurrentStep(3);
+      }
+      toast.success(result.message || '音频合成成功', {
+        description: '播客音频合成完成！'
+      });
+    } else {
+      toast.error(result.message || '音频合成失败');
+    }
+  } catch (error: any) {
+    toast.error('音频合成失败', {
+      description: error.message || '请重试或检查网络连接。'
+    });
+  }
+};
+
+// 6. 下载音频
 const handleDownloadAudio = () => {
-  if (finalAudioUrl.value) {
+  if (unifiedStore.finalAudioUrl) {
     const link = document.createElement('a');
-    link.href = finalAudioUrl.value;
-    // Extract filename from URL or generate one
-    const filename = finalAudioUrl.value.substring(finalAudioUrl.value.lastIndexOf('/') + 1) || 'podcast_audio.mp3';
+    link.href = unifiedStore.finalAudioUrl;
+    const filename = `podcast_${Date.now()}.mp3`;
     link.download = filename;
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
+    
+    toast.success('音频下载开始', {
+      description: '文件将保存到您的下载文件夹。'
+    });
+  } else {
+    toast.error('没有可下载的音频文件');
   }
 };
-
 </script>

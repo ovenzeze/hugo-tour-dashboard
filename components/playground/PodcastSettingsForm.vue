@@ -46,24 +46,11 @@
             type="number"
             :value="segmentCountValue"
             @input="handleSegmentCountInput"
-            min="1"
+            min="10"
             max="100"
             class="flex-grow hide-spin"
-            是placeholder="Enter number of segments"
+            placeholder="Enter number of segments"
           />
-          <Select :value="segmentCountValue" @update:value="handleSegmentCountSelect" class="w-24">
-            <SelectTrigger>
-              <SelectValue placeholder="Select" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem
-                v-for="option in segmentOptions"
-                :key="option"
-                :value="option">
-                {{ option }}
-              </SelectItem>
-            </SelectContent>
-          </Select>
         </div>
       </div>
     </div>
@@ -241,7 +228,7 @@ type PersonaData = Database['public']['Tables']['personas']['Row'];
 
 // Inline SUPPORTED_LANGUAGES as a temporary measure
 const SUPPORTED_LANGUAGES = [
-  { code: 'en', name: 'English' },
+  { code: 'en-US', name: 'English' }, // 更新为en-US以匹配默认值
   { code: 'zh-CN', name: 'Chinese (Simplified)' },
   { code: 'ja', name: 'Japanese' },
   { code: 'ko', name: 'Korean' },
@@ -350,15 +337,39 @@ watch(podcastSettings, (newSettings) => {
 
 
 const availableHostPersonas = computed(() => {
-  // No role-based filtering until 'role' is reliably provided by the backend/cache.
-  // UnifiedPersonaSelector will receive all personas.
-  return cachedPersonas.value;
+  // 🔧 改进：根据当前选择的语言过滤可用的主播personas
+  const currentLanguage = podcastSettings.value.language;
+  
+  if (!currentLanguage) {
+    return cachedPersonas.value; // 如果没有设置语言，显示所有personas
+  }
+  
+  return cachedPersonas.value.filter(persona => {
+    if (persona.language_support && Array.isArray(persona.language_support)) {
+      return persona.language_support.includes(currentLanguage);
+    }
+    return false; // 如果没有语言支持信息，则不包含在可选项中
+  });
 });
 
 const availableGuestPersonas = computed(() => {
   const hostId = podcastSettings.value.hostPersonaId;
-  // Filter out the selected host, but no other role-based filtering for now.
-  return cachedPersonas.value.filter(p => p.persona_id !== hostId);
+  const currentLanguage = podcastSettings.value.language;
+  
+  let filteredPersonas = cachedPersonas.value;
+  
+  // 1. 根据语言过滤
+  if (currentLanguage) {
+    filteredPersonas = filteredPersonas.filter(persona => {
+      if (persona.language_support && Array.isArray(persona.language_support)) {
+        return persona.language_support.includes(currentLanguage);
+      }
+      return false;
+    });
+  }
+  
+  // 2. 排除已选择的主播
+  return filteredPersonas.filter(p => p.persona_id !== hostId);
 });
 
 // Watch for changes in hostPersonaId to ensure guest list is updated

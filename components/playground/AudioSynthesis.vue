@@ -103,7 +103,7 @@
       >
         <Loader2 v-if="isLoading" class="w-4 h-4 mr-2 animate-spin" />
         <RadioTower v-else class="w-4 h-4 mr-2" />
-        {{ isLoading ? 'Generating...' : 'Generate Audio' }}
+        {{ isLoading ? 'Processing...' : 'Generate Audio' }}
       </Button>
       <Button
         v-if="finalAudioUrl"

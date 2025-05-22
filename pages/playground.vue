@@ -2,45 +2,63 @@
   <div class="h-[100svh] w-full flex flex-col overflow-hidden">
     <!-- Top Section: Stepper -->
     <div class="px-4 py-4 border-b bg-background">
-      <PlaygroundStepper v-model="currentStepIndex" :steps="[...podcastSteps]" />
+      <PlaygroundStepper :model-value="currentStepIndex" @update:model-value="handleStepChange" />
     </div>
 
     <!-- Main Content: Unified Card Layout -->
     <Card class="flex-1 flex flex-col min-h-0 overflow-hidden mx-4 my-4 border rounded-lg shadow-sm">
       <!-- Card Header with Title - Fixed at the top -->
-      <CardHeader v-if="currentStepIndex !== 1 && currentStepIndex !== 2" class="border-b flex-shrink-0 py-3">
+      <CardHeader v-if="currentStepIndex === 3" class="border-b flex-shrink-0 py-3">
         <div class="flex items-center justify-between">
-          <div class="flex-1"></div>
+          <CardTitle>{{ getCurrentStepTitle }}</CardTitle>
         </div>
       </CardHeader>
 
-      <!-- Main Content: Unified Card Layout -->
-      <CardContent class="flex-1 p-0 flex flex-col md:flex-row min-h-0 overflow-auto gap-4 bg-background">
-        <PlaygroundStep1Panel
-          v-if="currentStepIndex === 1"
-          :is-script-generating="isScriptGenerating" 
-          :is-validating="isValidating" 
-          :selected-persona-id-for-highlighting="unifiedStore.selectedPersonaIdForHighlighting" 
-          :highlighted-script="highlightedScript" 
-          :ai-script-step="aiScriptStep" 
-          :ai-script-step-text="aiScriptStepText" 
-          :script-error="unifiedStore.error" 
-          @clear-error-and-retry="handleClearErrorAndRetry"
-        />
-        <PlaygroundStep2Panel
-          v-if="currentStepIndex === 2"
-          ref="voicePerformanceSettingsRef"
-          :script-content="unifiedStore.scriptContent"
-          :synth-progress="{
-            synthesized: (voicePerformanceSettingsRef as any)?.synthesizedSegmentsCount || 0,
-            total: (voicePerformanceSettingsRef as any)?.totalSegmentsCount || 0
-          }"
-          :audio-url="unifiedStore.audioUrl"
-          :podcast-performance-config="podcastPerformanceConfig"
-          :is-global-preview-loading="isGlobalPreviewLoading"
-          @update:script-content="unifiedStore.updateScriptContent($event)"
-          class="flex-1 min-h-0"
-        />
+      <!-- Main Content: Step-based panels with transition -->
+      <CardContent class="flex-1 p-0 flex flex-col md:flex-row min-h-0 overflow-hidden gap-4 bg-background relative">
+        <Transition 
+          name="step-transition" 
+          mode="out-in"
+          @enter="onStepEnter"
+          @leave="onStepLeave"
+        >
+          <div :key="currentStepIndex" class="flex-1 min-h-0 overflow-auto step-content">
+            <!-- Step 1: Script Setup -->
+            <PlaygroundStep1Panel
+              v-if="currentStepIndex === 1"
+              :is-script-generating="isScriptGenerating" 
+              :is-validating="isValidating" 
+              :selected-persona-id-for-highlighting="unifiedStore.selectedPersonaIdForHighlighting" 
+              :highlighted-script="highlightedScript" 
+              :ai-script-step="aiScriptStep" 
+              :ai-script-step-text="aiScriptStepText" 
+              :script-error="unifiedStore.error" 
+              @clear-error-and-retry="handleClearErrorAndRetry"
+            />
+            
+            <!-- Step 2: Voice Configuration -->
+            <PlaygroundStep2Panel
+              v-if="currentStepIndex === 2"
+              ref="voicePerformanceSettingsRef"
+              :script-content="unifiedStore.currentScriptContent"
+              :synth-progress="{
+                synthesized: (voicePerformanceSettingsRef as any)?.synthesizedSegmentsCount || 0,
+                total: (voicePerformanceSettingsRef as any)?.totalSegmentsCount || 0
+              }"
+              :audio-url="unifiedStore.currentAudioUrl"
+              :podcast-performance-config="podcastPerformanceConfig"
+              :is-global-preview-loading="isGlobalPreviewLoading"
+              @update:script-content="unifiedStore.updateScriptContent($event)"
+              class="flex-1 min-h-0"
+            />
+            
+            <!-- Step 3: Synthesis & Preview -->
+            <PlaygroundStep3Panel
+              v-if="currentStepIndex === 3"
+              class="flex-1 min-h-0"
+            />
+          </div>
+        </Transition>
       </CardContent>
 
       <PlaygroundFooterActions
@@ -53,9 +71,10 @@
         :can-proceed-from-step2="canProceedFromStep2"
         :is-generating-audio-preview="isGlobalPreviewLoading"
         :is-podcast-generation-allowed="canGeneratePodcast"
-        :text-to-synthesize="unifiedStore.scriptContent"
-        :audio-url="unifiedStore.audioUrl"
+        :text-to-synthesize="unifiedStore.currentScriptContent"
+        :audio-url="unifiedStore.currentAudioUrl"
         @previous-step="handlePreviousStep"
+        @next-step="handleNextStep"
         @reset="resetPodcastView"
         @use-preset-script="handleUsePresetScript"
         @generate-ai-script="handleToolbarGenerateScript"
@@ -88,13 +107,12 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, ref, watch, type Ref } from 'vue';
+import { computed, nextTick, onMounted, ref, watch, type Ref } from 'vue';
 import PlaygroundStepper from '~/components/playground/PlaygroundStepper.vue';
 import PlaygroundStep1Panel from '~/components/playground/PlaygroundStep1Panel.vue';
 import PlaygroundStep2Panel from '~/components/playground/PlaygroundStep2Panel.vue';
-// import PlaygroundStep3Panel from '~/components/playground/PlaygroundStep3Panel.vue'; // Step 3 panel might not be used directly if modal handles final state
+import PlaygroundStep3Panel from '~/components/playground/PlaygroundStep3Panel.vue';
 import PlaygroundFooterActions from '~/components/playground/PlaygroundFooterActions.vue';
-// import Step2ConfirmationDialog from '~/components/playground/Step2ConfirmationDialog.vue'; // Replaced by new modal for synthesis
 import PodcastSynthesisModal from '~/components/podcasts/PodcastSynthesisModal.vue';
 import type { ModalStatus, ConfirmData, ProcessingData, SuccessData, ErrorData } from '../components/podcasts/PodcastSynthesisModalTypes';
 import type { CombineAudioResponse } from '~/types/podcast';
@@ -102,6 +120,7 @@ import type { CombineAudioResponse } from '~/types/podcast';
 import { useRoute, useRouter } from 'vue-router';
 import { toast } from 'vue-sonner';
 import { usePlaygroundUnifiedStore } from '~/stores/playgroundUnified';
+import { usePlaygroundUIStore } from '~/stores/playgroundUIStore';
 import { usePersonaCache } from '~/composables/usePersonaCache';
 import type { Persona } from '~/types/persona';
 
@@ -112,6 +131,7 @@ import { usePlaygroundWorkflow } from '~/composables/usePlaygroundWorkflow';
 import { useGlobalAudioInterceptor } from '~/composables/useGlobalAudioInterceptor';
 
 const unifiedStore = usePlaygroundUnifiedStore();
+const uiStore = usePlaygroundUIStore();
 
 const personaCache = usePersonaCache();
 
@@ -125,6 +145,101 @@ useGlobalAudioInterceptor();
 const { currentStepIndex, podcastSteps, handlePreviousStep, goToStep } = usePlaygroundStepper(1);
 const isGlobalPreviewLoading = ref(false);
 
+// 同步 unified store 的 currentStep 与 stepper
+watch(currentStepIndex, (newStep) => {
+  unifiedStore.setCurrentStep(newStep);
+  uiStore.setCurrentStep(newStep);
+}, { immediate: true });
+
+// 处理步骤切换
+const handleStepChange = (step: number) => {
+  // 添加步骤切换动画和UI状态同步
+  const previousStep = currentStepIndex.value;
+  
+  // 如果是相同步骤，不需要切换
+  if (previousStep === step) return;
+  
+  // 添加过渡延迟，让UI有时间响应
+  const transition = () => {
+    goToStep(step);
+  };
+  
+  // 根据步骤变化方向添加适当的延迟
+  if (step > previousStep) {
+    // 向前切换，立即执行
+    transition();
+  } else {
+    // 向后切换，给一点延迟让当前状态保存
+    setTimeout(transition, 100);
+  }
+};
+
+// 步骤过渡动画处理
+const onStepEnter = (el: Element) => {
+  // 进入动画开始时的处理
+  nextTick(() => {
+    // 确保内容正确渲染
+    el.classList.add('step-entering');
+  });
+};
+
+const onStepLeave = (el: Element) => {
+  // 离开动画开始时的处理
+  el.classList.add('step-leaving');
+};
+
+// 处理下一步按钮
+const handleNextStep = async () => {
+  if (currentStepIndex.value < 3) {
+    if (currentStepIndex.value === 1) {
+      // 从第1步到第2步，需要验证脚本
+      if (!unifiedStore.hasValidScript) {
+        toast.error('请先完成脚本编写或AI生成');
+        return;
+      }
+      
+      // 检查是否是用户自带脚本（非AI生成）
+      const isUserScript = unifiedStore.scriptContent.trim() && !unifiedStore.aiScriptGenerationStep;
+      
+      if (isUserScript) {
+        // 用户自带脚本：先进行智能分析
+        console.log('[playground] Analyzing user script...');
+        toast.info('正在分析脚本内容和提取说话者信息...');
+        
+        try {
+          const analysisResult = await unifiedStore.analyzeUserScript();
+          
+          if (analysisResult.success) {
+            toast.success(analysisResult.message);
+            console.log('[playground] Script analysis successful, proceeding to validation...');
+            // 分析成功后继续验证和创建Podcast
+            handleProceedWithoutValidation();
+          } else {
+            toast.error(analysisResult.message || '脚本分析失败');
+            return;
+          }
+        } catch (error: any) {
+          console.error('[playground] Script analysis error:', error);
+          toast.error(`脚本分析失败: ${error.message || '未知错误'}`);
+          return;
+        }
+      } else {
+        // AI生成的脚本：直接验证
+        handleProceedWithoutValidation();
+      }
+    } else if (currentStepIndex.value === 2) {
+      // 从第2步到第3步，可以调用现有的workflow逻辑
+      if (handleNextFromStep2) {
+        handleNextFromStep2();
+      } else {
+        goToStep(3);
+      }
+      return;
+    }
+    goToStep(currentStepIndex.value + 1);
+  }
+};
+
 // Modal State
 const showSynthesisModal = ref(false);
 const podcastNameForModal = ref('Untitled Podcast'); // Default or get from settings
@@ -134,7 +249,6 @@ const processingDataForModal = ref<ProcessingData>({ progress: 0, currentStage: 
 const successDataForModal = ref<SuccessData>({ podcastDuration: 'N/A', fileSize: 'N/A' });
 const errorDataForModal = ref<ErrorData>({ errorMessage: 'An unknown error occurred' });
 
-
 // Script related states - now primarily from unifiedStore
 const isScriptGenerating = computed(() => unifiedStore.isCurrentlyLoading && unifiedStore.currentPlaygroundStep === 1); // Use getters
 const mainEditorContent = computed(() => unifiedStore.currentScriptContent); // Use getter
@@ -143,7 +257,6 @@ const scriptError = computed(() => unifiedStore.currentError); // Use getter
 // Placeholder for aiScriptStep and aiScriptStepText - these should come from unifiedStore
 const aiScriptStep = computed(() => unifiedStore.currentAiScriptStep || 0); // Use getter
 const aiScriptStepText = computed(() => unifiedStore.currentAiScriptStepText || ''); // Use getter
-
 
 // highlightedScript logic - can remain in component, using unifiedStore data
 const highlightedScript = computed(() => {
@@ -178,7 +291,7 @@ const highlightedScript = computed(() => {
 
 // Actions that were from usePlaygroundScript - now will call unifiedStore actions
 const handleToolbarGenerateScript = () => {
-  unifiedStore.generateScript(); // This action needs to be implemented in unifiedStore
+  unifiedStore.generateAiScript(); // 调用 AI 脚本生成方法
 };
 
 const handleUsePresetScript = () => {
@@ -222,7 +335,6 @@ const validateScript = async () => { // Placeholder action
   // unifiedStore.validateCurrentScript(); // Example future call
   return null;
 };
-
 
 // Refs for components and shared state
 const voicePerformanceSettingsRef = ref<any>(null);
@@ -269,7 +381,6 @@ const {
 // TODO: Review usePlaygroundAudio and integrate its functionality with unifiedStore if necessary,
 // or ensure unifiedStore provides the reactive properties usePlaygroundAudio needs.
 
-
 // 直接调用audioStore的synthesizeAllSegmentsConcurrently方法，确保数据一路透传
 async function generateAllSegmentsAudioPreview() {
   if (!voicePerformanceSettingsRef.value || !canProceedFromStep2.value) {
@@ -294,13 +405,9 @@ async function generateAllSegmentsAudioPreview() {
 
     console.log("[generateAllSegmentsAudioPreview] Current speaker assignments:", JSON.stringify(currentSpeakerAssignments, null, 2));
 
-    // 直接调用 unifiedStore 的方法，传递必要的参数
-    // TODO: Implement synthesizeAudioPreviewForAllSegments in unifiedStore with appropriate logic
-    const result = await unifiedStore.synthesizeAudioPreviewForAllSegments(
-      unifiedStore.currentValidationResult, // Use getter
-      unifiedStore.currentPodcastSettingsSnapshot, // Use getter (or a more specific settings object from unifiedStore)
-      currentSpeakerAssignments
-    );
+    // 临时处理：直接调用音频合成，等待 unifiedStore 实现更完整的方法
+    console.log("[generateAllSegmentsAudioPreview] 功能待实现，暂时跳过");
+    const result = null; // 临时返回 null，避免错误
     // const result = await audioStore.synthesizeAllSegmentsConcurrently(
     //   scriptStore.validationResult,
     //   settingsStore.podcastSettings,
@@ -350,18 +457,10 @@ const getCurrentStepTitle = computed(() => {
   return step ? step.title : 'Podcast Creation';
 });
 
-// watch(() => unifiedStore.createPodcastTrigger, () => { // createPodcastTrigger removed from unifiedStore for now
-//   if (currentStepIndex.value !== 2) {
-//     goToStep(1);
-//     unifiedStore.resetPlaygroundState();
-//     if(podcastPerformanceConfig.value) podcastPerformanceConfig.value = null;
-//   }
-// }, { immediate: true });
-
 const isGeneratingOverall = computed(() => {
-  return unifiedStore.isCurrentlyLoading || // Use getter
-         isValidating.value ||       // This is from usePlaygroundScript composable
-         isGlobalPreviewLoading.value || // Global preview loading state
+  return unifiedStore.isLoading || 
+         isValidating.value ||       
+         isGlobalPreviewLoading.value || 
          isProcessingWorkflowStep.value;
 });
 
@@ -498,11 +597,7 @@ const handleModalConfirmSynthesis = async () => {
 
     // Call the actual synthesis function from the audio store
     // TODO: Replace with unifiedStore action and ensure parameters are correct
-    const synthesisResult = await unifiedStore.synthesizeAudio({
-      validationResult: unifiedStore.currentValidationResult, // Use getter
-      podcastSettings: unifiedStore.currentPodcastSettingsSnapshot, // Use getter (or a more specific settings object)
-      speakerAssignments: formattedSpeakerAssignments
-    });
+    const synthesisResult = await unifiedStore.synthesizeAudio();
     // const synthesisResult = await audioStore.synthesizeAllSegmentsConcurrently(
     //   scriptStore.validationResult,
     //   settingsStore.podcastSettings,
@@ -510,19 +605,14 @@ const handleModalConfirmSynthesis = async () => {
     // );
 
     // 处理合成结果
-    if (synthesisResult) {
-      const { successfulSegments, failedSegments, totalSegments } = synthesisResult;
+    if (synthesisResult && synthesisResult.success) {
+      console.log(`[handleModalConfirmSynthesis] 合成请求已提交`);
       
       // 更新进度信息
       processingDataForModal.value = { 
-        progress: Math.round((successfulSegments / totalSegments) * 100), 
-        currentStage: `已生成 ${successfulSegments}/${totalSegments} 个片段${failedSegments > 0 ? `，${failedSegments} 个失败` : ''}` 
+        progress: 90, 
+        currentStage: `音频合成已提交，正在处理中...` 
       };
-      
-      if (failedSegments > 0) {
-        // 有失败的片段，但仍然继续处理
-        console.log(`[handleModalConfirmSynthesis] ${failedSegments} segments failed, but continuing with ${successfulSegments} successful segments`);
-      }
     }
 
     if (unifiedStore.currentError) { // Use getter
@@ -617,7 +707,6 @@ const handleModalSharePodcast = () => {
 const handleModalViewHelp = () => {
   toast.info('View Help feature is pending implementation.');
 };
-
 
 // --- 简化的合成Podcast按钮处理函数 ---
 const handleShowSynthesisModal = async () => {
@@ -768,5 +857,50 @@ const handleSubmitPodcastSynthesis = async () => {
 <style scoped>
 .min-h-0 {
   min-height: 0;
+}
+
+/* 步骤过渡动画 */
+.step-transition-enter-active {
+  transition: all 0.4s cubic-bezier(0.25, 0.46, 0.45, 0.94);
+}
+
+.step-transition-leave-active {
+  transition: all 0.3s cubic-bezier(0.55, 0.055, 0.675, 0.19);
+}
+
+.step-transition-enter-from {
+  opacity: 0;
+  transform: translateX(20px);
+}
+
+.step-transition-leave-to {
+  opacity: 0;
+  transform: translateX(-20px);
+}
+
+.step-content {
+  min-height: 100%;
+  display: flex;
+  flex-direction: column;
+}
+
+/* 移动端优化 */
+@media (max-width: 768px) {
+  .step-transition-enter-from {
+    transform: translateY(15px);
+  }
+  
+  .step-transition-leave-to {
+    transform: translateY(-15px);
+  }
+}
+
+/* 确保过渡期间的平滑滚动 */
+.step-entering {
+  scroll-behavior: smooth;
+}
+
+.step-leaving {
+  pointer-events: none;
 }
 </style>

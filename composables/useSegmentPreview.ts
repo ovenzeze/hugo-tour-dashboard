@@ -3,6 +3,7 @@ import { toast } from 'vue-sonner';
 // Import new stores
 import { usePlaygroundSettingsStore } from '~/stores/playgroundSettingsStore';
 import { usePlaygroundProcessStore } from '~/stores/playgroundProcessStore';
+import { usePlaygroundUnifiedStore } from '~/stores/playgroundUnified';
 // Import the updated segment type from useVoiceManagement or a shared type
 // Assuming ProcessedScriptSegmentForVoiceManagement is exported from useVoiceManagement and uses `speaker`
 import type { ProcessedScriptSegmentForVoiceManagement as ParsedScriptSegment, Voice } from './useVoiceManagement';
@@ -122,6 +123,14 @@ export function useSegmentPreview(
 
     const { voiceId, provider } = assignment;
 
+    // Initialize progress tracking in unified store
+    const unifiedStore = usePlaygroundUnifiedStore();
+    unifiedStore.updateSegmentProgress(index, {
+      status: 'loading',
+      progress: 10,
+      stage: 'Preparing synthesis request...'
+    });
+
     segmentStates.value[index] = { status: 'loading', message: 'Generating preview...' };
     isPreviewingSegment.value = index;
 
@@ -130,6 +139,13 @@ export function useSegmentPreview(
     try {
         const podcastIdToUse = processStore.podcastId || `preview_session_${settingsStore.podcastSettings.title?.trim().replace(/\s+/g, '_') || Date.now()}`;
   
+        // Update progress: Sending request
+        unifiedStore.updateSegmentProgress(index, {
+          status: 'loading',
+          progress: 30,
+          stage: 'Sending synthesis request...'
+        });
+
         const response = await fetch('/api/podcast/process/synthesize', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -167,12 +183,26 @@ export function useSegmentPreview(
         throw new Error(`API Error (${response.status}): ${errorText || response.statusText}`);
       }
 
+      // Update progress: Processing response
+      unifiedStore.updateSegmentProgress(index, {
+        status: 'loading',
+        progress: 60,
+        stage: 'Processing server response...'
+      });
+
       const contentType = response.headers.get('content-type');
       if (contentType && contentType.includes('application/json')) {
         const data = await response.json();
         if (data.success && data.generatedSegments && data.generatedSegments.length > 0) {
           const segmentResult = data.generatedSegments[0];
           if (segmentResult.audioFileUrl) {
+            // Update progress: Loading audio file
+            unifiedStore.updateSegmentProgress(index, {
+              status: 'loading',
+              progress: 80,
+              stage: 'Loading audio file...'
+            });
+
             let fetchedTimestamps: any[] = [];
             if (segmentResult.timestampFileUrl) {
               try {
@@ -186,6 +216,15 @@ export function useSegmentPreview(
               audioUrl: segmentResult.audioFileUrl,
               timestamps: fetchedTimestamps
             };
+            
+            // Update progress: Success
+            unifiedStore.updateSegmentProgress(index, {
+              status: 'success',
+              progress: 100,
+              stage: 'Audio ready',
+              audioUrl: segmentResult.audioFileUrl
+            });
+            
             segmentStates.value[index] = { status: 'success', message: 'Preview successful' };
           } else {
             const errorMsg = segmentResult.error || 'Synthesis failed: No audioFileUrl from backend.';
@@ -201,6 +240,15 @@ export function useSegmentPreview(
     } catch (error: any) {
       console.error('Segment preview generation failed:', error);
       toast.error('Segment preview failed', { description: error.message });
+      
+      // Update progress: Error
+      unifiedStore.updateSegmentProgress(index, {
+        status: 'error',
+        progress: 0,
+        stage: 'Synthesis failed',
+        error: error.message
+      });
+      
       segmentStates.value[index] = { status: 'error', message: 'Preview failed', error: error.message };
       if (segmentPreviews.value[index]) {
         segmentPreviews.value[index].audioUrl = null;

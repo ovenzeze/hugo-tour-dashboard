@@ -57,9 +57,22 @@ export default defineEventHandler(async (event: H3Event) => {
       // Include other relevant fields if needed by EffectivePersona, though it's minimal now
     }));
 
-    effectiveHostPersona = mappedCandidates.shift(); // Take the first as host
-    effectiveGuestPersonas = mappedCandidates;    // Remaining are potential guests for default selection
-    consola.info(`[generate-script] Auto-selected default host: ${effectiveHostPersona?.name}, Default guests: ${effectiveGuestPersonas.map(p => p.name).join(', ')}`);
+    // 根据语言优先级进行排序：完全匹配的语言 > 部分匹配 > 其他
+    const sortedCandidates = mappedCandidates.sort((a, b) => {
+      const aPersona = allLlmCandidatePersonas.find(p => p.persona_id === a.persona_id);
+      const bPersona = allLlmCandidatePersonas.find(p => p.persona_id === b.persona_id);
+      
+      const aSupportsLang = aPersona?.language_support?.includes(language) || false;
+      const bSupportsLang = bPersona?.language_support?.includes(language) || false;
+      
+      if (aSupportsLang && !bSupportsLang) return -1;
+      if (!aSupportsLang && bSupportsLang) return 1;
+      return 0; // 保持原顺序
+    });
+
+    effectiveHostPersona = sortedCandidates.shift(); // Take the first (highest priority) as host
+    effectiveGuestPersonas = sortedCandidates.slice(0, 3); // 限制guest数量，避免prompt过长
+    consola.info(`[generate-script] Auto-selected language-prioritized host: ${effectiveHostPersona?.name}, Guests: ${effectiveGuestPersonas.map(p => p.name).join(', ')}`);
   } else if (!effectiveHostPersona) {
     consola.warn(`[generate-script] No personas found for language ${language} and none provided by client. Proceeding with default "Host" name.`);
   }
@@ -154,7 +167,7 @@ export default defineEventHandler(async (event: H3Event) => {
   tempPromptContent = replaceAll(tempPromptContent, "{{guestNames}}", guestNames);
   tempPromptContent = replaceAll(tempPromptContent, "{{style}}", podcastSettings.style || "conversational");
   tempPromptContent = replaceAll(tempPromptContent, "{{keywords}}", podcastSettings.keywords || "none");
-  tempPromptContent = replaceAll(tempPromptContent, "{{numberOfSegments}}", (podcastSettings.numberOfSegments || 3).toString());
+  tempPromptContent = replaceAll(tempPromptContent, "{{numberOfSegments}}", (podcastSettings.numberOfSegments || 10).toString()); // 默认改为10
   tempPromptContent = replaceAll(tempPromptContent, "{{backgroundMusic}}", podcastSettings.backgroundMusic || "none");
   tempPromptContent = replaceAll(tempPromptContent, "{{voiceMapJson}}", voiceMapJsonString);
   tempPromptContent = replaceAll(tempPromptContent, "{{availablePersonasJson}}", availablePersonasJsonString);
@@ -170,6 +183,21 @@ export default defineEventHandler(async (event: H3Event) => {
   const llmProvider = 'groq';
   consola.info(`[generate-script] Using LLM service with provider: '${llmProvider}', template: ${promptFilePath}`);
 
+  // 打印完整的提示词内容用于调试
+  consola.info(`[generate-script] ========== COMPLETE PROMPT START ==========`);
+  consola.info(promptContent);
+  consola.info(`[generate-script] ========== COMPLETE PROMPT END ==========`);
+  
+  // 打印关键的替换变量以便调试
+  consola.info(`[generate-script] ========== KEY VARIABLES ==========`);
+  consola.info(`Host Name: ${effectiveHostPersona?.name || "Host"}`);
+  consola.info(`Guest Names: ${guestNames}`);
+  consola.info(`Number of Segments: ${podcastSettings.numberOfSegments || 10}`);
+  consola.info(`Language: ${language}`);
+  consola.info(`Voice Map JSON: ${voiceMapJsonString}`);
+  consola.info(`Available Personas Count: ${personasForLlmPrompt.length}`);
+  consola.info(`[generate-script] ================================================`);
+
   try {
     const rawGeneratedContent = await callLLM({
       prompt: promptContent,
@@ -177,7 +205,49 @@ export default defineEventHandler(async (event: H3Event) => {
       responseFormat: { type: "json_object" }
     });
 
+    // 打印原始AI响应用于调试
+    consola.info(`[generate-script] ========== RAW AI RESPONSE START ==========`);
+    consola.info(rawGeneratedContent);
+    consola.info(`[generate-script] ========== RAW AI RESPONSE END ==========`);
+
     const parsedResponse = cleanAndParseJson(rawGeneratedContent);
+
+    // 打印解析后的响应用于调试
+    consola.info(`[generate-script] ========== PARSED RESPONSE START ==========`);
+    consola.info(JSON.stringify(parsedResponse, null, 2));
+    consola.info(`[generate-script] ========== PARSED RESPONSE END ==========`);
+
+    // 详细分析script数组中的segment
+    if (parsedResponse && Array.isArray(parsedResponse.script)) {
+      consola.info(`[generate-script] ========== SCRIPT ANALYSIS ==========`);
+      consola.info(`Total segments in script: ${parsedResponse.script.length}`);
+      
+      parsedResponse.script.forEach((segment, index) => {
+        consola.info(`Segment ${index + 1}:`);
+        consola.info(`  - Speaker field: "${segment.speaker || 'MISSING'}"`);
+        consola.info(`  - Name field (deprecated): "${segment.name || 'NOT_PROVIDED'}"`);
+        consola.info(`  - Role: "${segment.role || 'MISSING'}"`);
+        consola.info(`  - Text length: ${segment.text ? segment.text.length : 0} chars`);
+        consola.info(`  - Text preview: "${segment.text ? segment.text.substring(0, 100) + '...' : 'MISSING'}"`);
+        
+        // 检查字段一致性
+        if (segment.name && segment.speaker && segment.name !== segment.speaker) {
+          consola.warn(`  - WARNING: 'name' (${segment.name}) and 'speaker' (${segment.speaker}) fields differ! This will cause confusion.`);
+        }
+        if (!segment.speaker && segment.name) {
+          consola.warn(`  - WARNING: Using deprecated 'name' field instead of 'speaker'. Please update AI prompt.`);
+        }
+      });
+      
+      // 分析voice map
+      if (parsedResponse.voiceMap) {
+        consola.info(`Voice Map keys: ${Object.keys(parsedResponse.voiceMap).join(', ')}`);
+        Object.entries(parsedResponse.voiceMap).forEach(([key, value]) => {
+          consola.info(`  - ${key}: personaId=${value.personaId}, voice_model=${value.voice_model_identifier}`);
+        });
+      }
+      consola.info(`[generate-script] ================================================`);
+    }
 
     if (!parsedResponse || !Array.isArray(parsedResponse.script) || !parsedResponse.voiceMap ||
         typeof parsedResponse.podcastTitle !== "string" || typeof parsedResponse.language !== "string") {

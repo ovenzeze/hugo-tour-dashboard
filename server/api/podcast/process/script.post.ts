@@ -50,17 +50,47 @@ export default defineEventHandler(async (event): Promise<PodcastCreateResponse> 
     // 3. Generate a proper UUID for podcastId
     const generatedPodcastId = randomUUID();
 
-    // 4. Simulate saving data to a database (actual DB logic to be added later)
-    // const podcastRecord = await createPodcastServer(event, body); // Example call
-    // For now, we assume the body is what would be saved.
-    console.log('Simulating podcast creation with data:', JSON.stringify(body, null, 2));
+    // 4. Create podcast record in database
+    consola.info(`[script.post.ts] Creating podcast record in database for: ${podcastTitle}`);
+    let podcastRecord;
+    try {
+      // Create podcast record
+      const podcastData = {
+        podcast_id: generatedPodcastId,
+        title: podcastTitle,
+        topic: body.topic || null,
+        host_persona_id: hostPersonaId,
+        guest_persona_id: body.guestPersonaIds && body.guestPersonaIds.length > 0 ? body.guestPersonaIds[0] : null,
+        total_word_count: script.reduce((sum, segment) => sum + (segment.text?.split(' ').length || 0), 0),
+        // Add other fields as needed
+      };
+      
+      podcastRecord = await createPodcastServer(event, podcastData);
+      consola.info(`[script.post.ts] Podcast created with ID: ${podcastRecord.podcast_id}`);
+      
+      // Create podcast segments in database
+      const segmentsData = script.map((segment, index) => ({
+        idx: index,
+        speaker: segment.speaker,
+        text: segment.text,
+      }));
+      
+      const createdSegments = await addPodcastSegmentsServer(event, podcastRecord.podcast_id, segmentsData);
+      consola.info(`[script.post.ts] Created ${createdSegments.length} segments for podcast ${podcastRecord.podcast_id}`);
+      
+    } catch (dbError: any) {
+      consola.error(`[script.post.ts] Database error: ${dbError.message}`, dbError);
+      throw createError({
+        statusCode: 500,
+        statusMessage: `Failed to save podcast to database: ${dbError.message}`,
+      });
+    }
 
     // 5. Prepare and return the response
     // The backend directly returns the segments as prepared, using personaId from the request.
     const response: PodcastCreateResponse = {
       success: true,
-      // podcastId: podcastRecord?.podcast_id || generatedPodcastId, // If using DB service
-      podcastId: generatedPodcastId, // Use generated UUID
+      podcastId: podcastRecord?.podcast_id || generatedPodcastId,
       preparedSegments: script.map((segment, index) => ({
         segmentIndex: index,
         text: segment.text,

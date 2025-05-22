@@ -9,15 +9,16 @@ const defaultGuestPersonaIds: (string | number)[] = [];
 export const usePlaygroundSettingsStore = defineStore('playgroundSettings', {
   state: () => ({
     podcastSettings: {
-      title: 'Untitled Podcast',
+      title: '',
       topic: '',
-      numberOfSegments: 0, // Added default
+      numberOfSegments: 10, // 默认段落数量为10
       style: 'discussion', // Default style
       keywords: [],
       hostPersonaId: undefined, // Added default, consistent with type
       guestPersonaIds: [], // Added default, consistent with type
       ttsProvider: 'elevenlabs', // Default TTS provider
-      // backgroundMusic, elevenLabsProjectId, language, useTimestamps can be undefined initially
+      language: 'en-US', // 默认语言为English
+      // backgroundMusic, elevenLabsProjectId, useTimestamps can be undefined initially
     } as FullPodcastSettings,
     hostPersonaId: null as string | number | null, // This is the primary source for hostPersonaId
     guestPersonaIds: [...defaultGuestPersonaIds] as (string | number)[], // Primary source for guest IDs
@@ -40,15 +41,29 @@ export const usePlaygroundSettingsStore = defineStore('playgroundSettings', {
         // For now, this getter's purpose is to return an ID or undefined.
       }
 
-      // Attempt to randomly select a host persona if not set or invalid
-      const { personas } = usePersonaCache(); // Ensure personas are loaded, ideally this is done elsewhere proactively
-      const availablePersonas = personas.value;
+      // 🔧 改进：使用语言过滤的随机选择
+      const { getRandomPersonaByLanguage, personas } = usePersonaCache();
+      const language = state.podcastSettings.language;
 
+      // 1. 优先根据语言过滤
+      if (language) {
+        const randomPersona = getRandomPersonaByLanguage(language);
+        if (randomPersona) {
+          console.log(`[getHostPersonaIdNumeric] Randomly selected persona for language ${language}:`, randomPersona.name);
+          const numericRandomId = Number(randomPersona.persona_id);
+          if (!isNaN(numericRandomId)) {
+            return numericRandomId;
+          }
+        }
+      }
+
+      // 2. 如果没有指定语言或没有匹配的personas，回退到所有personas
+      const availablePersonas = personas.value;
       if (availablePersonas && availablePersonas.length > 0) {
         const randomIndex = Math.floor(Math.random() * availablePersonas.length);
         const randomPersona = availablePersonas[randomIndex];
         if (randomPersona && randomPersona.persona_id !== undefined) {
-          // console.log(`[getHostPersonaIdNumeric] No host persona selected or ID invalid, randomly assigning ID: ${randomPersona.persona_id}`);
+          console.log(`[getHostPersonaIdNumeric] No language match, randomly assigning any persona:`, randomPersona.name);
           const numericRandomId = Number(randomPersona.persona_id);
           if (!isNaN(numericRandomId)) {
             return numericRandomId;
@@ -79,12 +94,25 @@ export const usePlaygroundSettingsStore = defineStore('playgroundSettings', {
     setPodcastTitle(title: string) {
       this.podcastSettings.title = title;
     },
+    setPodcastTopic(topic: string) {
+      this.podcastSettings.topic = topic;
+    },
+    setPodcastDescription(description: string) {
+      // 暂时存储在topic字段中，或者需要扩展PodcastSettings类型
+      this.podcastSettings.topic = description;
+    },
+    setPodcastLanguage(language: string) {
+      this.podcastSettings.language = language;
+    },
     setTtsProvider(provider: 'elevenlabs' | 'volcengine' | undefined) {
       this.podcastSettings.ttsProvider = provider;
     },
     setHostPersonaId(id: string | number | null) {
       this.hostPersonaId = id;
       this.error = null; // Clear error when ID is set/updated
+    },
+    setHostPersona(id: string | number | null) {
+      this.setHostPersonaId(id);
     },
     addGuestPersonaId(id: string | number) {
       if (!this.guestPersonaIds.includes(id)) {
@@ -96,6 +124,9 @@ export const usePlaygroundSettingsStore = defineStore('playgroundSettings', {
     },
     setGuestPersonaIds(ids: (string | number)[]) {
       this.guestPersonaIds = [...ids];
+    },
+    setGuestPersonas(ids: (string | number)[]) {
+      this.setGuestPersonaIds(ids);
     },
     updatePodcastSettings(settings: Partial<FullPodcastSettings>) {
       this.podcastSettings = { ...this.podcastSettings, ...settings };

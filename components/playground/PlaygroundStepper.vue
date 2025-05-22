@@ -1,5 +1,5 @@
 <template>
-  <Stepper :model-value="currentStep" class="block w-full max-w-3xl mx-auto">
+  <Stepper :model-value="modelValue" class="block w-full max-w-3xl mx-auto">
     <div class="flex w-full flex-start gap-2">
       <StepperItem
         v-for="step in definedSteps"
@@ -62,20 +62,30 @@ interface StepDefinition {
   description: string;
 }
 
+interface Props {
+  modelValue: number;
+}
+
+interface Emits {
+  (e: 'update:modelValue', value: number): void;
+}
+
+const props = defineProps<Props>();
+const emit = defineEmits<Emits>();
+
 // Define steps directly in the component or pass as props if they need to be dynamic
 // For now, let's assume they are static as per typical stepper usage in this context.
 const definedSteps: StepDefinition[] = [
-  { step: 1, title: 'Settings', description: 'Configure your podcast' },
-  { step: 2, title: 'Script & Voices', description: 'Write script and assign voices' },
-  { step: 3, title: 'Synthesize', description: 'Generate and preview audio' },
+  { step: 1, title: 'Podcast Setup', description: 'Define your podcast and script.' },
+  { step: 2, title: 'Voice Configuration', description: 'Assign voices and preview.' },
+  { step: 3, title: 'Synthesize & Download', description: 'Generate and get your audio.' },
 ];
 
 const playgroundUIStore = usePlaygroundUIStore();
 const { currentStep } = storeToRefs(playgroundUIStore);
 
 const handleStepClick = (step: number) => {
-  // Logic to determine if step change is allowed can be added here or in the store action
-  // For now, directly call the action to update the step.
-  playgroundUIStore.setCurrentStep(step);
+  // 发出更新事件，让父组件处理步骤切换逻辑
+  emit('update:modelValue', step);
 };
 </script>

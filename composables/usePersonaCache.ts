@@ -55,6 +55,39 @@ export function usePersonaCache() {
     personasCache.value = []; // Optionally clear existing data
   }
 
+  // 🔧 新增：按语言过滤personas
+  function getPersonasByLanguage(languageCode: string): Persona[] {
+    if (!languageCode) return personasCache.value;
+    
+    return personasCache.value.filter(persona => {
+      // 检查 language_support 字段
+      if (persona.language_support && Array.isArray(persona.language_support)) {
+        return persona.language_support.includes(languageCode);
+      }
+      return false; // 如果没有语言支持信息，则不包含
+    });
+  }
+
+  // 🔧 新增：按语言随机选择一个persona
+  function getRandomPersonaByLanguage(languageCode: string): Persona | undefined {
+    const filteredPersonas = getPersonasByLanguage(languageCode);
+    if (filteredPersonas.length === 0) return undefined;
+    
+    const randomIndex = Math.floor(Math.random() * filteredPersonas.length);
+    return filteredPersonas[randomIndex];
+  }
+
+  // 🔧 新增：获取所有支持的语言列表
+  function getSupportedLanguages(): string[] {
+    const languages = new Set<string>();
+    personasCache.value.forEach(persona => {
+      if (persona.language_support && Array.isArray(persona.language_support)) {
+        persona.language_support.forEach(lang => languages.add(lang));
+      }
+    });
+    return Array.from(languages).sort();
+  }
+
   return {
     personas: computed(() => personasCache.value),
     isLoading: computed(() => isLoading.value),
@@ -62,6 +95,10 @@ export function usePersonaCache() {
     getPersonaById,
     getPersonaByName,
     invalidateCache,
-    isCacheStale
+    isCacheStale,
+    // 新增的语言过滤功能
+    getPersonasByLanguage,
+    getRandomPersonaByLanguage,
+    getSupportedLanguages
   };
 } 

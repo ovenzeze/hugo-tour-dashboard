@@ -39,15 +39,10 @@
               ></div>
             </div>
           </div>
-          <div class="w-full space-y-3 mt-6">
-            <Skeleton class="h-8 w-3/4" />
+          <div class="w-full space-y-2 mt-6">
             <Skeleton class="h-4 w-full" />
             <Skeleton class="h-4 w-5/6" />
-            <Skeleton class="h-4 w-full" />
             <Skeleton class="h-4 w-4/6" />
-            <Skeleton class="h-8 w-1/2 mt-4" />
-            <Skeleton class="h-4 w-full" />
-            <Skeleton class="h-4 w-full" />
             <Skeleton class="h-4 w-3/4" />
           </div>
           <h3 class="text-center text-lg font-semibold mt-6">
@@ -58,14 +53,25 @@
               <span v-else>Generating script...</span>
             </template>
             <template v-else-if="isValidating">
-              Validating script...
+              <template v-if="isAnalyzingUserScript">
+                <Icon name="ph:brain" class="w-5 h-5 inline mr-2 text-primary" />
+                Analyzing script content...
+              </template>
+              <template v-else>
+                Validating script...
+              </template>
             </template>
             <template v-else>
               Processing...
             </template>
           </h3>
           <p class="text-center text-sm text-muted-foreground max-w-md">
-            {{ aiScriptStepText || 'Please wait, this may take a moment...' }}
+            <template v-if="isAnalyzingUserScript">
+              正在智能分析脚本内容，识别语言、提取说话者信息并生成元数据...
+            </template>
+            <template v-else>
+              {{ aiScriptStepText || 'Please wait, this may take a moment...' }}
+            </template>
           </p>
           <p class="text-xs text-muted-foreground">
             Estimated time remaining: {{ estimatedTimeRemaining }}
@@ -121,6 +127,7 @@ import { usePlaygroundSettingsStore } from '~/stores/playgroundSettingsStore';
 import { usePlaygroundScriptStore } from '~/stores/playgroundScriptStore';
 import { usePlaygroundUIStore } from '~/stores/playgroundUIStore';
 import { usePlaygroundProcessStore } from '~/stores/playgroundProcessStore';
+import { usePlaygroundUnifiedStore } from '~/stores/playgroundUnified';
 import { usePersonaCache } from '~/composables/usePersonaCache';
 import type { FullPodcastSettings } from '~/types/playground';
 import type { Persona } from '~/types/persona';
@@ -129,6 +136,7 @@ import type { ScriptSegment } from '~/types/api/podcast';
 
 const settingsStore = usePlaygroundSettingsStore();
 const scriptStore = usePlaygroundScriptStore();
+const unifiedStore = usePlaygroundUnifiedStore();
 const uiStore = usePlaygroundUIStore();
 const processStore = usePlaygroundProcessStore();
 const personaCache = usePersonaCache();
@@ -144,13 +152,13 @@ const personaCache = usePersonaCache();
 
 // --- Store-driven reactive data ---
 const podcastSettings = computed(() => settingsStore.podcastSettings);
-const mainEditorContent = computed(() => scriptStore.scriptContent);
+const mainEditorContent = computed(() => unifiedStore.scriptContent); // 使用unifiedStore而不是scriptStore
 const personasForForm = computed(() => personaCache.personas.value); // For PodcastSettingsForm persona selection
 const personasLoading = computed(() => personaCache.isLoading.value); // For PodcastSettingsForm persona selection
 
 // Loading and error states from respective stores
-const isLoadingFromStore = computed(() => processStore.isLoading || processStore.isSynthesizing || processStore.isValidating); // General loading indicator
-const scriptError = computed(() => processStore.error || scriptStore.error); // Combine API errors and script parsing errors
+const isLoadingFromStore = computed(() => unifiedStore.isLoading || processStore.isLoading || processStore.isSynthesizing || processStore.isValidating); // General loading indicator，包含 unifiedStore.isLoading
+const scriptError = computed(() => processStore.error || unifiedStore.error); // 使用unifiedStore.error
 
 // UI specific states from uiStore
 const aiScriptStep = computed(() => uiStore.aiScriptGenerationStep);
@@ -158,10 +166,10 @@ const aiScriptStepText = computed(() => uiStore.aiScriptGenerationStepText);
 const selectedPersonaIdForHighlighting = computed(() => uiStore.selectedPersonaIdForHighlighting);
 
 const highlightedScript = computed(() => {
-  if (!selectedPersonaIdForHighlighting.value || !scriptStore.parsedSegments) {
-    return scriptStore.scriptContent; // Return raw content if no highlighting needed or no segments
+  if (!selectedPersonaIdForHighlighting.value || !unifiedStore.parsedSegments) {
+    return unifiedStore.scriptContent; // 使用unifiedStore
   }
-  return scriptStore.parsedSegments.map(segment => {
+  return unifiedStore.parsedSegments.map(segment => {
     const personaId = selectedPersonaIdForHighlighting.value;
     // Ensure personaId is treated as number for comparison if it's a string from UI store
     const numericPersonaId = typeof personaId === 'string' ? parseInt(personaId, 10) : personaId;
@@ -180,8 +188,14 @@ const isLeftCardLoading = computed(() => {
   return processStore.isLoading && (aiScriptStep.value > 0 && aiScriptStep.value <= 2);
 });
 
-const isScriptGenerating = computed(() => processStore.isLoading && uiStore.currentStep === 2 && aiScriptStep.value > 0);
-const isValidating = computed(() => processStore.isValidating && uiStore.currentStep === 1); // Assuming validation happens in step 1 before script generation
+const isScriptGenerating = computed(() => unifiedStore.isLoading); // 使用 unifiedStore 的 AI 脚本生成状态
+const isValidating = computed(() => unifiedStore.isValidating || (processStore.isValidating && uiStore.currentStep === 1)); // 包含unifiedStore的验证状态
+const isAnalyzingUserScript = computed(() => {
+  // 检测是否是用户脚本分析：有脚本内容且不是AI生成的且正在验证
+  return unifiedStore.isValidating && 
+         unifiedStore.scriptContent.trim() && 
+         !unifiedStore.aiScriptGenerationStep;
+});
 
 // Emits are likely not needed if all actions are through stores
 // const emit = defineEmits([]);
@@ -202,13 +216,13 @@ const handlePodcastSettingsUpdate = (newSettings: Partial<FullPodcastSettings>) 
 const handleMainEditorContentUpdate = (newContent: string | number) => {
   // The Textarea component might emit a number in some edge cases, though unlikely for script content.
   // Ensure we pass a string to the store.
-  scriptStore.updateScriptContent(String(newContent));
+  unifiedStore.updateScriptContent(String(newContent)); // 使用unifiedStore而不是scriptStore
 };
 
 // Function to handle retry
 const handleClearErrorAndRetry = () => {
   processStore.clearApiError();
-  scriptStore.clearError();
+  unifiedStore.clearError(); // 使用unifiedStore而不是scriptStore
   // Depending on the error, might need to reset UI step or re-trigger an action
   // For example, if it was an API error during script generation:
   // uiStore.setCurrentStep(1); // Or relevant step
@@ -260,12 +274,12 @@ function completeLoadingProgress() {
   }, 1000);
 }
 
-// Watch relevant loading states from processStore
+// Watch relevant loading states from both stores
 watch(
-  () => [processStore.isLoading, processStore.isSynthesizing, processStore.isValidating, processStore.error],
-  ([loading, synthesizing, validating, error], [wasLoading, wasSynthesizing, wasValidating]) => {
-    const anyLoading = loading || synthesizing || validating;
-    const anyWasLoading = wasLoading || wasSynthesizing || wasValidating;
+  () => [unifiedStore.isLoading, processStore.isLoading, processStore.isSynthesizing, processStore.isValidating, processStore.error, unifiedStore.error],
+  ([unifiedLoading, loading, synthesizing, validating, error, unifiedError], [wasUnifiedLoading, wasLoading, wasSynthesizing, wasValidating]) => {
+    const anyLoading = unifiedLoading || loading || synthesizing || validating;
+    const anyWasLoading = wasUnifiedLoading || wasLoading || wasSynthesizing || wasValidating;
 
     if (!anyWasLoading && anyLoading) {
       startLoadingProgress();
@@ -274,7 +288,7 @@ watch(
     }
     if (anyWasLoading && !anyLoading) {
       completeLoadingProgress();
-      if (!error) { // Only show success if there was no error during the process
+      if (!error && !unifiedError) { // Only show success if there was no error during the process
         showSuccessMessage.value = true;
         if (successMessageTimeout) clearTimeout(successMessageTimeout);
         successMessageTimeout = setTimeout(() => {

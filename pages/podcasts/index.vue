@@ -161,7 +161,7 @@ import { type Podcast, type Segment, type SegmentAudio } from '~/types/podcast';
 import { usePodcastPlayer } from '~/composables/usePodcastPlayer';
 
 const searchTerm = ref('');
-const podcastStatusFilter = ref('all'); // 播客状态筛选，默认显示所有
+const podcastStatusFilter = ref('completed'); // 播客状态筛选，默认显示已完成状态
 
 const {
   podcasts,
