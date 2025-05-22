@@ -1,51 +1,51 @@
 ---
-keywords: [volcengine, tts, 语音合成, 火山引擎, 时间戳]
+keywords: [volcengine, tts, speech synthesis, voice, timestamp]
 ---
 
-# 火山引擎语音合成 (VolcEngine TTS)
+# VolcEngine Text-to-Speech (TTS)
 
-## 功能概述
+## Feature Overview
 
-火山引擎语音合成API是本项目的核心功能之一，它允许将文本转换为自然流畅的语音。主要特点包括：
+VolcEngine TTS API is one of the core features of this project, allowing text to be converted into natural and fluent speech. Key features include:
 
-- 支持多种音色选择（如通用女声、通用男声等）
-- 支持时间戳功能，可以获取每个字的发音时间
-- 支持调整语速、音量和音调
+- Support for multiple voice options (such as general female voice, general male voice, etc.)
+- Support for timestamp functionality to get pronunciation timing for each character
+- Support for adjusting speech rate, volume, and pitch
 
-## 使用方法
+## Usage
 
-### Python脚本直接调用
+### Direct Python Script Call
 
-可以通过`volcengine_tts_demo.py`脚本直接测试火山引擎语音合成API：
+You can directly test the VolcEngine TTS API through the `volcengine_tts_demo.py` script:
 
 ```bash
-python volcengine_tts_demo.py --text "要合成的文本" --voice female --output output.mp3
+python volcengine_tts_demo.py --text "Text to synthesize" --voice female --output output.mp3
 ```
 
-### 环境变量配置
+### Environment Variables Configuration
 
-使用火山引擎语音合成API需要配置以下环境变量：
+Using VolcEngine TTS API requires configuring the following environment variables:
 
-- `NUXT_VOLCENGINE_APPID`: 火山引擎AppID
-- `NUXT_VOLCENGINE_ACCESS_TOKEN`: 火山引擎Access Token
-- `NUXT_VOLCENGINE_SECRET_KEY`: 火山引擎Secret Key
-- `NUXT_VOLCENGINE_CLUSTER`: 火山引擎Cluster
-- `VOLCENGINE_VOICE_TYPE`: 可选，默认使用"BV001_streaming"
+- `NUXT_VOLCENGINE_APPID`: VolcEngine AppID
+- `NUXT_VOLCENGINE_ACCESS_TOKEN`: VolcEngine Access Token
+- `NUXT_VOLCENGINE_SECRET_KEY`: VolcEngine Secret Key
+- `NUXT_VOLCENGINE_CLUSTER`: VolcEngine Cluster
+- `VOLCENGINE_VOICE_TYPE`: Optional, defaults to "BV001_streaming"
 
-## 时间戳功能
+## Timestamp Functionality
 
-时间戳功能是火山引擎语音合成API的一个重要特性，它可以获取每个字的发音时间，格式如下：
+Timestamp functionality is an important feature of the VolcEngine TTS API, which can get the pronunciation timing for each character in the following format:
 
 ```json
 {
   "timestamps": [
     {
-      "text": "这",
+      "text": "Hello",
       "start_time": 0,
       "end_time": 250
     },
     {
-      "text": "是",
+      "text": "World",
       "start_time": 250,
       "end_time": 500
     },
@@ -54,10 +54,10 @@ python volcengine_tts_demo.py --text "要合成的文本" --voice female --outpu
 }
 ```
 
-要启用时间戳功能，请确保在API请求中设置`need_timestamps`参数为1。
+To enable timestamp functionality, ensure that the `need_timestamps` parameter is set to 1 in the API request.
 
-## 常见问题
+## Common Issues
 
-1. **API返回错误**：请检查环境变量是否正确配置，特别是AppID、Access Token和Cluster。
-2. **没有时间戳信息**：请确认账号是否有权限使用时间戳功能，并且在请求中正确设置了`need_timestamps`参数。
-3. **音频质量问题**：可以尝试调整语速、音量和音调参数，或者更换不同的音色。
+1. **API Returns Error**: Please check if environment variables are correctly configured, especially AppID, Access Token, and Cluster.
+2. **No Timestamp Information**: Please confirm if your account has permission to use timestamp functionality and that the `need_timestamps` parameter is correctly set in the request.
+3. **Audio Quality Issues**: Try adjusting speech rate, volume, and pitch parameters, or switch to different voice types.

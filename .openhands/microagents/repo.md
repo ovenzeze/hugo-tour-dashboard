@@ -2,63 +2,63 @@
 agent: CodeActAgent
 ---
 
-# 火山引擎语音合成API测试Demo
+# VolcEngine TTS API Demo Project
 
-这是一个测试火山引擎语音合成API的项目，包含时间戳功能。该项目使用Nuxt.js框架构建，并集成了多种语音合成服务，包括火山引擎、ElevenLabs、Google等。
+This is a demo project for testing VolcEngine Text-to-Speech API with timestamp functionality. Built with Nuxt.js framework and integrates multiple TTS services including VolcEngine, ElevenLabs, Google, and more.
 
-## 项目功能
+## Project Features
 
-- 调用火山引擎语音合成API生成语音
-- 支持时间戳功能，可以获取每个字的发音时间
-- 保存生成的音频文件和时间戳信息
-- 详细的日志输出，包括请求和响应的详细信息
-- 支持多种语音合成服务的集成
+- Call VolcEngine TTS API to generate speech
+- Support timestamp functionality to get pronunciation timing for each character
+- Save generated audio files and timestamp information
+- Detailed logging output including request and response details
+- Integration support for multiple TTS services
 
-## 环境设置
+## Environment Setup
 
-### Python部分
-- Python 3.6 或更高版本
-- 安装依赖：`pip install requests python-dotenv`
+### Python Requirements
+- Python 3.6 or higher
+- Install dependencies: `pip install requests python-dotenv`
 
-### Nuxt.js部分
-- Node.js 环境
-- 使用pnpm作为包管理工具
+### Nuxt.js Requirements
+- Node.js environment
+- Uses pnpm as package manager
 
-## 环境变量配置
+## Environment Variables Configuration
 
-项目需要配置以下环境变量：
-- `NUXT_VOLCENGINE_APPID`: 火山引擎AppID
-- `NUXT_VOLCENGINE_ACCESS_TOKEN`: 火山引擎Access Token
-- `NUXT_VOLCENGINE_SECRET_KEY`: 火山引擎Secret Key
-- `NUXT_VOLCENGINE_CLUSTER`: 火山引擎Cluster
-- `VOLCENGINE_VOICE_TYPE`: 可选，默认使用"BV001_streaming"
+The project requires the following environment variables:
+- `NUXT_VOLCENGINE_APPID`: VolcEngine AppID
+- `NUXT_VOLCENGINE_ACCESS_TOKEN`: VolcEngine Access Token
+- `NUXT_VOLCENGINE_SECRET_KEY`: VolcEngine Secret Key
+- `NUXT_VOLCENGINE_CLUSTER`: VolcEngine Cluster
+- `VOLCENGINE_VOICE_TYPE`: Optional, defaults to "BV001_streaming"
 
-其他服务的环境变量可以在`.env.example`文件中查看。
+Other service environment variables can be found in the `.env.example` file.
 
-## 项目命令
+## Project Commands
 
-- `pnpm build`: 构建项目
-- `pnpm dev`: 启动开发服务器（端口4000）
-- `pnpm generate`: 生成静态网站
-- `pnpm preview`: 预览构建后的项目
-- `pnpm lint`: 运行类型检查
+- `pnpm build`: Build the project
+- `pnpm dev`: Start development server (port 4000)
+- `pnpm generate`: Generate static website
+- `pnpm preview`: Preview built project
+- `pnpm lint`: Run type checking
 
-## Python脚本使用
+## Python Script Usage
 
-可以直接运行Python脚本来测试火山引擎语音合成API：
+You can directly run the Python script to test VolcEngine TTS API:
 
 ```bash
 python volcengine_tts_demo.py
 ```
 
-脚本支持以下命令行参数：
-- `--text`: 要合成的文本
-- `--voice`: 选择音色（female或male）
-- `--output`: 输出的音频文件名
-- `--no-timestamps`: 禁用时间戳功能
+The script supports the following command line arguments:
+- `--text`: Text to synthesize
+- `--voice`: Choose voice type (female or male)
+- `--output`: Output audio filename
+- `--no-timestamps`: Disable timestamp functionality
 
-## 注意事项
+## Important Notes
 
-- 请确保已经在火山引擎平台申请了语音合成服务的访问权限
-- 敏感信息和本地特定配置请移至`.env.local`（此文件不应提交到版本控制）
-- 时间戳功能可能需要特定的API权限，请确认账号是否有权限使用此功能
+- Ensure you have applied for TTS service access permissions on the VolcEngine platform
+- Move sensitive information and local-specific configurations to `.env.local` (this file should not be committed to version control)
+- Timestamp functionality may require specific API permissions, please confirm your account has permission to use this feature

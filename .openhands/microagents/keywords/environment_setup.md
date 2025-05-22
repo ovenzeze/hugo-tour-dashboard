@@ -1,42 +1,42 @@
 ---
-keywords: [环境变量, 配置, setup, env, .env, configuration]
+keywords: [environment, configuration, setup, env, .env, variables]
 ---
 
-# 环境配置指南
+# Environment Configuration Guide
 
-## 环境变量设置
+## Environment Variables Setup
 
-本项目使用环境变量来配置各种服务和功能。环境变量分为两类：
+This project uses environment variables to configure various services and features. Environment variables are divided into two categories:
 
-1. **公共环境变量**：存储在`.env`文件中，可以提交到版本控制
-2. **敏感环境变量**：存储在`.env.local`文件中，不应提交到版本控制
+1. **Public Environment Variables**: Stored in `.env` file, can be committed to version control
+2. **Sensitive Environment Variables**: Stored in `.env.local` file, should not be committed to version control
 
-### 创建环境变量文件
+### Creating Environment Variable Files
 
-1. 复制`.env.example`文件为`.env`
-2. 创建一个新的`.env.local`文件用于敏感信息
+1. Copy `.env.example` file to `.env`
+2. Create a new `.env.local` file for sensitive information
 
 ```bash
 cp .env.example .env
 touch .env.local
 ```
 
-### 必需的环境变量
+### Required Environment Variables
 
-#### 火山引擎语音合成
+#### VolcEngine Text-to-Speech
 
 ```
-NUXT_VOLCENGINE_APPID=你的AppID
-NUXT_VOLCENGINE_ACCESS_TOKEN=你的Access Token
-NUXT_VOLCENGINE_SECRET_KEY=你的Secret Key
-NUXT_VOLCENGINE_CLUSTER=你的Cluster
-VOLCENGINE_VOICE_TYPE=BV001_streaming  # 可选，默认值
+NUXT_VOLCENGINE_APPID=your_app_id
+NUXT_VOLCENGINE_ACCESS_TOKEN=your_access_token
+NUXT_VOLCENGINE_SECRET_KEY=your_secret_key
+NUXT_VOLCENGINE_CLUSTER=your_cluster
+VOLCENGINE_VOICE_TYPE=BV001_streaming  # Optional, default value
 ```
 
 #### ElevenLabs
 
 ```
-ELEVENLABS_API_KEY=你的API密钥
+ELEVENLABS_API_KEY=your_api_key
 ELEVENLABS_DEFAULT_MODEL_ID=eleven_flash_v2_5
 ```
 
@@ -44,63 +44,63 @@ ELEVENLABS_DEFAULT_MODEL_ID=eleven_flash_v2_5
 
 ```
 SUPABASE_URL=https://jazocztbwzavmtyprhye.supabase.co
-SUPABASE_KEY=你的Supabase密钥
-SUPABASE_SERVICE_KEY=你的Supabase服务密钥
+SUPABASE_KEY=your_supabase_key
+SUPABASE_SERVICE_KEY=your_supabase_service_key
 ```
 
-#### 其他AI服务
+#### Other AI Services
 
 ```
-OPENROUTER_API_KEY=你的OpenRouter API密钥
-GROQ_API_KEY=你的Groq API密钥
+OPENROUTER_API_KEY=your_openrouter_api_key
+GROQ_API_KEY=your_groq_api_key
 ```
 
-## 开发环境设置
+## Development Environment Setup
 
-### Node.js环境
+### Node.js Environment
 
-项目使用pnpm作为包管理工具，需要安装Node.js环境：
+The project uses pnpm as package manager, requires Node.js environment:
 
 ```bash
-# 安装依赖
+# Install dependencies
 pnpm install
 
-# 启动开发服务器
+# Start development server
 pnpm dev
 ```
 
-### Python环境
+### Python Environment
 
-对于Python脚本部分，需要Python 3.6或更高版本：
+For Python script components, requires Python 3.6 or higher:
 
 ```bash
-# 安装依赖
+# Install dependencies
 pip install requests python-dotenv
 
-# 运行示例脚本
+# Run example script
 python volcengine_tts_demo.py
 ```
 
-## 生产环境部署
+## Production Environment Deployment
 
-项目支持多种部署方式：
+The project supports multiple deployment methods:
 
-### Vercel部署
+### Vercel Deployment
 
 ```bash
 pnpm build:vercel
 ```
 
-### Docker部署
+### Docker Deployment
 
-项目包含Dockerfile和docker-compose.yml，可以使用Docker进行部署：
+The project includes Dockerfile and docker-compose.yml for Docker deployment:
 
 ```bash
 docker-compose up -d
 ```
 
-## 常见问题
+## Common Issues
 
-1. **环境变量未加载**：确保环境变量文件位于项目根目录，并且格式正确
-2. **API密钥错误**：检查API密钥是否正确，是否有足够的权限
-3. **依赖安装失败**：尝试清除缓存后重新安装 `pnpm store prune && pnpm install`
+1. **Environment Variables Not Loading**: Ensure environment variable files are in the project root directory with correct format
+2. **API Key Errors**: Check if API keys are correct and have sufficient permissions
+3. **Dependency Installation Failed**: Try clearing cache and reinstalling `pnpm store prune && pnpm install`
