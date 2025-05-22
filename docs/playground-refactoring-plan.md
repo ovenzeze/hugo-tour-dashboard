@@ -625,7 +625,7 @@ onMounted(async () => {
     ```typescript
     // composables/usePersonaCache.ts
     import { ref, computed } from 'vue';
-    import type { Persona } from '~/types/persona'; // 假设 Persona 类型已定义
+    import type { Persona } from '~/types/persona';
 
     const personasCache = ref<Persona[]>([]);
     const isLoading = ref(false);
@@ -723,5 +723,40 @@ onMounted(async () => {
     *   [ ] 已识别项目中所有使用 VoiceMapping 或类似角色/声音映射逻辑的地方。(需要您确认)
     *   [ ] 相关的旧类型定义、转换函数（特别是 `podcastScriptProcessor.ts` 中的复杂映射）已被标记为待移除或已开始重构。(需要您确认)
     *   [X] 团队成员已就新的数据模型达成共识。
+
+#### **阶段 3: 构建统一状态管理 (`playgroundUnified` store)**
+
+*   **描述:** 实现 `stores/playgroundUnified.ts`。该 store 将作为 Playground UI 的单一事实来源 (Single Source of Truth)，管理播客设置、脚本内容、合成参数以及与后端 API 的交互。
+*   **主要代码:** (已创建 `stores/playgroundUnified.ts`)
+*   **API 测试 (Curl):**
+    *   此阶段主要关注前端 store 的逻辑，相关 API (`/api/podcast/process/script`, `/api/podcast/process/synthesize`) 将在阶段 4 实现和测试。
+*   **进度核查 (Checklist):**
+    *   [X] `stores/playgroundUnified.ts` 文件已创建。
+    *   [X] Store 包含 state (podcastSettings, scriptContent, synthesisParams, parsedSegments, apiResponse, isLoading, error)。
+    *   [X] Store 包含 getters (apiRequest, totalSelectedPersonas)。
+    *   [X] Store 包含 actions (updatePodcastSettings, updateScriptContent, updateSynthesisParams)。
+    *   [X] `parseScript` action 已实现，并使用 `usePersonaCache` (包含初步的角色名称到 Persona ID 的查找和回退逻辑)。
+    *   [X] `determineLanguage` action 已初步实现。
+    *   [X] `generateScript` 和 `synthesizeAudio` actions 的骨架已创建，用于后续与后端 API 对接。
+    *   [X] 辅助 actions (`selectHostPersona`, `addGuestPersona`, `removeGuestPersona`, `resetPlaygroundState`) 已添加。
+
+#### **阶段 4: 简化后端 API**
+
+*   **描述:** 后端 API 设计为纯透传模式，仅做必要的验证。我们将首先实现 `/api/podcast/process/script.post.ts`。
+*   **主要任务:**
+    1.  创建 `server/api/podcast/process/script.post.ts` 文件。
+    2.  实现其中的逻辑：读取请求体，进行基本验证（基于 `PodcastCreateRequest` 类型），生成 `podcastId`（或从请求中获取），模拟保存数据（实际数据库操作可后续完善），并返回 `PodcastCreateResponse` 结构。
+    3.  **使用 `docs/playground-api-testing.md` 中的 Curl 命令测试此端点。**
+*   **API 测试 (Curl):**
+    *   已使用 `docs/playground-api-testing.md` 中提供的 Curl 命令成功测试 `/api/podcast/process/script` 端点。
+*   **进度核查 (Checklist):**
+    *   [X] `server/api/podcast/process/script.post.ts` 文件已创建并实现简化逻辑。
+    *   [X] API 端点能够正确读取符合 `PodcastCreateRequest` 的请求体。
+    *   [X] API 端点执行了必要的输入验证 (podcastTitle, script, hostPersonaId, language, ttsProvider, segment structure)。
+    *   [X] API 端点能够生成 (或计划获取) `podcastId`。
+    *   [X] API 端点返回了符合 `PodcastCreateResponse` 结构（包含 success, podcastId, preparedSegments, message）的响应。
+    *   [X] 已通过 Curl 测试成功验证 `/api/podcast/process/script` 端点，符合透传和验证要求。
+    *   [ ] (后续) 实现 `server/api/podcast/process/synthesize.post.ts`。
+    *   [ ] (后续) 移除旧的 `podcastScriptProcessor.ts` 中的复杂映射逻辑，或重构其使用者。
 
 --- 
