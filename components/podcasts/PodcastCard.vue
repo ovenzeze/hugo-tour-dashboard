@@ -74,7 +74,7 @@
           <div class="flex items-center justify-between w-full text-xs">
             <div class="flex items-center" v-if="podcast.created_at">
               <Icon name="ph:calendar" class="h-3 w-3 mr-1.5" :class="podcast.cover_image_url ? 'text-white/80' : 'text-muted-foreground'" />
-              <span class="truncate" :title="formatDate(podcast.created_at)">{{ formatChineseRelativeTime(podcast.created_at) }}</span>
+              <span class="truncate" :title="formatDate(podcast.created_at)">{{ formatEnglishRelativeTime(podcast.created_at) }}</span>
             </div>
             <div class="flex items-center gap-1">
               <!-- 完成状态标签 -->
@@ -93,11 +93,11 @@
           <div class="flex items-center justify-between w-full text-xs" v-if="podcast.podcast_segments?.length">
             <div class="flex items-center">
               <Icon name="ph:list-bullets" class="h-3 w-3 mr-1.5" :class="podcast.cover_image_url ? 'text-white/80' : 'text-muted-foreground'" />
-              <span>{{ podcast.podcast_segments.length }} 段落</span>
+              <span>{{ podcast.podcast_segments.length }} segments</span>
             </div>
             <div class="flex items-center" v-if="podcast.total_word_count">
               <Icon name="ph:text-aa" class="h-3 w-3 mr-1.5" :class="podcast.cover_image_url ? 'text-white/80' : 'text-muted-foreground'" />
-              <span>{{ formatWordCount(podcast.total_word_count) }} 字</span>
+              <span>{{ formatWordCount(podcast.total_word_count) }} words</span>
             </div>
           </div>
 
@@ -491,39 +491,39 @@ function formatWordCount(count: number): string {
   } else if (count < 10000) {
     return `${(count / 1000).toFixed(1)}k`;
   } else {
-    return `${(count / 10000).toFixed(1)}万`;
+    return `${(count / 10000).toFixed(1)}0k`;
   }
 }
 
-// 中文相对时间格式化
-function formatChineseRelativeTime(dateString: string): string {
+// 英文相对时间格式化
+function formatEnglishRelativeTime(dateString: string): string {
   const date = new Date(dateString);
   const now = new Date();
   const diffTime = Math.abs(now.getTime() - date.getTime());
   const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
   
   if (diffDays === 1) {
-    return '今天';
+    return 'today';
   } else if (diffDays === 2) {
-    return '昨天';
+    return 'yesterday';
   } else if (diffDays <= 7) {
-    return `${diffDays - 1}天前`;
+    return `${diffDays - 1}d ago`;
   } else if (diffDays <= 30) {
     const weeks = Math.floor(diffDays / 7);
-    return `${weeks}周前`;
+    return `${weeks}w ago`;
   } else if (diffDays <= 365) {
     const months = Math.floor(diffDays / 30);
-    return `${months}个月前`;
+    return `${months}mo ago`;
   } else {
     const years = Math.floor(diffDays / 365);
-    return `${years}年前`;
+    return `${years}y ago`;
   }
 }
 
 // 获取播客状态文本
 function getPodcastStatusText(podcast: Podcast): string {
   if (!podcast.podcast_segments || podcast.podcast_segments.length === 0) {
-    return '草稿';
+    return 'Draft';
   }
   
   const totalSegments = podcast.podcast_segments.length;
@@ -532,11 +532,11 @@ function getPodcastStatusText(podcast: Podcast): string {
   ).length;
   
   if (synthesizedSegments === 0) {
-    return '未开始';
+    return 'New';
   } else if (synthesizedSegments < totalSegments) {
-    return '制作中';
+    return 'In Progress';
   } else {
-    return '已完成';
+    return 'Completed';
   }
 }
 

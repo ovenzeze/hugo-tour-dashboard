@@ -4,127 +4,138 @@
     <div class="w-full mb-6 px-2 md:px-6">
       <!-- 筛选器容器 -->
       <div class="bg-background border rounded-lg p-3 shadow-sm">
-        <!-- 标题和筛选器一行布局 -->
-        <div class="flex items-center gap-4">
+        <!-- 移动端垂直布局，桌面端水平布局 -->
+        <div class="flex flex-col md:flex-row md:items-center gap-4">
           <!-- 标题 -->
           <div class="flex items-center gap-2 text-sm font-medium">
             <Icon name="ph:funnel" class="h-4 w-4 text-primary" />
             Filters
           </div>
           
-          <!-- 筛选器组 -->
-          <div class="flex items-center gap-3 flex-1">
-            <!-- 搜索 -->
-            <div class="relative min-w-[200px]">
+          <!-- 筛选器组 - 移动端垂直排列 -->
+          <div class="flex flex-col md:flex-row md:items-center gap-3 md:flex-1">
+            <!-- 搜索 - 移动端全宽 -->
+            <div class="relative w-full md:min-w-[200px] md:w-auto">
               <Icon name="ph:magnifying-glass" class="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
               <Input
                 v-model="searchTerm"
-                placeholder="Search..."
-                class="pl-10 h-8 text-sm"
+                placeholder="Search podcasts..."
+                class="pl-10 h-8 text-sm w-full"
               />
             </div>
             
-            <!-- 状态选择器 -->
-            <div class="flex items-center bg-muted rounded-md p-1">
-              <Button 
-                :variant="podcastStatusFilter === 'all' ? 'default' : 'ghost'" 
-                size="sm"
-                @click="podcastStatusFilter = 'all'"
-                class="h-6 px-2 text-xs rounded-sm"
-              >
-                All
-              </Button>
-              <Button 
-                :variant="podcastStatusFilter === 'completed' ? 'default' : 'ghost'" 
-                size="sm"
-                @click="podcastStatusFilter = 'completed'"
-                class="h-6 px-2 text-xs rounded-sm"
-              >
-                <Icon name="ph:check-circle" class="mr-1 h-3 w-3" />
-                Done
-              </Button>
-              <Button 
-                :variant="podcastStatusFilter === 'in-progress' ? 'default' : 'ghost'" 
-                size="sm"
-                @click="podcastStatusFilter = 'in-progress'"
-                class="h-6 px-2 text-xs rounded-sm"
-              >
-                <Icon name="ph:hourglass" class="mr-1 h-3 w-3" />
-                Progress
-              </Button>
-              <Button 
-                :variant="podcastStatusFilter === 'not-started' ? 'default' : 'ghost'" 
-                size="sm"
-                @click="podcastStatusFilter = 'not-started'"
-                class="h-6 px-2 text-xs rounded-sm"
-              >
-                <Icon name="ph:circle-dashed" class="mr-1 h-3 w-3" />
-                New
-              </Button>
+            <!-- 状态选择器 - 移动端全宽，支持滚动 -->
+            <div class="w-full md:w-auto">
+              <div class="flex items-center bg-muted rounded-md p-1 w-full md:w-auto overflow-x-auto">
+                <Button 
+                  :variant="podcastStatusFilter === 'all' ? 'default' : 'ghost'" 
+                  size="sm"
+                  @click="podcastStatusFilter = 'all'"
+                  class="h-6 px-2 text-xs rounded-sm flex-shrink-0"
+                >
+                  All
+                </Button>
+                <Button 
+                  :variant="podcastStatusFilter === 'completed' ? 'default' : 'ghost'" 
+                  size="sm"
+                  @click="podcastStatusFilter = 'completed'"
+                  class="h-6 px-2 text-xs rounded-sm flex-shrink-0"
+                >
+                  <Icon name="ph:check-circle" class="mr-1 h-3 w-3" />
+                  <span class="hidden xs:inline">Done</span>
+                  <span class="xs:hidden">✓</span>
+                </Button>
+                <Button 
+                  :variant="podcastStatusFilter === 'in-progress' ? 'default' : 'ghost'" 
+                  size="sm"
+                  @click="podcastStatusFilter = 'in-progress'"
+                  class="h-6 px-2 text-xs rounded-sm flex-shrink-0"
+                >
+                  <Icon name="ph:hourglass" class="mr-1 h-3 w-3" />
+                  <span class="hidden xs:inline">Progress</span>
+                  <span class="xs:hidden">⏳</span>
+                </Button>
+                <Button 
+                  :variant="podcastStatusFilter === 'not-started' ? 'default' : 'ghost'" 
+                  size="sm"
+                  @click="podcastStatusFilter = 'not-started'"
+                  class="h-6 px-2 text-xs rounded-sm flex-shrink-0"
+                >
+                  <Icon name="ph:circle-dashed" class="mr-1 h-3 w-3" />
+                  <span class="hidden xs:inline">New</span>
+                  <span class="xs:hidden">○</span>
+                </Button>
+              </div>
             </div>
             
-            <!-- 语言选择器 -->
-            <div class="flex items-center bg-muted rounded-md p-1">
-              <Button
-                :variant="languageFilter === 'all' ? 'default' : 'ghost'"
-                size="sm"
-                @click="languageFilter = 'all'"
-                class="h-6 px-2 text-xs rounded-sm"
-              >
-                <Icon name="ph:globe" class="mr-1 h-3 w-3" />
-                All
-              </Button>
-              <Button
-                v-for="lang in availableLanguages.slice(0, 3)"
-                :key="lang"
-                :variant="languageFilter === lang ? 'default' : 'ghost'"
-                size="sm"
-                @click="languageFilter = lang"
-                class="h-6 px-2 text-xs rounded-sm"
-              >
-                <div class="flex items-center gap-1">
-                  <span class="text-sm">{{ getLanguageFlag(lang) }}</span>
-                  <span class="hidden sm:inline">{{ lang }}</span>
-                </div>
-              </Button>
-              <!-- 更多语言按钮 -->
-              <Button
-                v-if="availableLanguages.length > 3"
-                variant="ghost"
-                size="sm"
-                @click="showMoreLanguages = !showMoreLanguages"
-                class="h-6 px-2 text-xs rounded-sm"
-              >
-                <Icon name="ph:dots-three" class="h-3 w-3" />
-                <span class="hidden sm:inline ml-1">+{{ availableLanguages.length - 3 }}</span>
-              </Button>
+            <!-- 语言选择器 - 移动端全宽，支持滚动 -->
+            <div class="w-full md:w-auto">
+              <div class="flex items-center bg-muted rounded-md p-1 w-full md:w-auto overflow-x-auto">
+                <Button
+                  :variant="languageFilter === 'all' ? 'default' : 'ghost'"
+                  size="sm"
+                  @click="languageFilter = 'all'"
+                  class="h-6 px-2 text-xs rounded-sm flex-shrink-0"
+                >
+                  <Icon name="ph:globe" class="mr-1 h-3 w-3" />
+                  <span class="hidden xs:inline">All</span>
+                  <span class="xs:hidden">🌐</span>
+                </Button>
+                <Button
+                  v-for="lang in availableLanguages.slice(0, 3)"
+                  :key="lang"
+                  :variant="languageFilter === lang ? 'default' : 'ghost'"
+                  size="sm"
+                  @click="languageFilter = lang"
+                  class="h-6 px-2 text-xs rounded-sm flex-shrink-0"
+                >
+                  <div class="flex items-center gap-1">
+                    <span class="text-sm">{{ getLanguageFlag(lang) }}</span>
+                    <span class="hidden sm:inline">{{ lang }}</span>
+                  </div>
+                </Button>
+                <!-- 更多语言按钮 -->
+                <Button
+                  v-if="availableLanguages.length > 3"
+                  variant="ghost"
+                  size="sm"
+                  @click="showMoreLanguages = !showMoreLanguages"
+                  class="h-6 px-2 text-xs rounded-sm flex-shrink-0"
+                >
+                  <Icon name="ph:dots-three" class="h-3 w-3" />
+                  <span class="hidden sm:inline ml-1">+{{ availableLanguages.length - 3 }}</span>
+                </Button>
+              </div>
             </div>
             
-            <!-- 展开的更多语言 -->
+            <!-- 展开的更多语言 - 移动端独立一行 -->
             <div v-if="showMoreLanguages && availableLanguages.length > 3" 
-                 class="flex items-center bg-muted rounded-md p-1 ml-2">
-              <Button
-                v-for="lang in availableLanguages.slice(3)"
-                :key="`extra-${lang}`"
-                :variant="languageFilter === lang ? 'default' : 'ghost'"
-                size="sm"
-                @click="selectLanguage(lang)"
-                class="h-6 px-2 text-xs rounded-sm"
-              >
-                <div class="flex items-center gap-1">
-                  <span class="text-sm">{{ getLanguageFlag(lang) }}</span>
-                  <span class="hidden sm:inline">{{ lang }}</span>
-                </div>
-              </Button>
+                 class="w-full md:w-auto">
+              <div class="flex items-center bg-muted rounded-md p-1 w-full md:w-auto overflow-x-auto">
+                <Button
+                  v-for="lang in availableLanguages.slice(3)"
+                  :key="`extra-${lang}`"
+                  :variant="languageFilter === lang ? 'default' : 'ghost'"
+                  size="sm"
+                  @click="selectLanguage(lang)"
+                  class="h-6 px-2 text-xs rounded-sm flex-shrink-0"
+                >
+                  <div class="flex items-center gap-1">
+                    <span class="text-sm">{{ getLanguageFlag(lang) }}</span>
+                    <span class="hidden sm:inline">{{ lang }}</span>
+                  </div>
+                </Button>
+              </div>
             </div>
           </div>
           
-          <!-- 统计和重置 -->
-          <div class="flex items-center gap-3 text-sm">
+          <!-- 统计和重置 - 移动端水平排列，桌面端不变 -->
+          <div class="flex items-center justify-between md:justify-end gap-3 text-sm">
             <span class="text-muted-foreground whitespace-nowrap">{{ filteredPodcasts.length }} results</span>
             <Button variant="ghost" size="sm" @click="resetFilters" class="h-8 px-3 text-sm">
               <Icon name="ph:arrow-clockwise" class="mr-1 h-4 w-4" />
-              Reset
+              <span class="hidden xs:inline">Reset</span>
+              <span class="xs:hidden">↻</span>
             </Button>
           </div>
         </div>
@@ -441,5 +452,53 @@ const selectLanguage = (lang: string) => {
 </script>
 
 <style scoped>
-/* Page styles */
+/* 添加xs断点支持 */
+@media (min-width: 475px) {
+  .xs\:inline {
+    display: inline;
+  }
+  .xs\:hidden {
+    display: none;
+  }
+}
+
+@media (max-width: 474px) {
+  .xs\:inline {
+    display: none;
+  }
+  .xs\:hidden {
+    display: inline;
+  }
+}
+
+/* 移动端滚动条样式优化 */
+.overflow-x-auto {
+  scrollbar-width: thin;
+  scrollbar-color: rgb(203 213 225 / 0.5) transparent;
+}
+
+.overflow-x-auto::-webkit-scrollbar {
+  height: 4px;
+}
+
+.overflow-x-auto::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.overflow-x-auto::-webkit-scrollbar-thumb {
+  background-color: rgb(203 213 225 / 0.5);
+  border-radius: 2px;
+}
+
+.overflow-x-auto::-webkit-scrollbar-thumb:hover {
+  background-color: rgb(203 213 225 / 0.8);
+}
+
+/* 确保按钮在移动端有足够的触摸目标 */
+@media (max-width: 768px) {
+  .flex-shrink-0 {
+    min-width: 40px;
+    min-height: 32px;
+  }
+}
 </style>

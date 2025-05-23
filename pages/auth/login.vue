@@ -2,48 +2,46 @@
   <div class="flex items-center justify-center min-h-screen bg-background">
     <Card class="w-full max-w-md">
       <CardHeader>
-        <CardTitle class="text-2xl font-bold text-center">登录</CardTitle>
+        <CardTitle class="text-2xl font-bold text-center">Login</CardTitle>
         <CardDescription class="text-center">
-          输入您的邮箱和密码以访问您的账户。
+          Enter your email and password to access your account.
         </CardDescription>
       </CardHeader>
       <CardContent>
         <form @submit.prevent="handleLogin" class="space-y-4">
           <div class="space-y-2">
-            <Label for="email">邮箱</Label>
+            <Label for="email">Email</Label>
             <Input
               id="email"
               type="email"
-              placeholder="m@example.com"
+              placeholder="admin@hugoapp.com"
               v-model="email"
               required
               :disabled="authStore.isLoading"
             />
           </div>
           <div class="space-y-2">
-            <Label for="password">密码</Label>
+            <Label for="password">Password</Label>
             <Input
               id="password"
               type="password"
+              placeholder="Enter your password"
               v-model="password"
               required
               :disabled="authStore.isLoading"
             />
           </div>
           <Button type="submit" class="w-full" :disabled="authStore.isLoading">
-            <span v-if="authStore.isLoading">登录中...</span>
-            <span v-else>登录</span>
+            <span v-if="authStore.isLoading">Logging in...</span>
+            <span v-else>Login</span>
           </Button>
           <div v-if="authStore.hasError" class="text-sm text-destructive text-center">
             {{ authStore.authError }}
           </div>
         </form>
       </CardContent>
-      <CardFooter class="text-center text-sm">
-        还没有账户？
-        <NuxtLink to="/auth/register" class="underline">
-          立即注册
-        </NuxtLink>
+      <CardFooter class="text-center text-sm text-muted-foreground">
+        Simple password-based authentication system
       </CardFooter>
     </Card>
   </div>
@@ -75,11 +73,6 @@ const handleLogin = async () => {
     return;
   }
   await authStore.login({ email: email.value, password: password.value });
-  if (authStore.isAuthenticated) {
-    // 登录成功后的跳转逻辑，例如跳转到仪表盘
-    // useRouter().push('/dashboard');
-    console.log('Login successful, redirecting...');
-  }
 };
 
 // 清除之前的错误信息
