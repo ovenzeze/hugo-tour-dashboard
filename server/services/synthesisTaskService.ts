@@ -23,7 +23,40 @@ export class SynthesisTaskService {
     this.supabase = supabase;
   }
 
+  // 检查并确保synthesis_tasks表存在
+  async ensureTableExists(): Promise<void> {
+    try {
+      const { data, error } = await this.supabase
+        .from('synthesis_tasks')
+        .select('task_id')
+        .limit(1);
+        
+      if (error) {
+        if (error.code === '42P01') { // Table does not exist
+          consola.error('[SynthesisTaskService] synthesis_tasks table does not exist');
+          throw new Error('Database table "synthesis_tasks" does not exist. Please run database migrations first.');
+        } else {
+          consola.error('[SynthesisTaskService] Database error during table check:', error);
+          throw new Error(`Database error: ${error.message || error.code || 'Unknown database error'}`);
+        }
+      }
+      
+      consola.info('[SynthesisTaskService] synthesis_tasks table exists and is accessible');
+    } catch (checkError: any) {
+      if (checkError.message?.includes('Database table')) {
+        throw checkError; // Re-throw our custom error
+      }
+      consola.error('[SynthesisTaskService] Exception while checking table existence:', checkError);
+      throw new Error(`Failed to access database: ${checkError.message || 'Unknown error'}`);
+    }
+  }
+
   async createTask(podcastId: string, totalSegments: number): Promise<string> {
+    consola.info(`[SynthesisTaskService] Creating task for podcast ${podcastId} with ${totalSegments} segments`);
+    
+    // Ensure table exists before attempting to insert
+    await this.ensureTableExists();
+    
     const { data, error } = await this.supabase
       .from('synthesis_tasks')
       .insert({
@@ -36,8 +69,21 @@ export class SynthesisTaskService {
       .single();
 
     if (error) {
-      consola.error('[SynthesisTaskService] Failed to create task:', error);
-      throw new Error(`Failed to create synthesis task: ${error.message}`);
+      consola.error('[SynthesisTaskService] Failed to create task:', {
+        error,
+        errorMessage: error.message,
+        errorCode: error.code,
+        errorDetails: error.details,
+        errorHint: error.hint,
+        podcastId,
+        totalSegments
+      });
+      throw new Error(`Failed to create synthesis task: ${error.message || error.code || JSON.stringify(error)}`);
+    }
+
+    if (!data) {
+      consola.error('[SynthesisTaskService] No data returned from insert operation');
+      throw new Error('Failed to create synthesis task: No data returned from database');
     }
 
     consola.info(`[SynthesisTaskService] Created task ${data.task_id} for podcast ${podcastId}`);

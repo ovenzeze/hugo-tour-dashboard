@@ -501,7 +501,7 @@ async function triggerBackgroundSynthesis(podcastId: number, segmentCount: numbe
     // 调用后台合成API
     const response = await $fetch<ContinueSynthesisResponse>('/api/podcast/continue-synthesis', {
       method: 'POST'
-    }, { 
+    }, {
       podcastId: podcastId.toString(),
       segmentCount 
     });

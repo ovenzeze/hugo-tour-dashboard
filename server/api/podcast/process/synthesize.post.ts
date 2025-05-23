@@ -87,11 +87,39 @@ export default defineEventHandler(async (event: H3Event) => {
     // Initialize database services
     const supabase = await serverSupabaseServiceRole<Database>(event);
     if (!supabase) {
+      consola.error('[synthesize.post.ts] Failed to initialize Supabase connection');
       throw createError({
         statusCode: 500,
         statusMessage: 'Failed to initialize database connection'
       });
     }
+    
+    consola.info('[synthesize.post.ts] Supabase connection established successfully');
+    
+    // Test database connectivity
+    try {
+      const { data: testData, error: testError } = await supabase
+        .from('synthesis_tasks')
+        .select('count')
+        .limit(1);
+      
+      if (testError) {
+        consola.error('[synthesize.post.ts] Database connectivity test failed:', testError);
+        throw createError({
+          statusCode: 500,
+          statusMessage: `Database connectivity test failed: ${testError.message || testError.code}`
+        });
+      }
+      
+      consola.info('[synthesize.post.ts] Database connectivity test passed');
+    } catch (testConnError: any) {
+      consola.error('[synthesize.post.ts] Database connectivity test exception:', testConnError);
+      throw createError({
+        statusCode: 500,
+        statusMessage: `Database connectivity test exception: ${testConnError.message}`
+      });
+    }
+    
     const taskService = new SynthesisTaskService(supabase);
 
     // Check if this should be async (default to async for >3 segments)
@@ -119,7 +147,7 @@ export default defineEventHandler(async (event: H3Event) => {
       };
     } else {
       // Run synchronously for small requests
-      return await processSynchronously(body, event);
+      return await processSynchronously(body, event, supabase);
     }
 
   } catch (error: any) {
@@ -139,8 +167,14 @@ export default defineEventHandler(async (event: H3Event) => {
 async function processSegmentsAsync(taskId: string, body: SynthesizeRequestBody, event: H3Event, taskService: SynthesisTaskService) {
   await taskService.updateTaskStatus(taskId, 'processing');
 
+  // Initialize Supabase client for async processing
+  const supabase = await serverSupabaseServiceRole<Database>(event);
+  if (!supabase) {
+    throw new Error('Failed to initialize Supabase connection for async processing');
+  }
+
   try {
-    const result = await processSynchronously(body, event, async (completed, current) => {
+    const result = await processSynchronously(body, event, supabase, async (completed, current) => {
       // Progress callback
       await taskService.updateTaskStatus(taskId, 'processing', {
         progress_completed: completed,
@@ -164,6 +198,7 @@ async function processSegmentsAsync(taskId: string, body: SynthesizeRequestBody,
 async function processSynchronously(
   body: SynthesizeRequestBody, 
   event: H3Event,
+  supabase: any, // Add supabase parameter
   progressCallback?: (completed: number, currentSegment: number) => Promise<void>
 ) {
   const { podcastId, segments: inputSegments, defaultModelId, globalTtsProvider, globalSynthesisParams = {} } = body;
