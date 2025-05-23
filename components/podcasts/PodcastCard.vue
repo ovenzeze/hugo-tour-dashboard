@@ -32,7 +32,7 @@
       />
     </div>
 
-    <!-- 简化的渐变遮罩 -->
+    <!-- Simplified Gradient Overlay -->
     <div v-if="podcast.cover_image_url" class="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-black/30 z-10 pointer-events-none rounded-2xl md:rounded-3xl"></div>
 
     <!-- Core content -->
@@ -56,9 +56,9 @@
           </Button>
         </div>
 
-        <!-- 播客基本信息 -->
+        <!-- Basic Podcast Info -->
         <div class="w-full space-y-2 mb-4">
-          <!-- 第一行：主播和时长 -->
+          <!-- Row 1: Host and Duration -->
           <div class="flex items-center justify-between w-full text-xs">
             <div class="flex items-center" v-if="podcast.host_name">
               <Icon name="ph:microphone" class="h-3 w-3 mr-1.5" :class="podcast.cover_image_url ? 'text-white/80' : 'text-muted-foreground'" />
@@ -70,14 +70,14 @@
             </div>
           </div>
 
-          <!-- 第二行：发布时间和状态 -->
+          <!-- Row 2: Publish Date and Status -->
           <div class="flex items-center justify-between w-full text-xs">
             <div class="flex items-center" v-if="podcast.created_at">
               <Icon name="ph:calendar" class="h-3 w-3 mr-1.5" :class="podcast.cover_image_url ? 'text-white/80' : 'text-muted-foreground'" />
               <span class="truncate" :title="formatDate(podcast.created_at)">{{ formatEnglishRelativeTime(podcast.created_at) }}</span>
             </div>
             <div class="flex items-center gap-1">
-              <!-- 完成状态标签 -->
+              <!-- Completion Status Badge -->
               <Badge 
                 :variant="getPodcastStatusVariant(podcast)"
                 class="text-xs px-1.5 py-0.5 h-5"
@@ -89,7 +89,7 @@
             </div>
           </div>
 
-          <!-- 第三行：统计信息 -->
+          <!-- Row 3: Statistics -->
           <div class="flex items-center justify-between w-full text-xs" v-if="podcast.podcast_segments?.length">
             <div class="flex items-center">
               <Icon name="ph:list-bullets" class="h-3 w-3 mr-1.5" :class="podcast.cover_image_url ? 'text-white/80' : 'text-muted-foreground'" />
@@ -125,9 +125,9 @@
         </div>
       </div>
 
-      <!-- 中央播放按钮区域 -->
+      <!-- Central Play Button Area -->
       <div class="absolute bottom-4 right-4 z-30">
-        <!-- 继续制作按钮 -->
+        <!-- Continue Editing Button -->
         <Button
           v-if="hasUnsynthesizedSegments(podcast)"
           variant="default"
@@ -139,7 +139,7 @@
           <Icon name="ph:arrow-square-out" class="w-5 h-5" />
         </Button>
         
-        <!-- 播放按钮 -->
+        <!-- Play Button -->
         <Button
           v-else-if="hasPlayableSegments(podcast) && currentPreviewingId !== podcast.podcast_id"
           variant="default"
@@ -151,7 +151,7 @@
           <Icon name="ph:play-fill" class="w-5 h-5" />
         </Button>
         
-        <!-- 停止按钮 -->
+        <!-- Stop Button -->
         <Button
           v-else-if="currentPreviewingId === podcast.podcast_id"
           variant="destructive"
@@ -163,7 +163,7 @@
           <Icon name="ph:stop-fill" class="w-5 h-5" />
         </Button>
         
-        <!-- 禁用状态 -->
+        <!-- Disabled State -->
         <Button
           v-else
           variant="secondary"
@@ -176,7 +176,7 @@
         </Button>
       </div>
       
-      <!-- 底部操作区域 -->
+      <!-- Bottom Actions Area -->
       <div class="absolute bottom-4 left-4 flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity duration-300 z-30">
         <!-- Generate cover button -->
         <Button
@@ -240,7 +240,7 @@
       </div>
     </div>
 
-    <!-- 继续合成确认对话框 -->
+    <!-- Continue Synthesis Confirmation Dialog -->
     <ContinueSynthesisDialog
       v-model:visible="showContinueDialog"
       :segment-count="pendingSegmentCount"
@@ -284,10 +284,10 @@ const props = defineProps({
   }
 });
 
-// 将 imageLoaded 从 props 转换为本地的 ref 变量
+// Convert imageLoaded from props to a local ref variable
 const imageLoaded = ref<Record<number, boolean>>({});
 
-// 确保安全访问 showAllSegments
+// Ensure safe access to showAllSegments
 const safeShowAllSegments = computed(() => props.showAllSegments || {});
 
 const emit = defineEmits<{
@@ -304,15 +304,15 @@ const emit = defineEmits<{
   (e: 'image-loaded', podcastId: number): void;
 }>();
 
-// 悬停状态管理
+// Hover state management
 const hoveredPodcastId = ref<number | null>(null);
 
-// 继续合成对话框状态
+// Continue synthesis dialog state
 const showContinueDialog = ref(false);
 const pendingSegmentCount = ref(0);
 const pendingPodcastId = ref<number | null>(null);
 
-// 辅助函数
+// Helper functions
 function getPodcastTotalDuration(podcast: Podcast): string {
   if (!podcast.podcast_segments || podcast.podcast_segments.length === 0) {
     return '0:00';
@@ -327,7 +327,7 @@ function getPodcastTotalDuration(podcast: Podcast): string {
     }
   });
 
-  // 转换为分钟:秒格式
+  // Convert to minutes:seconds format
   const totalSeconds = Math.floor(totalDurationMs / 1000);
   const minutes = Math.floor(totalSeconds / 60);
   const seconds = totalSeconds % 60;
@@ -355,38 +355,38 @@ function hasUnsynthesizedSegments(podcast: Podcast): boolean {
     return false;
   }
   
-  // 检查是否有任何段落没有关联的音频
+  // Check if any segments do not have associated audio
   return podcast.podcast_segments.some(segment => 
     !segment.segment_audios || segment.segment_audios.length === 0
   );
 }
 
 function toggleSegments(podcastId: number) {
-  // 触发事件通知父组件切换分段显示状态
+  // Trigger event to notify parent component to toggle segment display state
   emit('toggle-segments', podcastId);
 }
 
-// 安全获取分段显示状态
+// Safely get segment visibility state
 function getSegmentVisibility(podcastId: string | number): boolean {
   return safeShowAllSegments.value[String(podcastId)] || false;
 }
 
 function navigateToPlayground(podcastId: number) {
-  // 计算未合成的segments数量
+  // Calculate the number of unsynthesized segments
   const unsynthesizedCount = getUnsynthesizedSegmentsCount(props.podcast);
   
   if (unsynthesizedCount > 0) {
-    // 显示确认对话框
+    // Show confirmation dialog
     pendingSegmentCount.value = unsynthesizedCount;
     pendingPodcastId.value = podcastId;
     showContinueDialog.value = true;
   } else {
-    // 没有未合成的segments，直接跳转
+    // No unsynthesized segments, navigate directly
     router.push(`/playground?podcast=${podcastId}`);
   }
 }
 
-// 获取未合成segments的数量
+// Get the number of unsynthesized segments
 function getUnsynthesizedSegmentsCount(podcast: Podcast): number {
   if (!podcast.podcast_segments || podcast.podcast_segments.length === 0) {
     return 0;
@@ -397,12 +397,12 @@ function getUnsynthesizedSegmentsCount(podcast: Podcast): number {
   ).length;
 }
 
-// 触发后台合成
+// Trigger background synthesis
 async function triggerBackgroundSynthesis(podcastId: number, segmentCount: number) {
   try {
-    console.log(`开始后台合成播客 ${podcastId} 的 ${segmentCount} 个片段`);
+    console.log(`Starting background synthesis for podcast ${podcastId} with ${segmentCount} segments`);
     
-    // 定义API响应类型
+    // Define API response type
     interface ContinueSynthesisResponse {
       success: boolean;
       message: string;
@@ -411,7 +411,7 @@ async function triggerBackgroundSynthesis(podcastId: number, segmentCount: numbe
       podcastId: string;
     }
     
-    // 调用后台合成API
+    // Call background synthesis API
     const response = await $fetch<ContinueSynthesisResponse>('/api/podcast/continue-synthesis', {
       method: 'POST',
       // @ts-ignore - Following project pattern for body type handling
@@ -423,28 +423,28 @@ async function triggerBackgroundSynthesis(podcastId: number, segmentCount: numbe
     
     if (response.success) {
       if (response.taskId) {
-        toast.success(`开始后台合成 ${response.segmentsToProcess} 个片段`, {
-          description: `任务ID: ${response.taskId}，正在跳转到进度页面`
+        toast.success(`Starting background synthesis for ${response.segmentsToProcess} segments`, {
+          description: `Task ID: ${response.taskId}, redirecting to progress page`
         });
         
-        // 跳转到公共合成进度页面
+        // Redirect to public synthesis progress page
         router.push(`/synthesis-progress/${response.taskId}`);
       } else {
         toast.info(response.message, {
-          description: '所有片段已完成合成'
+          description: 'All segments are already synthesized'
         });
         
-        // 如果没有需要合成的，跳转到playground查看结果
+        // If nothing needs to be synthesized, navigate to playground to view results
         router.push(`/playground?podcast=${podcastId}`);
       }
     } else {
-      throw new Error(response.message || '合成任务创建失败');
+      throw new Error(response.message || 'Synthesis task creation failed');
     }
     
   } catch (error: any) {
-    console.error('后台合成启动失败:', error);
-    toast.error('启动后台合成失败', {
-      description: error.data?.message || error.message || '请稍后重试'
+    console.error('Background synthesis failed to start:', error);
+    toast.error('Failed to start background synthesis', {
+      description: error.data?.message || error.message || 'Please try again later'
     });
   }
 }
@@ -457,7 +457,7 @@ function sharePodcast(podcastId: string) {
   emit('share-podcast', podcastId);
 }
 
-// 确认继续合成
+// Confirm continue synthesis
 function handleConfirmContinue() {
   if (pendingPodcastId.value && pendingSegmentCount.value > 0) {
     triggerBackgroundSynthesis(pendingPodcastId.value, pendingSegmentCount.value);
@@ -465,14 +465,14 @@ function handleConfirmContinue() {
   handleCancelContinue();
 }
 
-// 取消继续合成
+// Cancel continue synthesis
 function handleCancelContinue() {
   showContinueDialog.value = false;
   pendingSegmentCount.value = 0;
   pendingPodcastId.value = null;
 }
 
-// 格式化日期
+// Format date
 function formatDate(dateString: string): string {
   const date = new Date(dateString);
   return date.toLocaleDateString('zh-CN', {
@@ -484,7 +484,7 @@ function formatDate(dateString: string): string {
   });
 }
 
-// 格式化字数
+// Format word count
 function formatWordCount(count: number): string {
   if (count < 1000) {
     return count.toString();
@@ -495,7 +495,7 @@ function formatWordCount(count: number): string {
   }
 }
 
-// 英文相对时间格式化
+// English relative time formatting
 function formatEnglishRelativeTime(dateString: string): string {
   const date = new Date(dateString);
   const now = new Date();
@@ -520,7 +520,7 @@ function formatEnglishRelativeTime(dateString: string): string {
   }
 }
 
-// 获取播客状态文本
+// Get podcast status text
 function getPodcastStatusText(podcast: Podcast): string {
   if (!podcast.podcast_segments || podcast.podcast_segments.length === 0) {
     return 'Draft';
@@ -540,7 +540,7 @@ function getPodcastStatusText(podcast: Podcast): string {
   }
 }
 
-// 获取播客状态图标
+// Get podcast status icon
 function getPodcastStatusIcon(podcast: Podcast): string {
   if (!podcast.podcast_segments || podcast.podcast_segments.length === 0) {
     return 'ph:file-dashed';
@@ -560,7 +560,7 @@ function getPodcastStatusIcon(podcast: Podcast): string {
   }
 }
 
-// 获取播客状态样式变体
+// Get podcast status variant style
 function getPodcastStatusVariant(podcast: Podcast): "default" | "secondary" | "destructive" | "outline" {
   if (!podcast.podcast_segments || podcast.podcast_segments.length === 0) {
     return 'outline';
@@ -582,17 +582,17 @@ function getPodcastStatusVariant(podcast: Podcast): "default" | "secondary" | "d
 </script>
 
 <style scoped>
-/* 保持简洁的动画效果 */
+/* Keep animations concise */
 .group {
   transition: all 0.3s cubic-bezier(.4,0,.2,1);
 }
 
-/* 简化的悬停效果 */
+/* Simplified hover effect */
 .group:hover {
   transform: scale(1.02);
 }
 
-/* 保留必要的文本阴影效果 */
+/* Retain necessary text shadow effect */
 .line-clamp-2 {
   display: -webkit-box;
   -webkit-line-clamp: 2;

@@ -1,6 +1,6 @@
 <!-- 
-  自定义ProseScript组件，以安全方式处理MD文档中的脚本元素
-  这个组件会把脚本内容作为代码块显示，而不是尝试执行它
+  Custom ProseScript component to safely handle script elements in MD documents
+  This component will display script content as a code block instead of trying to execute it
 -->
 <template>
   <div class="prose-script-container">

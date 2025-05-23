@@ -28,12 +28,12 @@
               
               <div class="mt-2">
                 <div class="flex justify-between text-sm">
-                  <span class="text-gray-500">音频数量</span>
+                  <span class="text-gray-500">Audio Count</span>
                   <span class="font-medium">{{ persona.audio_count || 0 }}</span>
                 </div>
                 
                 <div class="mt-1 text-sm flex justify-between">
-                  <span class="text-gray-500">总时长</span>
+                  <span class="text-gray-500">Total Duration</span>
                   <span class="font-medium">{{ formatDuration(persona.total_duration_seconds) }}</span>
                 </div>
               </div>
@@ -59,6 +59,17 @@ import { Icon } from '#components'
 import { Badge } from '~/components/ui/badge'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '~/components/ui/card'
 
+// Define Persona interface
+interface Persona {
+  persona_id: number;
+  avatar_url?: string;
+  persona_name: string;
+  status: string;
+  audio_count?: number;
+  total_duration_seconds?: number;
+  languages_used?: string;
+}
+
 const props = defineProps({
   title: {
     type: String,
@@ -69,7 +80,7 @@ const props = defineProps({
     default: ''
   },
   personas: {
-    type: Array,
+    type: Array as () => Persona[], // Specify array of Persona type
     default: () => []
   },
   isLoading: {
@@ -79,7 +90,7 @@ const props = defineProps({
 })
 
 // Format duration in seconds to minutes and seconds
-function formatDuration(seconds) {
+function formatDuration(seconds: number | undefined): string {
   if (!seconds) return '0s'
   
   const minutes = Math.floor(seconds / 60)
@@ -93,21 +104,21 @@ function formatDuration(seconds) {
 }
 
 // Get badge variant based on persona status
-function getStatusVariant(status) {
+function getStatusVariant(status: string | undefined): "default" | "secondary" | "outline" | "destructive" {
   switch(status?.toLowerCase()) {
     case 'active':
-      return 'success'
+      return 'default' // Changed to 'default' to match Badge variant type
     case 'inactive':
       return 'secondary'
     case 'pending':
-      return 'warning'
+      return 'outline' // Changed to 'outline' to match Badge variant type
     default:
       return 'outline'
   }
 }
 
 // Split languages string into array
-function getLanguages(languagesString) {
+function getLanguages(languagesString: string | undefined): string[] {
   if (!languagesString) return []
   
   return languagesString.split(', ').filter(Boolean)

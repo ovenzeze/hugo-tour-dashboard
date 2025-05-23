@@ -71,7 +71,7 @@ const props = defineProps({
 
 defineEmits(['toggle-segments']);
 
-// 计算属性：可见的分段
+// Computed property: visible segments
 const visibleSegments = computed(() => {
   if (!props.podcast.podcast_segments) return [];
   
@@ -82,7 +82,7 @@ const visibleSegments = computed(() => {
   }
 });
 
-// 辅助函数
+// Helper functions
 function getSpeakerInitial(speakerName: string | null): string {
   if (!speakerName) return '?';
   return speakerName.charAt(0).toUpperCase();
@@ -91,7 +91,7 @@ function getSpeakerInitial(speakerName: string | null): string {
 function getSpeakerColorClass(speakerName: string | null, hasCoverImage: boolean): string {
   if (!speakerName) return hasCoverImage ? 'bg-white/20 text-white' : 'bg-muted text-muted-foreground';
   
-  // 基于名称生成一致的颜色
+  // Generate consistent color based on name
   const colorIndex = speakerName.split('').reduce((acc, char) => acc + char.charCodeAt(0), 0) % 5;
   
   const colorClasses = [

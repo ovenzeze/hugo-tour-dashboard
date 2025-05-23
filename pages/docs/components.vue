@@ -25,16 +25,16 @@
       
       <!-- Main Content -->
       <div class="md:col-span-3">
-        <!-- PersonaSelector Component Documentation -->
+        <!-- UnifiedPersonaSelector Component Documentation -->
         <section id="persona-selector" class="bg-white dark:bg-zinc-900 rounded-lg shadow-md p-6 mb-8">
           <div class="flex items-center justify-between mb-6">
-            <h2 class="text-2xl font-bold">PersonaSelector</h2>
+            <h2 class="text-2xl font-bold">UnifiedPersonaSelector</h2>
             <Badge variant="outline" class="text-xs">UI Component</Badge>
           </div>
           
           <p class="text-gray-600 dark:text-gray-300 mb-6">
-            PersonaSelector is a searchable advanced selector component supporting multiple and single selection, used for selecting personas.
-            It is built on shadcn/ui's Combobox component and provides rich features and a good user experience.
+            UnifiedPersonaSelector is a comprehensive persona selection component built on shadcn/ui's Popover and Command components.
+            It supports both single and multiple selection modes with rich visual features including avatars, badges, and language tags.
           </p>
           
           <!-- Features -->
@@ -59,58 +59,78 @@
                 <TabsTrigger value="code">Code</TabsTrigger>
               </TabsList>
               <TabsContent value="preview" class="p-4 border rounded-md mt-2">
-                <PersonaSelectorExample />
+                <div class="max-w-md mx-auto space-y-4">
+                  <!-- Single Selection Example -->
+                  <div>
+                    <Label class="text-sm font-medium mb-2 block">Single Selection</Label>
+                    <UnifiedPersonaSelector
+                      v-model:value="singleValue"
+                      :personas="mockPersonas"
+                      selection-mode="single"
+                      placeholder="Select a persona..."
+                    />
+                  </div>
+                  
+                  <!-- Multiple Selection Example -->
+                  <div>
+                    <Label class="text-sm font-medium mb-2 block">Multiple Selection</Label>
+                    <UnifiedPersonaSelector
+                      v-model:value="multipleValue"
+                      :personas="mockPersonas"
+                      selection-mode="multiple"
+                      placeholder="Select personas..."
+                    />
+                  </div>
+                </div>
               </TabsContent>
               <TabsContent value="code" class="mt-2">
                 <pre class="bg-gray-100 dark:bg-zinc-800 p-4 rounded-md overflow-auto"><code>&lt;template&gt;
-  &lt;div class="space-y-8"&gt;
+  &lt;div class="space-y-4"&gt;
+    &lt;!-- Single Selection --&gt;
     &lt;div&gt;
-      &lt;h2 class="text-lg font-medium mb-4"&gt;Single Selection Mode&lt;/h2&gt;
-      &lt;PersonaSelector
-        v-model="selectedPersona"
-        :personas="personas"
-        label="Select a Persona"
-        placeholder="Search persona..."
-        description="Please select a persona as the host"
-        :filterable="true"
+      &lt;Label class="text-sm font-medium mb-2 block"&gt;Single Selection&lt;/Label&gt;
+      &lt;UnifiedPersonaSelector
+        v-model:value="singleValue"
+        :personas="mockPersonas"
+        selection-mode="single"
+        placeholder="Select a persona..."
       /&gt;
     &lt;/div&gt;
-
+    
+    &lt;!-- Multiple Selection --&gt;
     &lt;div&gt;
-      &lt;h2 class="text-lg font-medium mb-4"&gt;Multiple Selection Mode&lt;/h2&gt;
-      &lt;PersonaSelector
-        v-model="selectedPersonas"
-        :personas="personas"
-        :multiple="true"
-        label="Select Multiple Personas"
-        placeholder="Search persona..."
-        description="Please select multiple personas as guests"
-        :filterable="true"
+      &lt;Label class="text-sm font-medium mb-2 block"&gt;Multiple Selection&lt;/Label&gt;
+      &lt;UnifiedPersonaSelector
+        v-model:value="multipleValue"
+        :personas="mockPersonas"
+        selection-mode="multiple"
+        placeholder="Select personas..."
       /&gt;
     &lt;/div&gt;
   &lt;/div&gt;
 &lt;/template&gt;
 
 &lt;script setup lang="ts"&gt;
-import { ref } from 'vue';
-import type { ApiPersona } from '~/pages/personas/index.vue';
+import { ref } from 'vue'
 
-// Single selection mode
-const selectedPersona = ref&lt;number | null&gt;(null);
+// Selection state
+const singleValue = ref&lt;number | null&gt;(null)
+const multipleValue = ref&lt;number[]&gt;([])
 
-// Multiple selection mode
-const selectedPersonas = ref&lt;number[]&gt;([]);
-
-// Persona data
-const personas = ref&lt;ApiPersona[]&gt;([
+// Mock persona data
+const mockPersonas = ref([
   {
     persona_id: 1,
-    name: 'Historian',
-    description: 'Focuses on historical events and cultural background',
-    // other properties...
+    name: 'Dr. Sarah Chen',
+    description: 'A knowledgeable historian specializing in ancient civilizations',
+    tts_provider: 'ElevenLabs',
+    language_support: ['en-US', 'zh-CN'],
+    is_recommended_host: true,
+    is_recommended_guest: false,
+    // ... other properties
   },
-  // other personas...
-]);
+  // ... more personas
+])
 &lt;/script&gt;</code></pre>
               </TabsContent>
             </Tabs>
@@ -233,14 +253,49 @@ const personas = ref&lt;ApiPersona[]&gt;([
 
 <script setup lang="ts">
 import { ref, onMounted, onUnmounted } from 'vue';
-import PersonaSelectorExample from '~/components/PersonaSelectorExample.vue';
-
 definePageMeta({
   title: 'Component Documentation'
 });
 
 // Current active section
 const activeSection = ref('persona-selector');
+
+// Demo data for examples
+const singleValue = ref<number | null>(null);
+const multipleValue = ref<number[]>([]);
+
+const mockPersonas = ref([
+  {
+    persona_id: 1,
+    name: 'Dr. Sarah Chen',
+    description: 'A knowledgeable historian specializing in ancient civilizations',
+    tts_provider: 'ElevenLabs',
+    language_support: ['en-US', 'zh-CN'],
+    is_recommended_host: true,
+    is_recommended_guest: false,
+    is_active: true,
+    created_at: '2024-01-01T00:00:00Z',
+    avatar_url: null,
+    voice_model_identifier: 'sarah_historian',
+    provider_voice_id: 'sarah_123',
+    voice_characteristics: null
+  },
+  {
+    persona_id: 2,
+    name: 'Prof. Alex Rivera',
+    description: 'Brilliant scientist who explains complex concepts clearly',
+    tts_provider: 'OpenAI',
+    language_support: ['en-US', 'es-ES'],
+    is_recommended_host: false,
+    is_recommended_guest: true,
+    is_active: true,
+    created_at: '2024-01-02T00:00:00Z',
+    avatar_url: null,
+    voice_model_identifier: 'alex_scientist',
+    provider_voice_id: 'alex_456',
+    voice_characteristics: null
+  }
+]);
 
 // Scroll to a specific section
 const scrollToSection = (sectionId: string) => {

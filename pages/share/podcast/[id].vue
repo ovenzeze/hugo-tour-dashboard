@@ -68,52 +68,15 @@
       </Card>
 
       <!-- 播放器与分段列表 -->
-      <Card class="bg-card text-card-foreground rounded-xl shadow-md border overflow-hidden mb-6 sm:mb-8">
-        <div v-if="audioQueue.length > 0" class="p-4 sm:p-6">
-          <div class="player-controls">
-            <div class="flex items-center justify-between mb-4">
-              <div class="flex items-center gap-3">
-                <Button variant="ghost" :disabled="currentSegmentIndex === 0" @click="playPreviousSegment" aria-label="Previous segment" class="control-button">
-                  <Icon name="ph:skip-back-fill" class="control-icon" />
-                </Button>
-                <Button variant="default" @click="togglePlayPause" aria-label="Play/Pause" :disabled="isLoadingAudio" class="play-button">
-                  <Icon v-if="isLoadingAudio" name="ph:spinner-gap" class="play-icon animate-spin" />
-                  <Icon v-else :name="isPlaying ? 'ph:pause-fill' : 'ph:play-fill'" class="play-icon" />
-                </Button>
-                <Button variant="ghost" :disabled="currentSegmentIndex === audioQueue.length - 1 || isLoadingAudio" @click="playNextSegment" aria-label="Next segment" class="control-button">
-                  <Icon name="ph:skip-forward-fill" class="control-icon" />
-                </Button>
-              </div>
-              <span class="text-sm text-muted-foreground time-display">{{ formatTime(currentTime) }} / {{ formatTime(duration) }}</span>
-            </div>
-            <div class="progress-container">
-              <div class="w-full bg-muted rounded-full h-2 mb-4 cursor-pointer player-progress-bar-container" @click="seek" @touchstart="handleTouchStart" @touchmove="handleTouchMove" @touchend="handleTouchEnd">
-                <div class="bg-primary h-full rounded-full transition-all" :style="{ width: progressPercentage + '%' }">
-                  <div class="progress-handle" :style="{ left: progressPercentage + '%' }"></div>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-        <div v-else class="p-6 text-muted-foreground text-center">No audio segments available for this podcast.</div>
-
-        <div v-if="audioQueue.length > 0" class="p-4 sm:p-6 pt-0 mt-2">
-          <h3 class="text-base sm:text-lg font-semibold mb-3 sm:mb-4 mt-4 sm:mt-6">Episodes / Segments</h3>
-          <ul>
-            <li v-for="(segment, index) in audioQueue" :key="segment.url + '-' + index"
-              @click="playSegment(index)"
-              :class="['flex justify-between items-center p-2 sm:p-3 rounded-md cursor-pointer transition group', { 'bg-muted text-primary': currentSegmentIndex === index, 'hover:bg-accent': currentSegmentIndex !== index }]
-              "
-            >
-              <div class="flex items-center min-w-0">
-                <span class="mr-2 sm:mr-3 text-xs text-muted-foreground w-5 sm:w-6 text-right flex-shrink-0">{{ index + 1 }}.</span>
-                <span class="font-medium truncate h-5 sm:h-6 leading-5 sm:leading-6 overflow-hidden text-sm sm:text-base">{{ segment.title }}</span>
-              </div>
-              <Icon v-if="currentSegmentIndex === index && isPlaying" name="ph:waveform-fill" class="segment-icon text-primary animate-pulse" />
-              <Icon v-else name="ph:play-fill" class="segment-icon text-muted-foreground group-hover:text-primary" />
-            </li>
-          </ul>
-        </div>
+      <PodcastPlayerControls
+        v-if="smoothPlayerSegments.length > 0"
+        :segments="smoothPlayerSegments"
+        @play-state-change="handlePlayStateChange"
+        @segment-change="handleSegmentChange"
+        @time-update="handleTimeUpdate"
+      />
+      <Card v-else class="bg-card text-card-foreground rounded-xl shadow-md border overflow-hidden mb-6 sm:mb-8">
+        <div class="p-6 text-muted-foreground text-center">No audio segments available for this podcast.</div>
       </Card>
     </div>
     <div v-else class="flex-grow flex items-center justify-center text-muted-foreground">
@@ -127,6 +90,7 @@ import QRCodeVue3 from 'qrcode-vue3';
 import { useWindowSize } from '@vueuse/core';
 import { toast } from 'vue-sonner';
 import type { Podcast } from '~/composables/usePodcastDatabase';
+import PodcastPlayerControls from '~/components/audio/PodcastPlayerControls.vue';
 
 const showWeChatQr = ref(false);
 const shareUrl = computed(() => window?.location?.href || '');
@@ -136,6 +100,16 @@ const podcast = ref<Podcast | null>(null);
 const loading = ref(true);
 const error = ref<Error | null>(null);
 
+// 新的平滑播放器数据
+const smoothPlayerSegments = ref<Array<{
+  id: string;
+  url: string;
+  title: string;
+  speaker?: string;
+  duration?: number;
+}>>([]);
+
+// 兼容旧的播放器数据（保留以备兼容）
 const audioPlayer = ref<HTMLAudioElement | null>(null);
 const audioQueue = ref<{ title: string; url: string }[]>([]);
 const currentSegmentIndex = ref(0);
@@ -202,6 +176,22 @@ function shareToTwitter() {
   window.open(`https://twitter.com/intent/tweet?url=${encodeURIComponent(shareUrl.value)}`, '_blank');
 }
 
+// 新播放器事件处理
+function handlePlayStateChange(playing: boolean) {
+  isPlaying.value = playing;
+  console.log(`[SharePage] Play state changed: ${playing ? 'playing' : 'paused'}`);
+}
+
+function handleSegmentChange(index: number) {
+  currentSegmentIndex.value = index;
+  console.log(`[SharePage] Segment changed to index: ${index}`);
+}
+
+function handleTimeUpdate(current: number, total: number) {
+  currentTime.value = current;
+  duration.value = total;
+}
+
 onMounted(async () => {
   const podcastId = route.params.id as string;
   if (podcastId) {
@@ -214,7 +204,7 @@ onMounted(async () => {
       
       if (podcastData.value) {
         podcast.value = podcastData.value as Podcast;
-        const rawSegments: { idx: number; fullTitle: string; truncatedTitle: string; audioUrl?: string }[] = [];
+        const rawSegments: { idx: number; fullTitle: string; truncatedTitle: string; audioUrl?: string; speaker?: string }[] = [];
         if (podcast.value && podcast.value.podcast_segments) {
           podcast.value.podcast_segments.forEach((segment: any) => {
             let audioUrlToPlay: string | undefined = undefined;
@@ -222,14 +212,25 @@ onMounted(async () => {
               const finalAudio = segment.segment_audios.find((audio: any) => audio.version_tag === 'final');
               audioUrlToPlay = (finalAudio?.audio_url ?? undefined) || (segment.segment_audios.find((audio: any) => audio.audio_url)?.audio_url ?? undefined);
             }
+            
+            // 获取说话者信息
+            const speaker = segment.speaker || segment.speaker_name || undefined;
+            
+            // 生成段落标题
             const fullText = (segment.text && String(segment.text).length > 0) ? String(segment.text) : `Segment ${segment.idx}`;
-            const truncatedText = fullText.length > 50 ? fullText.substring(0, 50) + '...' : fullText;
+            let title = fullText;
+            if (speaker) {
+              title = `${speaker}: ${fullText}`;
+            }
+            const truncatedTitle = title.length > 80 ? title.substring(0, 77) + '...' : title;
+            
             if (audioUrlToPlay) {
               rawSegments.push({
                 idx: segment.idx,
-                fullTitle: fullText,
-                truncatedTitle: truncatedText,
-                audioUrl: audioUrlToPlay
+                fullTitle: title,
+                truncatedTitle: truncatedTitle,
+                audioUrl: audioUrlToPlay,
+                speaker: speaker
               });
             }
           });
@@ -250,14 +251,35 @@ onMounted(async () => {
   }
 });
 
-function prepareAudioQueue(segments: { idx: number; fullTitle: string; truncatedTitle: string; audioUrl?: string }[]) {
-  audioQueue.value = segments
+function prepareAudioQueue(segments: { idx: number; fullTitle: string; truncatedTitle: string; audioUrl?: string; speaker?: string }[]) {
+  // 首先按idx排序确保播放顺序正确
+  const sortedSegments = segments
     .filter(segment => segment.audioUrl)
-    .map(segment => ({
-      title: segment.truncatedTitle,
-      fullTitle: segment.fullTitle,
-      url: segment.audioUrl!,
-    }));
+    .sort((a, b) => a.idx - b.idx); // 按idx排序
+    
+  console.log(`[SharePage] Preparing audio queue with ${sortedSegments.length} segments:`);
+  sortedSegments.forEach((segment, index) => {
+    console.log(`[SharePage] Segment ${index + 1}: idx=${segment.idx}, title: ${segment.truncatedTitle}`);
+  });
+
+  // 兼容旧播放器
+  audioQueue.value = sortedSegments.map(segment => ({
+    title: segment.truncatedTitle,
+    fullTitle: segment.fullTitle,
+    url: segment.audioUrl!,
+  }));
+  
+  // 新的平滑播放器数据
+  smoothPlayerSegments.value = sortedSegments.map(segment => ({
+    id: `segment-${segment.idx}`,
+    url: segment.audioUrl!,
+    title: segment.fullTitle,
+    speaker: segment.speaker,
+    duration: undefined // 将在播放器中自动获取
+  }));
+  
+  console.log(`[SharePage] Prepared ${smoothPlayerSegments.value.length} segments for smooth player`);
+  
   if (audioQueue.value.length > 0 && audioPlayer.value) {
     audioPlayer.value.src = audioQueue.value[0].url;
     currentSegmentIndex.value = 0;

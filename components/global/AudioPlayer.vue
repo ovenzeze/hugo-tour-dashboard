@@ -8,7 +8,7 @@
       'md:left-0': isExpanded
     }"
   >
-    <!-- Audio element -->
+    <!-- Main Audio element -->
     <audio
       ref="audioElement"
       :src="audioStore.currentTrack.isM3u8 ? undefined : audioStore.currentTrack.url"
@@ -23,6 +23,15 @@
       @canplay="onCanPlay"
       @error="onError"
       preload="auto"
+    ></audio>
+
+    <!-- Preload Audio element for smooth playback -->
+    <audio
+      ref="preloadAudioElement"
+      @canplay="onPreloadCanPlay"
+      @error="onPreloadError"
+      preload="metadata"
+      style="display: none;"
     ></audio>
 
     <!-- Player interface -->
@@ -46,17 +55,41 @@
           class="absolute top-0 left-0 h-full bg-primary transition-all"
           :style="{ width: `${audioStore.progress}%` }"
         ></div>
+        <!-- Preload Indicator -->
+        <div 
+          v-if="isPreloadReady && audioStore.currentTrack?.meta?.type === 'podcast'"
+          class="absolute top-0 right-0 h-full w-1 bg-green-500/50 transition-all"
+          title="Next segment preloaded"
+        ></div>
         <div 
           class="absolute top-0 left-0 h-3 w-3 bg-primary rounded-full -mt-1 opacity-0 group-hover:opacity-100 transition-opacity"
           :style="{ left: `${audioStore.progress}%`, transform: 'translateX(-50%)' }"
         ></div>
       </div>
 
-      <!-- 播客文本内容区域 (仅在扩展模式下显示) -->
-      <div v-if="isExpanded && audioStore.currentTrack?.meta?.type === 'podcast' && audioStore.currentTrack?.meta?.fullText" class="w-full mb-4 px-2">
-        <div class="bg-muted/30 rounded-lg p-3 max-h-40 overflow-y-auto">
-          <p v-if="audioStore.currentTrack.meta.speaker" class="text-sm font-medium mb-1">{{ audioStore.currentTrack.meta.speaker }}:</p>
-          <p class="text-sm">{{ audioStore.currentTrack.meta.fullText }}</p>
+      <!-- Podcast Segment Info Area -->
+      <div v-if="audioStore.currentTrack?.meta?.type === 'podcast'" class="w-full mb-3 px-2">
+        <!-- Minimized Mode: Show only segment progress and speaker -->
+        <div v-if="!isExpanded" class="flex items-center justify-between text-xs text-muted-foreground">
+          <span v-if="audioStore.currentTrack.meta.speaker" class="font-medium">
+            {{ audioStore.currentTrack.meta.speaker }}
+          </span>
+          <span v-if="audioStore.playlist.length > 1" class="ml-auto">
+            Segment {{ audioStore.currentIndex + 1 }} / {{ audioStore.playlist.length }}
+          </span>
+        </div>
+        
+        <!-- Expanded Mode: Show full text content -->
+        <div v-else-if="audioStore.currentTrack?.meta?.fullText" class="bg-muted/30 rounded-lg p-3 max-h-40 overflow-y-auto">
+          <div class="flex items-center justify-between mb-2">
+            <p v-if="audioStore.currentTrack.meta.speaker" class="text-sm font-medium">
+              {{ audioStore.currentTrack.meta.speaker }}
+            </p>
+            <span v-if="audioStore.playlist.length > 1" class="text-xs text-muted-foreground">
+              Segment {{ audioStore.currentIndex + 1 }} / {{ audioStore.playlist.length }}
+            </span>
+          </div>
+          <p class="text-sm leading-relaxed">{{ audioStore.currentTrack.meta.fullText }}</p>
         </div>
       </div>
 
@@ -82,7 +115,7 @@
             <p v-if="audioStore.currentTrack.artist" class="text-xs text-muted-foreground truncate">
               {{ audioStore.currentTrack.artist }}
             </p>
-            <!-- 显示播客信息 -->
+            <!-- Display podcast info -->
             <p v-else-if="audioStore.currentTrack?.meta?.type === 'podcast'" class="text-xs text-muted-foreground truncate">
               {{ audioStore.currentTrack.meta.fullText ? audioStore.currentTrack.meta.fullText.substring(0, 60) + (audioStore.currentTrack.meta.fullText.length > 60 ? '...' : '') : '' }}
             </p>
@@ -217,9 +250,16 @@ import { Button } from '~/components/ui/button';
 
 const audioStore = useAudioPlayerStore();
 const audioElement = ref<HTMLAudioElement | null>(null);
+const preloadAudioElement = ref<HTMLAudioElement | null>(null);
 const isMinimized = ref(false);
 const isExpanded = ref(false);
 const isSeeking = ref(false);
+
+// Smooth playback optimization related state
+const isPreloadReady = ref(false);
+const preloadDistance = ref(3); // Start preloading 3 seconds before end
+const crossfadeDuration = ref(0.2); // Crossfade duration
+const isCrossfading = ref(false);
 
 // HLS related
 let Hls: any = null;
@@ -243,10 +283,13 @@ function onPause() {
 function onEnded() {
   console.log('[AudioPlayer] Track ended');
   
-  // 直接调用 audioStore.next()
-  if (audioStore.hasNext) {
+  // If crossfade is in progress, complete the transition
+  if (isCrossfading.value) {
+    completeCrossfade();
+  } else if (audioStore.hasNext) {
     console.log('[AudioPlayer] Has next track, calling audioStore.next()');
-    audioStore.next();
+    // Smooth transition to the next track
+    smoothNextTrack();
   } else {
     console.log('[AudioPlayer] No more tracks, stopping playback');
     audioStore.stop();
@@ -256,6 +299,23 @@ function onEnded() {
 function onTimeUpdate() {
   if (audioElement.value && !isSeeking.value) {
     audioStore.updateCurrentTime(audioElement.value.currentTime);
+    
+    // Smooth playback optimization: Preload the next track
+    if (audioStore.hasNext && audioStore.currentTrack?.meta?.type === 'podcast') {
+      const currentTime = audioElement.value.currentTime;
+      const duration = audioElement.value.duration || 0;
+      const timeRemaining = duration - currentTime;
+      
+      // Start preloading the next segment when remaining time is less than preload distance
+      if (timeRemaining <= preloadDistance.value && timeRemaining > 0 && !isPreloadReady.value) {
+        preloadNextTrack();
+      }
+      
+      // Start crossfade when remaining time is less than crossfade duration
+      if (timeRemaining <= crossfadeDuration.value && timeRemaining > 0 && isPreloadReady.value && !isCrossfading.value) {
+        startCrossfade();
+      }
+    }
   }
 }
 
@@ -274,7 +334,7 @@ function onLoadedData() {
   if (!audioElement.value) return;
   console.log('[AudioPlayer] Audio data loaded for:', audioStore.currentTrack?.title);
   
-  // 如果音频数据已加载且播放状态为true，尝试播放
+  // If audio data is loaded and isPlaying is true, attempt to play
   if (audioStore.isPlaying) {
     tryPlayAudio();
   }
@@ -285,7 +345,7 @@ function onCanPlay() {
   audioStore.setLoading(false);
   console.log('[AudioPlayer] Audio can play now:', audioStore.currentTrack?.title);
   
-  // 如果播放状态为true，尝试播放
+  // If isPlaying is true, attempt to play
   if (audioStore.isPlaying) {
     tryPlayAudio();
   }
@@ -295,13 +355,13 @@ function onCanPlayThrough() {
   if (!audioElement.value) return;
   console.log('[AudioPlayer] Audio can play through without buffering:', audioStore.currentTrack?.title);
   
-  // 如果播放状态为true，尝试播放
+  // If isPlaying is true, attempt to play
   if (audioStore.isPlaying) {
     tryPlayAudio();
   }
 }
 
-// 尝试播放音频的辅助函数
+// Helper function to attempt audio playback
 function tryPlayAudio() {
   if (!audioElement.value) return;
   
@@ -311,7 +371,7 @@ function tryPlayAudio() {
   if (playPromise !== undefined) {
     playPromise.catch(err => {
       console.error('[AudioPlayer] Failed to play audio:', err);
-      // 如果是由于用户交互限制导致的错误，记录下来
+      // If the error is due to user interaction restrictions, log it
       if (err.name === 'NotAllowedError') {
         console.warn('[AudioPlayer] Autoplay prevented by browser. User interaction required.');
       }
@@ -329,11 +389,160 @@ function onError(e: Event) {
   // Attempt to play the next track if available
   if (audioStore.hasNext) {
     console.log('Error with current track, attempting to play next.');
-    audioStore.next();
+    smoothNextTrack();
   } else {
     // If no next track, or if the error was on the last track
     console.log('Error with current track, no next track to play or it was the last one.');
     audioStore.stop(); // Stop playback and clear current track if it's the end of the playlist
+  }
+}
+
+// Preload related functions
+function onPreloadCanPlay() {
+  isPreloadReady.value = true;
+  console.log('[AudioPlayer] Next track preloaded and ready');
+}
+
+function onPreloadError(e: Event) {
+  console.warn('[AudioPlayer] Preload error:', e);
+  isPreloadReady.value = false;
+}
+
+// Preload the next track
+function preloadNextTrack() {
+  if (!audioStore.hasNext || !preloadAudioElement.value) return;
+  
+  const nextIndex = audioStore.currentIndex + 1;
+  const nextTrack = audioStore.playlist[nextIndex];
+  
+  if (nextTrack && !nextTrack.isM3u8) {
+    console.log(`[AudioPlayer] Preloading next track: ${nextTrack.title}`);
+    preloadAudioElement.value.src = nextTrack.url;
+    preloadAudioElement.value.load();
+  }
+}
+
+// Start crossfade
+function startCrossfade() {
+  if (!preloadAudioElement.value || !audioElement.value || !isPreloadReady.value) {
+    console.warn('[AudioPlayer] Cannot start crossfade - next track not ready');
+    return;
+  }
+  
+  isCrossfading.value = true;
+  console.log('[AudioPlayer] Starting crossfade transition');
+  
+  // Start playing the preloaded audio
+  preloadAudioElement.value.currentTime = 0;
+  preloadAudioElement.value.volume = 0;
+  preloadAudioElement.value.play().catch(err => {
+    console.error('[AudioPlayer] Failed to start crossfade:', err);
+    isCrossfading.value = false;
+  });
+  
+  // Save the current target volume (considering mute state)
+  const targetVolume = audioStore.isMuted ? 0 : audioStore.volume;
+  const currentVolume = audioElement.value.volume;
+  
+  // Fade volume
+  const fadeSteps = 10;
+  const fadeInterval = crossfadeDuration.value * 1000 / fadeSteps;
+  let step = 0;
+  
+  const fadeTimer = setInterval(() => {
+    step++;
+    const progress = step / fadeSteps;
+    
+    if (audioElement.value) {
+      audioElement.value.volume = currentVolume * (1 - progress);
+    }
+    if (preloadAudioElement.value) {
+      preloadAudioElement.value.volume = targetVolume * progress;
+    }
+    
+    if (step >= fadeSteps) {
+      clearInterval(fadeTimer);
+      // crossfade will complete in onEnded or completeCrossfade
+    }
+  }, fadeInterval);
+}
+
+// Complete crossfade transition
+function completeCrossfade() {
+  if (!isCrossfading.value || !preloadAudioElement.value) return;
+  
+  console.log('[AudioPlayer] Completing crossfade transition');
+  
+  // Stop the currently playing audio
+  if (audioElement.value) {
+    audioElement.value.pause();
+    audioElement.value.currentTime = 0;
+  }
+  
+  // Swap audio element references
+  const temp = audioElement.value;
+  audioElement.value = preloadAudioElement.value;
+  preloadAudioElement.value = temp;
+  
+  // Ensure the new main audio element has correct volume
+  if (audioElement.value) {
+    audioElement.value.volume = audioStore.isMuted ? 0 : audioStore.volume;
+  }
+  
+  // Clean up the old preload audio element
+  if (preloadAudioElement.value) {
+    preloadAudioElement.value.pause();
+    preloadAudioElement.value.src = '';
+    preloadAudioElement.value.volume = 1;
+  }
+  
+  // Reset state
+  isCrossfading.value = false;
+  isPreloadReady.value = false;
+  
+  // Update store state to the next track
+  audioStore.next();
+}
+
+// Smooth transition to the next track
+function smoothNextTrack() {
+  if (isPreloadReady.value && preloadAudioElement.value) {
+    // If preload is ready, switch directly
+    console.log('[AudioPlayer] Using preloaded track for smooth transition');
+    
+    // Stop current audio
+    if (audioElement.value) {
+      audioElement.value.pause();
+      audioElement.value.currentTime = 0;
+    }
+    
+    // Switch to preloaded audio
+    const temp = audioElement.value;
+    audioElement.value = preloadAudioElement.value;
+    preloadAudioElement.value = temp;
+    
+    // Ensure new audio volume is correct
+    if (audioElement.value) {
+      audioElement.value.volume = audioStore.isMuted ? 0 : audioStore.volume;
+      audioElement.value.currentTime = 0;
+    }
+    
+    // Clean up old preload audio element
+    if (preloadAudioElement.value) {
+      preloadAudioElement.value.pause();
+      preloadAudioElement.value.src = '';
+      preloadAudioElement.value.volume = 1;
+    }
+    
+    // Reset state
+    isPreloadReady.value = false;
+    
+    // Update store state
+    audioStore.next();
+  } else {
+    // Fallback to standard transition
+    console.log('[AudioPlayer] Fallback to standard track transition');
+    audioStore.next();
   }
 }
 
@@ -413,7 +622,10 @@ watch(() => audioStore.isPlaying, (isPlaying) => {
 // Watch for volume changes
 watch(() => [audioStore.volume, audioStore.isMuted], ([volume, isMuted]) => {
   if (!audioElement.value) return;
-  audioElement.value.volume = isMuted ? 0 : (volume as number);
+  // Only update the volume when not in crossfade to avoid interfering with the smooth transition
+  if (!isCrossfading.value) {
+    audioElement.value.volume = isMuted ? 0 : (volume as number);
+  }
 });
 
 // Watch for seek operations
@@ -431,6 +643,10 @@ watch(() => audioStore.currentTrack, async (newTrack) => {
   audioStore.updateDuration(0);
   audioStore.setLoading(true);
   audioStore.setError(null);
+  
+  // Reset smooth playback state
+  isPreloadReady.value = false;
+  isCrossfading.value = false;
   
   // Handle HLS streaming
   if (newTrack.isM3u8) {
@@ -512,20 +728,20 @@ watch(() => audioStore.currentTrack, async (newTrack) => {
     // Regular audio file
     console.log('[AudioPlayer] Setting up regular audio file:', newTrack.title);
     
-    // 先暂停当前播放，确保音频元素处于可控状态
+    // Pause current playback first to ensure audio element is in a controllable state
     audioElement.value.pause();
     
-    // 确保音频元素的src被正确设置
+    // Ensure the audio element's src is set correctly
     audioElement.value.src = newTrack.url;
     
-    // 设置预加载模式为“自动”，促使浏览器立即加载音频
+    // Set preload mode to "auto" to prompt the browser to load audio immediately
     audioElement.value.preload = 'auto';
     
-    // 强制触发加载
+    // Force load
     audioElement.value.load();
     
-    // 如果播放状态为true，尝试播放
-    // 注意：实际的播放将在onCanPlay或onLoadedData事件中处理
+    // If isPlaying is true, attempt to play
+    // Note: Actual playback will be handled in onCanPlay or onLoadedData events
     if (audioStore.isPlaying) {
       console.log('[AudioPlayer] Track is set to play when ready:', newTrack.title);
     }
@@ -545,6 +761,12 @@ onBeforeUnmount(() => {
   if (audioStore.hlsInstance) {
     audioStore.hlsInstance.destroy();
     audioStore.setHlsInstance(null);
+  }
+  
+  // Clean up preload audio element
+  if (preloadAudioElement.value) {
+    preloadAudioElement.value.pause();
+    preloadAudioElement.value.src = '';
   }
 });
 </script>

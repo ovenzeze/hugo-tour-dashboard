@@ -42,6 +42,9 @@ export const usePlaygroundUnifiedStore = defineStore('playgroundUnified', {
     validationResult: null as any,
     podcastSettingsSnapshot: {} as Partial<FullPodcastSettings>,
     selectedPersonaIdForHighlighting: null as string | number | null,
+    
+    // 内部状态（非响应式）
+    _analyzeScriptTimer: null as NodeJS.Timeout | null,
 
     // === 新增：Modal状态管理 ===
     showSynthesisModal: false,
@@ -93,7 +96,53 @@ export const usePlaygroundUnifiedStore = defineStore('playgroundUnified', {
         scriptContent: content,
         error: null
       });
+      
+      // 先进行基本解析
       this.parseScript();
+      
+      // 检测是否是用户输入的脚本内容（而不是AI生成的空白内容）
+      if (this.shouldAnalyzeUserScript(content)) {
+        console.log('[playgroundUnified] User script detected, triggering intelligent analysis...');
+        // 延迟执行分析，避免频繁调用
+        this.debounceAnalyzeUserScript();
+      }
+    },
+
+    // 判断是否应该分析用户脚本
+    shouldAnalyzeUserScript(content: string): boolean {
+      // 如果是空内容，不需要分析
+      if (!content || !content.trim()) {
+        return false;
+      }
+      
+      // 如果当前正在AI生成过程中，不要分析（避免干扰AI生成）
+      if (this.isLoading || this.aiScriptGenerationStep > 0) {
+        return false;
+      }
+      
+      // 检查内容是否包含对话格式（说话者：内容）
+      const hasDialogueFormat = /^[^:：]+[：:].+$/m.test(content);
+      
+      // 内容长度足够且包含对话格式才进行分析
+      return content.trim().length > 50 && hasDialogueFormat;
+    },
+
+    // 防抖的用户脚本分析
+    debounceAnalyzeUserScript() {
+      // 清除之前的定时器
+      if (this._analyzeScriptTimer) {
+        clearTimeout(this._analyzeScriptTimer);
+      }
+      
+      // 设置新的延迟分析
+      this._analyzeScriptTimer = setTimeout(async () => {
+        try {
+          await this.analyzeUserScript();
+        } catch (error) {
+          console.error('[playgroundUnified] Auto-analysis failed:', error);
+          // 分析失败不影响用户继续使用，只是没有智能优化而已
+        }
+      }, 1500); // 1.5秒延迟，给用户时间完成输入
     },
 
     // 2. 脚本解析（简化版）
@@ -258,6 +307,12 @@ export const usePlaygroundUnifiedStore = defineStore('playgroundUnified', {
 
     // 重置状态
     resetPlaygroundState() {
+      // 清理定时器
+      if (this._analyzeScriptTimer) {
+        clearTimeout(this._analyzeScriptTimer);
+        this._analyzeScriptTimer = null;
+      }
+      
       this.currentStep = 1;
       this.scriptContent = '';
       this.parsedSegments = [];
@@ -301,14 +356,18 @@ export const usePlaygroundUnifiedStore = defineStore('playgroundUnified', {
         this.aiScriptGenerationStep = 2;
         this.aiScriptGenerationStepText = 'Preparing AI generation request...';
         
-        // 智能语言检测：优先从主播角色检测，然后用户设置，最后默认值
+        // 🎯 语言优先级：用户手动选择 > 默认值，persona检测仅用于参考
+        const userSelectedLanguage = settingsStore.podcastSettings.language;
         const detectedLanguage = this.detectLanguageFromPersona(settingsStore);
-        const finalLanguage = detectedLanguage || settingsStore.podcastSettings.language || 'zh-CN';
+        
+        // 用户手动选择的语言具有绝对优先级
+        const finalLanguage = userSelectedLanguage || 'en-US';
         
         console.log('[playgroundUnified] Language detection:', {
-          detected: detectedLanguage,
-          userSetting: settingsStore.podcastSettings.language,
-          final: finalLanguage
+          userSelected: userSelectedLanguage,
+          detectedFromPersona: detectedLanguage,
+          finalLanguage: finalLanguage,
+          note: userSelectedLanguage ? 'Using user selection (highest priority)' : 'Using default en-US'
         });
         
         // 构建请求 - 修复persona传递格式
@@ -396,11 +455,12 @@ export const usePlaygroundUnifiedStore = defineStore('playgroundUnified', {
           }
         } else {
           // 用户已手动选择嘉宾，尊重用户选择
-          console.log('[playgroundUnified] Using user-selected guest personas:', guestPersonas.map(p => p.name));
+          console.log('[playgroundUnified] Using user-selected guest personas:', guestPersonas.filter(p => p).map(p => p!.name));
           requestBody.guestPersonas = guestPersonas;
           
           // 检查嘉宾语言兼容性，给出提示但不强制替换
           const incompatibleGuests = guestPersonas.filter(guest => {
+            if (!guest) return false;
             const isLanguageCompatible = !guest.language_support || 
               guest.language_support.length === 0 ||
               guest.language_support.some(lang => 
@@ -411,7 +471,7 @@ export const usePlaygroundUnifiedStore = defineStore('playgroundUnified', {
           });
           
           if (incompatibleGuests.length > 0) {
-            console.warn(`[playgroundUnified] Warning: Some selected guest personas may not fully support language "${finalLanguage}":`, incompatibleGuests.map(g => g.name), 'but respecting user choice');
+            console.warn(`[playgroundUnified] Warning: Some selected guest personas may not fully support language "${finalLanguage}":`, incompatibleGuests.filter(g => g).map(g => g!.name), 'but respecting user choice');
           }
         }
 
@@ -526,7 +586,7 @@ export const usePlaygroundUnifiedStore = defineStore('playgroundUnified', {
           script: this.parsedSegments,
           hostPersonaId: hostId,
           guestPersonaIds: settingsStore.getGuestPersonaIdsNumeric,
-          language: settingsStore.podcastSettings.language || 'zh-CN',
+          language: settingsStore.podcastSettings.language || 'en-US',
           ttsProvider: settingsStore.podcastSettings.ttsProvider || 'elevenlabs',
           synthesisParams: settingsStore.synthesisParams,
           topic: settingsStore.podcastSettings.topic,
@@ -826,6 +886,15 @@ Host: Great! Let's start today's topic then.`;
       this.isValidating = true;
       this.error = null;
       
+      // 在客户端显示分析开始通知
+      if (typeof window !== 'undefined') {
+        const { toast } = await import('vue-sonner');
+        toast.info('🧠 智能分析脚本中...', {
+          description: '正在提取说话者信息并生成元数据',
+          duration: 2000,
+        });
+      }
+      
       try {
         if (this.isScriptEmpty) {
           throw new Error('Script content is empty, cannot analyze');
@@ -856,14 +925,17 @@ Host: Great! Let's start today's topic then.`;
           if (analysisData.metadata) {
             const settingsStore = usePlaygroundSettingsStore();
             
-            // 更新播客元信息
-            if (analysisData.metadata.suggestedTitle) {
+            // 更新播客元信息（仅在当前为空或默认值时更新，尊重用户已有设置）
+            if (analysisData.metadata.suggestedTitle && (!settingsStore.podcastSettings.title || settingsStore.podcastSettings.title.trim() === '')) {
+              console.log('[playgroundUnified] Auto-setting podcast title:', analysisData.metadata.suggestedTitle);
               settingsStore.setPodcastTitle(analysisData.metadata.suggestedTitle);
             }
-            if (analysisData.metadata.suggestedTopic) {
+            if (analysisData.metadata.suggestedTopic && (!settingsStore.podcastSettings.topic || settingsStore.podcastSettings.topic.trim() === '')) {
+              console.log('[playgroundUnified] Auto-setting podcast topic:', analysisData.metadata.suggestedTopic);
               settingsStore.setPodcastTopic(analysisData.metadata.suggestedTopic);
             }
-            if (analysisData.metadata.suggestedDescription) {
+            if (analysisData.metadata.suggestedDescription && (!settingsStore.podcastSettings.topic || settingsStore.podcastSettings.topic.trim() === '')) {
+              console.log('[playgroundUnified] Auto-setting podcast description:', analysisData.metadata.suggestedDescription);
               settingsStore.setPodcastDescription(analysisData.metadata.suggestedDescription);
             }
             
@@ -882,6 +954,16 @@ Host: Great! Let's start today's topic then.`;
           }
           
           console.log('[playgroundUnified] Script analysis successful');
+          
+          // 在客户端显示成功通知
+          if (typeof window !== 'undefined') {
+            const { toast } = await import('vue-sonner');
+            toast.success('🎯 脚本智能分析完成', {
+              description: '已自动提取说话者信息并优化播客设置',
+              duration: 4000,
+            });
+          }
+          
           return {
             success: true,
             message: 'Script analysis successful! Automatic speaker information extraction and setting optimization completed.',

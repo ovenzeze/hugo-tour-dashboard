@@ -1,6 +1,6 @@
 <template>
   <div class=" py-2.5 px-3 flex items-center justify-between border-t ">
-    <!-- 导游头像 -->
+    <!-- Guide Avatar -->
     <div 
       class="w-10 h-10 rounded-full bg-black/75 flex items-center justify-center overflow-hidden relative flex-shrink-0 cursor-pointer transition-opacity hover:opacity-80" 
       @click="handleAvatarClick" 
@@ -13,13 +13,13 @@
           size="20" 
         />
       </div>
-      <!-- 语音波浪动画 (only when playing) -->
+      <!-- Voice Wave Animation (only when playing) -->
       <div v-if="isPlaying" class="absolute inset-0 flex items-center justify-center">
         <div class="voice-wave bg-white/30"></div>
       </div>
     </div>
 
-    <!-- 询问导游按钮 -->
+    <!-- Ask Guide Button -->
     <button 
       class="flex-grow mx-3 bg-black/75 hover:bg-primary-950 text-white py-2.5 px-4 rounded-full flex items-center justify-center gap-1.5 shadow-md flex-shrink-0"
       @click="$emit('ask-guide')"
@@ -28,7 +28,7 @@
       <span>Ask Guide</span>
     </button>
       
-    <!-- 语音按钮 -->
+    <!-- Voice Button -->
     <button 
       class="w-11 h-11 rounded-full bg-black/75 hover:bg-neutral-800 text-white/75 bg-primary-900  flex items-center justify-center hover:bg-primary-950 transition-colors duration-200 shadow-md mr-2 flex-shrink-0"
       @touchstart="$emit('start-listening')"
@@ -40,7 +40,7 @@
       <icon :name="isListening ? 'ph:microphone' : 'ph:microphone-slash'" size="20" />
     </button>
       
-    <!-- 拍照按钮 -->
+    <!-- Camera Button -->
     <button class="w-11 h-10 bg-black/75 hover:bg-neutral-800 text-white/75 p-2.5 rounded-full shadow-sm flex-shrink-0">
       <icon name="ph:camera" size="20" />
     </button>
@@ -50,14 +50,14 @@
 <script setup lang="ts">
 import { computed } from 'vue';
 
-// 属性定义
+// Props definition
 const props = defineProps<{
   isPlaying: boolean;
   isPaused: boolean;
   isListening: boolean;
 }>();
 
-// 事件定义
+// Emits definition
 const emit = defineEmits([
   'ask-guide',
   'start-listening',
@@ -67,7 +67,7 @@ const emit = defineEmits([
   'resume-audio'
 ]);
 
-// 点击头像处理
+// Handle avatar click
 function handleAvatarClick() {
   if (props.isPlaying) {
     emit('pause-audio');
@@ -80,7 +80,7 @@ function handleAvatarClick() {
 </script>
 
 <style scoped>
-/* 语音波浪动画 */
+/* Voice wave animation */
 .voice-wave {
   width: 24px;
   height: 24px;
@@ -100,5 +100,5 @@ function handleAvatarClick() {
   }
 }
 
-/* Phosphor图标需要基础样式 */
+/* Basic styles for Phosphor icons */
 </style> 

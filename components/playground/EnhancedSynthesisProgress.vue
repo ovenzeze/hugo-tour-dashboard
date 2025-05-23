@@ -103,10 +103,18 @@
                       :src="segment.persona.avatar_url" 
                       :alt="segment.speaker"
                     />
-                    <AvatarFallback class="text-xs md:text-sm font-semibold bg-primary/10">
+                    <AvatarFallback :class="[
+                      'text-xs md:text-sm font-semibold',
+                      segment.persona ? 'bg-primary/20' : 'bg-muted/40'
+                    ]">
                       {{ getInitials(segment.speaker) }}
                     </AvatarFallback>
                   </Avatar>
+                  
+                  <!-- 如果没有匹配到persona，显示一个小图标 -->
+                  <div v-if="!segment.persona" class="absolute bottom-0 right-0 w-3 h-3 md:w-4 md:h-4 bg-muted-foreground/60 rounded-full flex items-center justify-center">
+                    <Icon name="ph:user" class="w-2 h-2 md:w-2.5 md:h-2.5 text-white" />
+                  </div>
                 </div>
                 
                 <!-- 状态覆盖层 -->
@@ -385,7 +393,8 @@ const displaySegments = computed(() => {
   if (props.progressData.segments && props.progressData.segments.length > 0) {
     return props.progressData.segments.slice(0, maxDisplaySegments.value).map(segment => ({
       ...segment,
-      persona: findPersonaByName(segment.speaker)
+      // 优先使用已有的persona，否则通过ID查找
+      persona: segment.persona || findPersonaByName(segment.speaker)
     }));
   }
   

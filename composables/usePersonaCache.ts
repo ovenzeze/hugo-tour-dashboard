@@ -88,6 +88,86 @@ export function usePersonaCache() {
     return Array.from(languages).sort();
   }
 
+  // 🔧 新增：获取推荐的Host personas
+  function getRecommendedHosts(languageCode: string): Persona[] {
+    if (!languageCode) return [];
+    
+    return personasCache.value
+      .filter(persona => {
+        // 检查是否推荐为Host且支持该语言
+        const isRecommendedHost = persona.is_recommended_host === true;
+        const supportsLanguage = persona.language_support && 
+          Array.isArray(persona.language_support) && 
+          persona.language_support.includes(languageCode);
+        
+        return isRecommendedHost && supportsLanguage;
+      })
+      .sort((a, b) => {
+        // 按优先级排序（数字越小优先级越高）
+        const priorityA = a.recommended_priority || 100;
+        const priorityB = b.recommended_priority || 100;
+        return priorityA - priorityB;
+      });
+  }
+
+  // 🔧 新增：获取推荐的Guest personas
+  function getRecommendedGuests(languageCode: string): Persona[] {
+    if (!languageCode) return [];
+    
+    return personasCache.value
+      .filter(persona => {
+        // 检查是否推荐为Guest且支持该语言
+        const isRecommendedGuest = persona.is_recommended_guest === true;
+        const supportsLanguage = persona.language_support && 
+          Array.isArray(persona.language_support) && 
+          persona.language_support.includes(languageCode);
+        
+        return isRecommendedGuest && supportsLanguage;
+      })
+      .sort((a, b) => {
+        // 按优先级排序（数字越小优先级越高）
+        const priorityA = a.recommended_priority || 100;
+        const priorityB = b.recommended_priority || 100;
+        return priorityA - priorityB;
+      });
+  }
+
+  // 🔧 新增：获取首个推荐的Host（用于fallback）
+  function getFirstRecommendedHost(languageCode: string): Persona | undefined {
+    const recommendedHosts = getRecommendedHosts(languageCode);
+    return recommendedHosts.length > 0 ? recommendedHosts[0] : undefined;
+  }
+
+  // 🔧 新增：获取首个推荐的Guest（用于fallback）
+  function getFirstRecommendedGuest(languageCode: string): Persona | undefined {
+    const recommendedGuests = getRecommendedGuests(languageCode);
+    return recommendedGuests.length > 0 ? recommendedGuests[0] : undefined;
+  }
+
+  // 🔧 新增：获取默认Host名称（用于脚本生成时的fallback）
+  function getDefaultHostName(languageCode: string): string {
+    const recommendedHost = getFirstRecommendedHost(languageCode);
+    if (recommendedHost) {
+      return recommendedHost.name;
+    }
+    
+    // 如果没有推荐的Host，使用语言基础的fallback
+    const langCode = languageCode.toLowerCase().startsWith('zh') ? 'zh' : 'en';
+    return langCode === 'zh' ? '主持人' : 'Smith';
+  }
+
+  // 🔧 新增：获取默认Guest名称（用于脚本生成时的fallback）
+  function getDefaultGuestName(languageCode: string): string {
+    const recommendedGuest = getFirstRecommendedGuest(languageCode);
+    if (recommendedGuest) {
+      return recommendedGuest.name;
+    }
+    
+    // 如果没有推荐的Guest，使用语言基础的fallback
+    const langCode = languageCode.toLowerCase().startsWith('zh') ? 'zh' : 'en';
+    return langCode === 'zh' ? '嘉宾' : 'Guest';
+  }
+
   return {
     personas: computed(() => personasCache.value),
     isLoading: computed(() => isLoading.value),
@@ -99,6 +179,13 @@ export function usePersonaCache() {
     // 新增的语言过滤功能
     getPersonasByLanguage,
     getRandomPersonaByLanguage,
-    getSupportedLanguages
+    getSupportedLanguages,
+    // 新增的推荐功能
+    getRecommendedHosts,
+    getRecommendedGuests,
+    getFirstRecommendedHost,
+    getFirstRecommendedGuest,
+    getDefaultHostName,
+    getDefaultGuestName
   };
 } 

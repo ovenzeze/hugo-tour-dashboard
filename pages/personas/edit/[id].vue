@@ -82,6 +82,20 @@
 
             </div>
           </div>
+
+          <!-- Recommendation Settings Section -->
+          <div v-if="currentPersonaData" class="pt-8">
+            <div>
+              <h3 class="text-lg leading-6 font-medium text-gray-900 dark:text-gray-100">Recommendation Settings</h3>
+              <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">Configure whether this persona should be recommended for Host or Guest roles.</p>
+            </div>
+            <div class="mt-6">
+              <PersonaRecommendationControls 
+                :persona="currentPersonaData"
+                @updated="handlePersonaUpdated"
+              />
+            </div>
+          </div>
         </div>
 
         <div class="pt-5">
@@ -120,6 +134,13 @@ interface ApiPersonaData {
   avatar_url: string | null;
   system_prompt: string | null;
   status: 'active' | 'inactive' | 'deprecated';
+  tts_provider: string | null;
+  voice_model_identifier: string | null;
+  voice_description: string | null;
+  language_support: string[] | null;
+  is_recommended_host: boolean | null;
+  is_recommended_guest: boolean | null;
+  recommended_priority: number | null;
 }
 
 // Interface for the form data
@@ -148,6 +169,7 @@ const isSubmitting = ref(false);
 const submitError = ref<string | null>(null);
 const pendingPersonaData = ref(true);
 const personaError = ref<Error | null>(null);
+const currentPersonaData = ref<ApiPersonaData | null>(null);
 
 // Fetch persona data on component mount
 onMounted(async () => {
@@ -156,6 +178,7 @@ onMounted(async () => {
       pendingPersonaData.value = true;
       const fetchedPersona = await $fetch<ApiPersonaData>(`/api/personas/${personaId.value}`);
       if (fetchedPersona) {
+        currentPersonaData.value = fetchedPersona;
         formData.value = { 
           persona_id: fetchedPersona.persona_id,
           name: fetchedPersona.name || '',
@@ -203,6 +226,11 @@ const handleSubmit = async () => {
   } finally {
     isSubmitting.value = false;
   }
+};
+
+// Handle persona recommendation updates
+const handlePersonaUpdated = (updatedPersona: ApiPersonaData) => {
+  currentPersonaData.value = updatedPersona;
 };
 
 definePageMeta({

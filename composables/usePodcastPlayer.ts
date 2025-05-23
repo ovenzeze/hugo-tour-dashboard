@@ -67,9 +67,21 @@ export function usePodcastPlayer() {
       return [];
     }
 
+    // 首先确保segments按照idx字段正确排序
+    const sortedSegments = [...podcast.podcast_segments].sort((a, b) => {
+      const aIdx = a.idx ?? 0;
+      const bIdx = b.idx ?? 0;
+      return aIdx - bIdx;
+    });
+
+    console.log(`[PodcastPlayer] Processing ${sortedSegments.length} segments in correct order`);
+
     const tracks: AudioTrack[] = [];
 
-    podcast.podcast_segments.forEach((segment, index) => {
+    sortedSegments.forEach((segment, arrayIndex) => {
+      // 使用segment的实际idx字段作为顺序索引
+      const segmentIdx = segment.idx ?? arrayIndex;
+      
       if (segment.segment_audios && segment.segment_audios.length > 0) {
         // 只添加有音频的片段
         const audio = segment.segment_audios[0]; // 取第一个音频
@@ -107,13 +119,13 @@ export function usePodcastPlayer() {
           speakerName = segment.data.speaker;
         }
         
-        // 调试日志
-        console.log(`[PodcastPlayer] Segment ${index} data:`, {
+        // 调试日志 - 显示实际的segment idx
+        console.log(`[PodcastPlayer] Segment idx=${segmentIdx} (array position ${arrayIndex}) data:`, {
           id: segment.segment_id,
+          idx: segmentIdx,
           speaker: speakerName,
           content: content.substring(0, 50) + (content.length > 50 ? '...' : ''),
-          // @ts-ignore - 打印原始数据便于调试
-          rawData: segment.data ? JSON.stringify(segment.data).substring(0, 100) : 'No data'
+          audioUrl: audio.audio_url?.substring(0, 80) + '...'
         });
         
         // 使用说话人和内容创建标题
@@ -122,9 +134,9 @@ export function usePodcastPlayer() {
           title = `${speakerName}: ${content ? content.substring(0, 60) + (content.length > 60 ? '...' : '') : ''}`;
         }
         
-        // 创建音频轨道 - 使用索引确保ID唯一
+        // 创建音频轨道 - 使用segment的实际idx确保正确排序
         const track: AudioTrack = {
-          id: `podcast-${podcast.podcast_id}-segment-${index}-${Date.now()}`,
+          id: `podcast-${podcast.podcast_id}-segment-${segmentIdx}-${segment.segment_id || arrayIndex}`,
           title: title,
           url: audio.audio_url || '',
           duration: audio.duration_ms || 0,
@@ -132,22 +144,24 @@ export function usePodcastPlayer() {
           meta: {
             type: 'podcast',
             podcastId: podcast.podcast_id,
-            segmentId: segment.segment_id ? String(segment.segment_id) : String(index),
+            segmentId: segment.segment_id ? String(segment.segment_id) : String(segmentIdx),
+            segmentIdx: segmentIdx, // 添加实际的segment索引便于调试
             speaker: speakerName,
             fullText: content
           }
         };
         
         tracks.push(track);
+      } else {
+        console.log(`[PodcastPlayer] Skipping segment idx=${segmentIdx} - no audio available`);
       }
     });
 
-    console.log(`[PodcastPlayer] Created ${tracks.length} tracks with unique IDs`);
-    // 打印第一个曲目的标题和元数据，便于调试
-    if (tracks.length > 0) {
-      console.log(`[PodcastPlayer] First track title: ${tracks[0].title}`);
-      console.log(`[PodcastPlayer] First track meta:`, tracks[0].meta);
-    }
+    console.log(`[PodcastPlayer] Created ${tracks.length} tracks in correct order:`);
+    // 打印所有曲目的顺序和索引，便于调试
+    tracks.forEach((track, index) => {
+      console.log(`[PodcastPlayer] Track ${index + 1}: idx=${track.meta?.segmentIdx}, title: ${track.title.substring(0, 50)}...`);
+    });
     
     return tracks;
   }

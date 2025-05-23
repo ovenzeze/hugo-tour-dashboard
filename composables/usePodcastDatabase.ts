@@ -15,7 +15,7 @@ export const usePodcastDatabase = () => {
   const loadingSelected = ref(false); // For loading individual podcast details
   const error = ref<string | null>(null);
 
-  const commonSelectQuery = '*, cover_image_url, podcast_segments(*, segment_audios(*)), host_persona:personas!podcasts_host_persona_id_fkey(*), creator_persona:personas!podcasts_creator_persona_id_fkey(*), guest_persona:personas!podcasts_guest_persona_id_fkey(*)';
+  const commonSelectQuery = '*, cover_image_url, podcast_segments(*, segment_audios(*)).order(idx), host_persona:personas!podcasts_host_persona_id_fkey(*), creator_persona:personas!podcasts_creator_persona_id_fkey(*), guest_persona:personas!podcasts_guest_persona_id_fkey(*)';
 
   // Fetch all podcasts with nested segments and segment audios
   const fetchPodcasts = async () => {

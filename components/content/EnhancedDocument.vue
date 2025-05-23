@@ -77,14 +77,14 @@ onMounted(() => {
     contentSections.forEach((section, index) => {
       setTimeout(() => {
         section.classList.add('content-loaded');
-      }, 100 * index); // 顺序加载各个部分
+      }, 100 * index); // Sequential loading of sections
     });
   }, 50);
 })
 </script>
 
 <style scoped>
-/* 添加内容过渡动画 */
+/* Add content transition animation */
 .content-section {
   opacity: 0;
   transform: translateY(10px);

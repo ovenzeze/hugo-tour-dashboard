@@ -90,7 +90,7 @@
           <Icon name="ph:twitter-logo" class="h-5 w-5 text-sky-500"/>Twitter
         </Button>
 
-        <!-- 微信二维码弹窗 -->
+        <!-- WeChat QR Code Modal -->
         <Dialog v-model:open="showWeChatQr">
           <DialogContent class="flex flex-col items-center justify-center gap-4 py-8">
             <div class="text-lg font-medium">Scan with WeChat to share</div>
@@ -133,7 +133,7 @@ const shareIframeSrc = computed(() => {
 const iframeError = ref(false);
 const showWeChatQr = ref(false);
 
-// 监听 podcast 变化，重置 iframeError
+// Watch for podcast changes, reset iframeError
 watch(() => props.podcast, () => {
   iframeError.value = false;
 }, { immediate: true });

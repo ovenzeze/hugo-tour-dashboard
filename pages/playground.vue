@@ -121,7 +121,7 @@ const { mobileContentHeight, isMobile } = useMobileLayout();
 
 // Container style for responsive height
 const containerStyle = computed(() => ({
-  height: isMobile.value ? mobileContentHeight.value : '100vh'
+  height: isMobile.value ? mobileContentHeight.value : 'calc(100vh - 2rem)'
 }));
 
 // Ensure personas are loaded
@@ -206,7 +206,7 @@ async function loadPodcastIntoPlayground(podcastId: string) {
     settingsStore.updatePodcastSettings({
       title: podcastDetails.settings.title,
       topic: podcastDetails.settings.topic,
-      language: podcastDetails.settings.language || 'zh',
+      language: podcastDetails.settings.language || 'en-US',
       hostPersonaId: podcastDetails.settings.hostPersonaId,
       guestPersonaIds: podcastDetails.settings.guestPersonaIds || [],
       ttsProvider: podcastDetails.settings.ttsProvider || 'volcengine'

@@ -95,7 +95,7 @@ export default defineEventHandler(async (event): Promise<PodcastDetailsResponse>
     const settings = {
       title: podcast.title || 'Untitled Podcast',
       topic: podcast.topic || undefined,
-      language: 'zh', // TODO: 从数据库获取或推断
+      language: 'en-US', // TODO: 从数据库获取或推断
       hostPersonaId: podcast.host_persona_id || undefined,
       guestPersonaIds: podcast.guest_persona_id ? [podcast.guest_persona_id] : [],
       ttsProvider: 'volcengine' // TODO: 从数据库获取
@@ -109,7 +109,7 @@ export default defineEventHandler(async (event): Promise<PodcastDetailsResponse>
         id: podcast.podcast_id,
         title: podcast.title || 'Untitled Podcast',
         topic: podcast.topic || undefined,
-        language: 'zh',
+        language: 'en-US',
         host_persona_id: podcast.host_persona_id || undefined,
         guest_persona_id: podcast.guest_persona_id || undefined,
         created_at: podcast.created_at || new Date().toISOString()

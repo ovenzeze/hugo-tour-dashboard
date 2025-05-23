@@ -119,7 +119,7 @@
     </div>
 
     <!-- Guest Characters -->
-    <div class="flex items-center gap-3">
+    <div class="flex items-center gap-3 w-full">
       <TooltipProvider :delay-duration="100">
         <Tooltip>
           <TooltipTrigger as-child>
@@ -137,7 +137,7 @@
         :personas="availableGuestPersonas"
         :selection-mode="'multiple'"
         placeholder="Select Guest Persona(s) (Optional)"
-        class="flex-grow"
+        class="flex-grow w-full"
       />
     </div>
 
@@ -245,7 +245,8 @@ const segmentOptions = ref([5, 10, 20, 30, 40, 50]);
 const settingsStore = usePlaygroundSettingsStore();
 const { podcastSettings } = storeToRefs(settingsStore);
 
-const { personas: cachedPersonas, isLoading: personasLoading, fetchPersonas } = usePersonaCache();
+const { personas: cachedPersonas, isLoading: personasLoading, fetchPersonas, getFirstRecommendedHost, getFirstRecommendedGuest } = usePersonaCache();
+const personaCache = { getFirstRecommendedHost, getFirstRecommendedGuest };
 
 onMounted(() => {
   if (cachedPersonas.value.length === 0) {
@@ -402,18 +403,44 @@ watch(() => podcastSettings.value.language, (newLanguage) => {
   const newSettings: Partial<FullPodcastSettings> = {};
 
   if (personasSupportingLang.length > 0) {
+    // 检查当前Host是否支持新语言
     const hostPersona = cachedPersonas.value.find(p => p.persona_id === podcastSettings.value.hostPersonaId);
     if (hostPersona && (!hostPersona.language_support || !hostPersona.language_support.includes(langCodeToFilter))) {
-      newSettings.hostPersonaId = undefined;
+      // 🔧 优先尝试使用推荐的Host
+      const recommendedHost = personaCache.getFirstRecommendedHost(langCodeToFilter);
+      if (recommendedHost) {
+        console.log(`[PodcastSettingsForm] Language changed, switching to recommended host: ${recommendedHost.name}`);
+        newSettings.hostPersonaId = recommendedHost.persona_id;
+      } else {
+        // 使用第一个支持新语言的persona
+        const firstSupported = personasSupportingLang[0];
+        if (firstSupported) {
+          console.log(`[PodcastSettingsForm] Language changed, switching to first available host: ${firstSupported.name}`);
+          newSettings.hostPersonaId = firstSupported.persona_id;
+        } else {
+          newSettings.hostPersonaId = undefined;
+        }
+      }
       needsUpdate = true;
     }
 
+    // 检查当前Guests是否支持新语言
     if (podcastSettings.value.guestPersonaIds && podcastSettings.value.guestPersonaIds.length > 0) {
       const newGuestIds = podcastSettings.value.guestPersonaIds.filter(guestId => {
         const guestPersona = cachedPersonas.value.find(p => p.persona_id === guestId);
         return guestPersona && guestPersona.language_support && guestPersona.language_support.includes(langCodeToFilter);
       });
+      
       if (newGuestIds.length !== podcastSettings.value.guestPersonaIds.length) {
+        // 如果有些guest被过滤了，尝试添加推荐的guest
+        if (newGuestIds.length === 0) {
+          const recommendedGuest = personaCache.getFirstRecommendedGuest(langCodeToFilter);
+          const currentHostId = newSettings.hostPersonaId || podcastSettings.value.hostPersonaId;
+          if (recommendedGuest && recommendedGuest.persona_id !== currentHostId) {
+            console.log(`[PodcastSettingsForm] Language changed, adding recommended guest: ${recommendedGuest.name}`);
+            newGuestIds.push(recommendedGuest.persona_id);
+          }
+        }
         newSettings.guestPersonaIds = newGuestIds;
         needsUpdate = true;
       }
@@ -444,24 +471,72 @@ watch(cachedPersonas, (loadedPersonas) => {
     let newGuestIds = currentSettings.guestPersonaIds || [];
     let needsStoreUpdate = false;
 
-    // Select first available persona as default host if none is selected
+    // Get current language for recommendations
+    const currentLanguage = currentSettings.language || 'zh-CN';
+
+    // 🔧 优先使用推荐的Host，如果没有选择Host的话
     if (newHostId === undefined && loadedPersonas.length > 0) {
-      const defaultHost = loadedPersonas[0]; // Simple default
-      if (defaultHost && defaultHost.persona_id !== undefined) {
-        newHostId = defaultHost.persona_id;
+      // 首先尝试获取推荐的Host
+      const recommendedHost = personaCache.getFirstRecommendedHost(currentLanguage);
+      if (recommendedHost && recommendedHost.persona_id !== undefined) {
+        console.log(`[PodcastSettingsForm] Using recommended host: ${recommendedHost.name} for language: ${currentLanguage}`);
+        newHostId = recommendedHost.persona_id;
         needsStoreUpdate = true;
+      } else {
+        // 如果没有推荐的Host，使用第一个支持该语言的persona
+        const languageSupported = loadedPersonas.find(p => 
+          p.language_support && 
+          Array.isArray(p.language_support) && 
+          p.language_support.includes(currentLanguage)
+        );
+        if (languageSupported && languageSupported.persona_id !== undefined) {
+          console.log(`[PodcastSettingsForm] Using first available host for language: ${currentLanguage}`);
+          newHostId = languageSupported.persona_id;
+          needsStoreUpdate = true;
+        } else if (loadedPersonas[0] && loadedPersonas[0].persona_id !== undefined) {
+          // 最后的fallback：使用第一个可用的persona
+          console.log(`[PodcastSettingsForm] Using fallback first persona as host`);
+          newHostId = loadedPersonas[0].persona_id;
+          needsStoreUpdate = true;
+        }
       }
     }
 
-    // Select a different persona as default guest if no guests are selected and host is selected
+    // 🔧 优先使用推荐的Guest，如果没有选择Guest的话
     if (newGuestIds.length === 0 && newHostId !== undefined && loadedPersonas.length > 1) {
-      const potentialGuest = loadedPersonas.find(p =>
-        p.persona_id !== undefined &&
-        p.persona_id !== newHostId
-      ); // Find any persona that is not the host
-      if (potentialGuest && potentialGuest.persona_id !== undefined) {
-        newGuestIds = [potentialGuest.persona_id];
+      // 首先尝试获取推荐的Guest
+      const recommendedGuest = personaCache.getFirstRecommendedGuest(currentLanguage);
+      if (recommendedGuest && 
+          recommendedGuest.persona_id !== undefined && 
+          recommendedGuest.persona_id !== newHostId) {
+        console.log(`[PodcastSettingsForm] Using recommended guest: ${recommendedGuest.name} for language: ${currentLanguage}`);
+        newGuestIds = [recommendedGuest.persona_id];
         needsStoreUpdate = true;
+      } else {
+        // 如果没有推荐的Guest，使用第一个不是Host的、支持该语言的persona
+        const potentialGuest = loadedPersonas.find(p =>
+          p.persona_id !== undefined &&
+          p.persona_id !== newHostId &&
+          p.language_support && 
+          Array.isArray(p.language_support) && 
+          p.language_support.includes(currentLanguage)
+        );
+        if (potentialGuest && potentialGuest.persona_id !== undefined) {
+          console.log(`[PodcastSettingsForm] Using first available guest for language: ${currentLanguage}`);
+          newGuestIds = [potentialGuest.persona_id];
+          needsStoreUpdate = true;
+        } else {
+          // 最后的fallback：使用任何不是Host的persona
+          const fallbackGuest = loadedPersonas.find(p =>
+            p.persona_id !== undefined &&
+            p.persona_id !== newHostId
+          );
+          if (fallbackGuest && fallbackGuest.persona_id !== undefined) {
+            console.log(`[PodcastSettingsForm] Using fallback guest`);
+            newGuestIds = [fallbackGuest.persona_id];
+            needsStoreUpdate = true;
+          }
+        }
       }
     }
 

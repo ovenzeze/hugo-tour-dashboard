@@ -1,3 +1,6 @@
+// Note: We'll use fallback values here since server-side doesn't have access to PersonaCache
+// The PersonaCache-based recommendations are primarily for client-side UI
+
 export default defineEventHandler(async (event) => {
   try {
     const body = await readBody(event);
@@ -82,7 +85,7 @@ export default defineEventHandler(async (event) => {
 
     let analysisResult;
     try {
-      const responseContent = groqResponse.choices[0]?.message?.content;
+      const responseContent = (groqResponse as any).choices[0]?.message?.content;
       if (!responseContent) {
         throw new Error('No response content from GROQ API');
       }
@@ -97,7 +100,7 @@ export default defineEventHandler(async (event) => {
       analysisResult = {
         success: true,
         language: basicAnalysis.language,
-        detectedLanguageName: basicAnalysis.languageName,
+        detectedLanguageName: basicAnalysis.detectedLanguageName,
         speakers: basicAnalysis.speakers,
         formattedScript: basicAnalysis.formattedScript,
         metadata: basicAnalysis.metadata,
@@ -182,7 +185,7 @@ function analyzeScriptBasic(scriptContent: string) {
       order++;
     } else {
       // 如果没有明确的说话者格式，假设是默认说话者
-      const defaultSpeaker = language === 'zh' ? '主持人' : 'Host';
+      const defaultSpeaker = language === 'zh' ? '主持人' : 'Smith';
       speakers.add(defaultSpeaker);
       segments.push({ speaker: defaultSpeaker, text: trimmedLine, order });
       formattedLines.push(`${defaultSpeaker}: ${trimmedLine}`);
@@ -197,11 +200,12 @@ function analyzeScriptBasic(scriptContent: string) {
     return { name, role, segments: segmentCount };
   });
   
-  // 生成元信息
-  const firstLine = segments[0]?.text || '';
-  const suggestedTitle = firstLine.length > 50 ? 
-    firstLine.substring(0, 47) + '...' : 
-    firstLine || (language === 'zh' ? '新播客节目' : 'New Podcast Episode');
+  // 生成智能的播客标题和主题
+  const contentForAnalysis = segments.slice(0, 3).map(s => s.text).join(' ');
+  const titleAndTopic = generateSmartMetadata(contentForAnalysis, language, speakerArray);
+  
+  const suggestedTitle = titleAndTopic.title || (language === 'zh' ? '新播客节目' : 'New Podcast Episode');
+  const suggestedTopic = titleAndTopic.topic || (language === 'zh' ? '一般讨论' : 'General Discussion');
   
   return {
     success: true,
@@ -211,7 +215,7 @@ function analyzeScriptBasic(scriptContent: string) {
     formattedScript: formattedLines.join('\n'),
     metadata: {
       suggestedTitle,
-      suggestedTopic: language === 'zh' ? '一般讨论' : 'General Discussion',
+      suggestedTopic,
       suggestedDescription: language === 'zh' ? 
         '这是一个根据用户脚本生成的播客节目。' : 
         'This is a podcast episode generated from user script.',
@@ -220,6 +224,106 @@ function analyzeScriptBasic(scriptContent: string) {
     },
     segments
   };
+}
+
+// 智能生成播客标题和主题
+function generateSmartMetadata(content: string, language: string, speakers: any[]) {
+  const contentLower = content.toLowerCase();
+  
+  // 关键词检测
+  const keywordMap = {
+    zh: {
+      tech: ['人工智能', 'ai', '科技', '技术', '编程', '代码', '软件', '算法', '数据', '机器学习', '深度学习'],
+      business: ['商业', '企业', '创业', '投资', '金融', '经济', '市场', '营销', '管理'],
+      health: ['健康', '医疗', '养生', '运动', '心理', '健康', '医生', '药物'],
+      education: ['教育', '学习', '大学', '学校', '知识', '研究', '学术', '培训'],
+      lifestyle: ['生活', '旅行', '美食', '文化', '艺术', '电影', '音乐', '读书'],
+      interview: ['访谈', '专访', '对话', '交流', '分享', '经验', '故事']
+    },
+    en: {
+      tech: ['artificial intelligence', 'ai', 'technology', 'tech', 'programming', 'code', 'software', 'algorithm', 'data', 'machine learning', 'deep learning'],
+      business: ['business', 'startup', 'investment', 'finance', 'economy', 'market', 'marketing', 'management'],
+      health: ['health', 'medical', 'fitness', 'exercise', 'psychology', 'doctor', 'medicine'],
+      education: ['education', 'learning', 'university', 'school', 'knowledge', 'research', 'academic', 'training'],
+      lifestyle: ['lifestyle', 'travel', 'food', 'culture', 'art', 'movie', 'music', 'reading'],
+      interview: ['interview', 'conversation', 'discussion', 'sharing', 'experience', 'story']
+    }
+  };
+  
+  const keywords = keywordMap[language as keyof typeof keywordMap] || keywordMap.en;
+  let detectedCategory = 'general';
+  let categoryScore = 0;
+  
+  // 检测主题类别
+  for (const [category, terms] of Object.entries(keywords)) {
+    const score = (terms as string[]).reduce((acc: number, term: string) => {
+      const matches = (content.match(new RegExp(term, 'gi')) || []).length;
+      return acc + matches;
+    }, 0);
+    
+    if (score > categoryScore) {
+      categoryScore = score;
+      detectedCategory = category;
+    }
+  }
+  
+  // 生成标题
+  let title = '';
+  let topic = '';
+  
+  if (language === 'zh') {
+    const titleTemplates = {
+      tech: ['科技前沿对话', '人工智能探讨', '技术创新分享', '科技趋势解析'],
+      business: ['商业智慧对话', '创业经验分享', '商业洞察', '企业管理探讨'],
+      health: ['健康生活分享', '医疗健康对话', '养生智慧', '健康管理'],
+      education: ['教育智慧分享', '学习经验对话', '知识探索', '教育创新'],
+      lifestyle: ['生活方式分享', '文化艺术对话', '生活智慧', '品质生活'],
+      interview: ['深度访谈', '专家对话', '经验分享', '人物访谈'],
+      general: ['精彩对话', '深度交流', '智慧分享', '思想碰撞']
+    };
+    
+    const topicTemplates = {
+      tech: '科技创新',
+      business: '商业洞察',
+      health: '健康生活',
+      education: '教育学习',
+      lifestyle: '生活方式',
+      interview: '人物访谈',
+      general: '综合讨论'
+    };
+    
+    const titleTemplate = titleTemplates[detectedCategory as keyof typeof titleTemplates];
+    const topicTemplate = topicTemplates[detectedCategory as keyof typeof topicTemplates];
+    title = titleTemplate?.[Math.floor(Math.random() * titleTemplate.length)] || '播客对话';
+    topic = topicTemplate || '综合讨论';
+  } else {
+    const titleTemplates = {
+      tech: ['Tech Innovation Talk', 'AI Discussion', 'Technology Insights', 'Future Tech'],
+      business: ['Business Wisdom', 'Startup Stories', 'Business Insights', 'Entrepreneurship'],
+      health: ['Health & Wellness', 'Medical Insights', 'Wellness Talk', 'Health Management'],
+      education: ['Education Insights', 'Learning Experience', 'Knowledge Sharing', 'Academic Discussion'],
+      lifestyle: ['Lifestyle Talk', 'Culture & Arts', 'Life Wisdom', 'Quality Living'],
+      interview: ['In-Depth Interview', 'Expert Talk', 'Personal Stories', 'Profile Interview'],
+      general: ['Great Conversation', 'Deep Discussion', 'Wisdom Sharing', 'Thought Exchange']
+    };
+    
+    const topicTemplates = {
+      tech: 'Technology',
+      business: 'Business',
+      health: 'Health & Wellness',
+      education: 'Education',
+      lifestyle: 'Lifestyle',
+      interview: 'Interview',
+      general: 'General Discussion'
+    };
+    
+    const titleTemplate = titleTemplates[detectedCategory as keyof typeof titleTemplates];
+    const topicTemplate = topicTemplates[detectedCategory as keyof typeof topicTemplates];
+    title = titleTemplate?.[Math.floor(Math.random() * titleTemplate.length)] || 'Podcast Discussion';
+    topic = topicTemplate || 'General Discussion';
+  }
+  
+  return { title, topic };
 }
 
 // 推断说话者角色

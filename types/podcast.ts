@@ -41,7 +41,10 @@ export type Podcast = Database['public']['Tables']['podcasts']['Row'] & {
   creator_persona?: Persona | null; // Use the directly re-exported Persona
   guest_persona?: Persona | null; // Use the directly re-exported Persona
   // cover_image_url is in DB schema but re-iterated here for clarity from usePodcastDatabase
-  cover_image_url?: string | null; 
+  cover_image_url?: string | null;
+  
+  // Added for PersonaStats component
+  total_word_count?: number | null;
 };
 
 export interface CombineAudioResponse {

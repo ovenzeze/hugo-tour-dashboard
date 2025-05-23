@@ -1,50 +1,40 @@
 <template>
-  <div class="min-h-screen bg-background">
-    <!-- Header -->
-    <div class="border-b bg-card/50 backdrop-blur-sm sticky top-0 z-10">
-      <div class="container mx-auto px-4 py-4">
+  <div class="h-screen bg-background flex flex-col overflow-hidden">
+    <!-- Header - 固定高度 -->
+    <div class="border-b bg-card/50 backdrop-blur-sm flex-shrink-0">
+      <div class="px-4 py-3 sm:py-4">
         <div class="flex items-center justify-between">
-          <div class="flex items-center gap-4">
-            <Button variant="ghost" size="icon" @click="goBack">
+          <div class="flex items-center gap-2 sm:gap-4 min-w-0">
+            <Button variant="ghost" size="icon" @click="goBack" class="flex-shrink-0">
               <Icon name="ph:arrow-left" class="w-5 h-5" />
             </Button>
-            <div>
-              <h1 class="text-2xl font-bold">音频合成进度</h1>
-              <p class="text-sm text-muted-foreground">任务ID: {{ taskId }}</p>
+            <div class="min-w-0">
+              <h1 class="text-lg sm:text-2xl font-bold truncate">音频合成进度</h1>
+              <p class="text-xs sm:text-sm text-muted-foreground truncate">{{ taskId }}</p>
             </div>
           </div>
           
-          <div class="flex items-center gap-4">
-            <!-- 复制进度链接按钮 -->
-            <div class="flex items-center gap-2">
-              <Button 
-                variant="outline" 
-                size="sm" 
-                @click="copyProgressLink"
-                :disabled="copyingLink"
-                class="flex items-center gap-2"
-              >
-                <Icon 
-                  :name="copySuccess ? 'ph:check' : (copyingLink ? 'ph:spinner' : 'ph:link')" 
-                  :class="copyingLink ? 'animate-spin' : ''"
-                  class="w-4 h-4" 
-                />
-                {{ copySuccess ? '已复制' : '复制进度链接' }}
-              </Button>
-              
-              <!-- 提示信息 -->
-              <div v-if="task && ['pending', 'processing'].includes(task.status)" class="text-xs text-muted-foreground hidden sm:block">
-                <p class="flex items-center gap-1">
-                  <Icon name="ph:info" class="w-3 h-3" />
-                  可以离开页面，稍后通过链接查看进度
-                </p>
-              </div>
-            </div>
+          <div class="flex items-center gap-2 sm:gap-4 flex-shrink-0">
+            <!-- 复制进度链接按钮 - 移动端简化 -->
+            <Button 
+              variant="outline" 
+              :size="$device.isMobile ? 'sm' : 'sm'"
+              @click="copyProgressLink"
+              :disabled="copyingLink"
+              class="flex items-center gap-1 sm:gap-2"
+            >
+              <Icon 
+                :name="copySuccess ? 'ph:check' : (copyingLink ? 'ph:spinner' : 'ph:link')" 
+                :class="copyingLink ? 'animate-spin' : ''"
+                class="w-4 h-4" 
+              />
+              <span class="hidden sm:inline">{{ copySuccess ? '已复制' : '复制链接' }}</span>
+            </Button>
             
             <!-- 状态指示器 -->
             <div class="flex items-center gap-2">
               <div 
-                class="w-3 h-3 rounded-full"
+                class="w-3 h-3 rounded-full flex-shrink-0"
                 :class="{
                   'bg-yellow-500 animate-pulse': task?.status === 'pending',
                   'bg-blue-500 animate-pulse': task?.status === 'processing', 
@@ -53,7 +43,7 @@
                   'bg-gray-400': !task
                 }"
               />
-              <span class="text-sm font-medium capitalize">
+              <span class="text-xs sm:text-sm font-medium capitalize">
                 {{ getStatusText(task?.status) }}
               </span>
             </div>
@@ -61,200 +51,212 @@
         </div>
 
         <!-- 移动端提示信息 -->
-        <div v-if="task && ['pending', 'processing'].includes(task.status)" class="mt-3 sm:hidden">
-          <div class="text-xs text-muted-foreground bg-muted/50 px-3 py-2 rounded-lg">
-            <p class="flex items-center gap-1">
-              <Icon name="ph:info" class="w-3 h-3" />
-              您可以复制进度链接后离开页面，稍后通过链接查看合成进度
-            </p>
+        <div v-if="task && ['pending', 'processing'].includes(task.status)" class="mt-2 sm:hidden">
+          <div class="text-xs text-muted-foreground bg-muted/50 px-2 py-1 rounded text-center">
+            <Icon name="ph:info" class="w-3 h-3 inline mr-1" />
+            可复制链接后离开页面查看进度
           </div>
         </div>
       </div>
     </div>
 
-    <div class="container mx-auto px-4 pt-6 pb-8">
-      <!-- 加载状态 -->
-      <div v-if="loading" class="flex items-center justify-center py-12">
-        <div class="text-center">
-          <Icon name="ph:spinner" class="w-8 h-8 animate-spin mx-auto mb-4 text-primary" />
-          <p class="text-muted-foreground">正在加载合成进度...</p>
-        </div>
-      </div>
-
-      <!-- 错误状态 -->
-      <div v-else-if="error" class="text-center py-12">
-        <Icon name="ph:warning-circle" class="w-16 h-16 mx-auto mb-4 text-destructive" />
-        <h2 class="text-xl font-semibold mb-2">加载失败</h2>
-        <p class="text-muted-foreground mb-4">{{ error }}</p>
-        <Button @click="fetchTask" variant="outline">
-          <Icon name="ph:arrow-clockwise" class="w-4 h-4 mr-2" />
-          重试
-        </Button>
-      </div>
-
-      <!-- 任务不存在 -->
-      <div v-else-if="!task" class="text-center py-12">
-        <Icon name="ph:question-circle" class="w-16 h-16 mx-auto mb-4 text-muted-foreground" />
-        <h2 class="text-xl font-semibold mb-2">任务不存在</h2>
-        <p class="text-muted-foreground mb-4">未找到ID为 {{ taskId }} 的合成任务</p>
-        <div class="space-y-3">
-          <Button @click="goBack" variant="outline">返回</Button>
-          <div class="text-xs text-muted-foreground">
-            <p>合成任务ID示例格式：xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx</p>
-            <p>您可以从播客卡片的"继续合成"按钮获取有效的任务ID</p>
+    <!-- 主内容区域 - 填充剩余空间且可滚动 -->
+    <div class="flex-1 overflow-auto">
+      <div class="px-4 py-4 sm:py-6 h-full">
+        <!-- 加载状态 -->
+        <div v-if="loading" class="flex items-center justify-center h-full">
+          <div class="text-center">
+            <Icon name="ph:spinner" class="w-8 h-8 animate-spin mx-auto mb-4 text-primary" />
+            <p class="text-muted-foreground">正在加载合成进度...</p>
           </div>
         </div>
-      </div>
 
-      <!-- 任务详情和进度 -->
-      <div v-else class="space-y-6">
-        <!-- 播客信息 -->
-        <Card class="p-6">
-          <div class="flex items-start justify-between mb-4">
-            <div>
-              <h2 class="text-xl font-semibold mb-2">{{ podcast?.title || '未知播客' }}</h2>
-              <p class="text-muted-foreground">{{ podcast?.description || '正在合成播客音频...' }}</p>
-            </div>
-            <Badge :variant="getStatusVariant(task.status)">
-              {{ getStatusText(task.status) }}
-            </Badge>
+        <!-- 错误状态 -->
+        <div v-else-if="error" class="flex items-center justify-center h-full">
+          <div class="text-center">
+            <Icon name="ph:warning-circle" class="w-16 h-16 mx-auto mb-4 text-destructive" />
+            <h2 class="text-xl font-semibold mb-2">加载失败</h2>
+            <p class="text-muted-foreground mb-4">{{ error }}</p>
+            <Button @click="fetchTask" variant="outline">
+              <Icon name="ph:arrow-clockwise" class="w-4 h-4 mr-2" />
+              重试
+            </Button>
           </div>
+        </div>
 
-          <!-- 整体进度条 -->
-          <div class="space-y-2">
-            <div class="flex justify-between text-sm">
-              <span>总体进度</span>
-              <span>{{ Math.round(progressPercentage) }}%</span>
-            </div>
-            <Progress :value="progressPercentage" class="h-2" />
-            <div class="flex justify-between text-xs text-muted-foreground">
-              <span>{{ task.progress_completed }} / {{ task.progress_total }} 已完成</span>
-              <span v-if="task.status === 'processing' && task.progress_current_segment">
-                正在处理: 第{{ task.progress_current_segment }}段
-              </span>
+        <!-- 任务不存在 -->
+        <div v-else-if="!task" class="flex items-center justify-center h-full">
+          <div class="text-center">
+            <Icon name="ph:question-circle" class="w-16 h-16 mx-auto mb-4 text-muted-foreground" />
+            <h2 class="text-xl font-semibold mb-2">任务不存在</h2>
+            <p class="text-muted-foreground mb-4">未找到ID为 {{ taskId }} 的合成任务</p>
+            <div class="space-y-3">
+              <Button @click="goBack" variant="outline">返回</Button>
+              <div class="text-xs text-muted-foreground max-w-md">
+                <p>合成任务ID示例格式：xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx</p>
+                <p>您可以从播客卡片的"继续合成"按钮获取有效的任务ID</p>
+              </div>
             </div>
           </div>
-        </Card>
+        </div>
 
-        <!-- 详细进度 -->
-        <Card class="p-6">
-          <h3 class="text-lg font-semibold mb-4">段落合成详情</h3>
-          
-          <div v-if="!segmentProgresses || segmentProgresses.length === 0" class="text-center py-8 text-muted-foreground">
-            <Icon name="ph:file-audio" class="w-12 h-12 mx-auto mb-2" />
-            <p>暂无段落信息</p>
-          </div>
+        <!-- 任务详情和进度 - 全屏布局 -->
+        <div v-else class="h-full flex flex-col gap-4 sm:gap-6">
+          <!-- 播客信息 - 固定高度 -->
+          <Card class="p-4 sm:p-6 flex-shrink-0">
+            <div class="flex items-start justify-between mb-3 sm:mb-4">
+              <div class="min-w-0 flex-1 mr-3">
+                <h2 class="text-lg sm:text-xl font-semibold mb-1 sm:mb-2 truncate">{{ podcast?.title || '未知播客' }}</h2>
+                <p class="text-sm text-muted-foreground line-clamp-2">{{ podcast?.description || '正在合成播客音频...' }}</p>
+              </div>
+              <Badge :variant="getStatusVariant(task.status)" class="flex-shrink-0">
+                {{ getStatusText(task.status) }}
+              </Badge>
+            </div>
 
-          <div v-else class="space-y-4">
-            <div 
-              v-for="(segment, index) in segmentProgresses" 
-              :key="index"
-              class="flex items-center gap-4 p-4 rounded-lg border bg-card/50"
-            >
-              <!-- 段落序号和状态图标 -->
-              <div class="flex items-center gap-3">
-                <div class="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center text-sm font-medium">
-                  {{ index + 1 }}
+            <!-- 整体进度条 -->
+            <div class="space-y-2">
+              <div class="flex justify-between text-sm">
+                <span>总体进度</span>
+                <span class="font-medium">{{ Math.round(progressPercentage) }}%</span>
+              </div>
+              <Progress :value="progressPercentage" class="h-2 sm:h-3" />
+              <div class="flex justify-between text-xs text-muted-foreground">
+                <span>{{ task.progress_completed }} / {{ task.progress_total }} 已完成</span>
+                <span v-if="task.status === 'processing' && task.progress_current_segment" class="hidden sm:inline">
+                  正在处理: 第{{ task.progress_current_segment }}段
+                </span>
+              </div>
+            </div>
+          </Card>
+
+          <!-- 详细进度 - 填充剩余空间 -->
+          <Card class="flex-1 min-h-0 flex flex-col">
+            <div class="p-4 sm:p-6 pb-3 flex-shrink-0">
+              <h3 class="text-lg font-semibold">段落合成详情</h3>
+            </div>
+            
+            <div class="flex-1 overflow-auto px-4 sm:px-6">
+              <div v-if="!segmentProgresses || segmentProgresses.length === 0" class="flex items-center justify-center h-full text-muted-foreground">
+                <div class="text-center">
+                  <Icon name="ph:file-audio" class="w-12 h-12 mx-auto mb-2" />
+                  <p>暂无段落信息</p>
                 </div>
+              </div>
+
+              <div v-else class="space-y-3 pb-4">
                 <div 
-                  class="w-3 h-3 rounded-full"
-                  :class="{
-                    'bg-gray-400': segment.status === 'waiting',
-                    'bg-blue-500 animate-pulse': segment.status === 'processing',
-                    'bg-green-500': segment.status === 'completed',
-                    'bg-red-500': segment.status === 'error'
-                  }"
-                />
-              </div>
-
-              <!-- 角色头像 - 新增！ -->
-              <div class="flex-shrink-0">
-                <Avatar class="w-10 h-10 border-2 border-background/50">
-                  <AvatarImage 
-                    v-if="segment.persona?.avatar_url" 
-                    :src="segment.persona.avatar_url" 
-                    :alt="segment.persona.name || segment.speaker || 'Speaker'"
-                  />
-                  <AvatarFallback class="text-xs font-semibold bg-primary/10">
-                    {{ getInitials(segment.speaker || segment.persona?.name || 'S') }}
-                  </AvatarFallback>
-                </Avatar>
-              </div>
-
-              <!-- 段落信息 -->
-              <div class="flex-1 min-w-0">
-                <div class="flex items-center justify-between mb-1">
-                  <p class="text-sm font-medium truncate">
-                    段落 {{ index + 1 }}
-                    <span v-if="segment.persona" class="text-muted-foreground">
-                      - {{ segment.persona.name }}
-                    </span>
-                    <span v-else-if="segment.speaker" class="text-muted-foreground">
-                      - {{ segment.speaker }}
-                    </span>
-                  </p>
-                  <span class="text-xs text-muted-foreground">
-                    {{ getSegmentStatusText(segment.status) }}
-                  </span>
-                </div>
-                
-                <p v-if="segment.text" class="text-xs text-muted-foreground line-clamp-2">
-                  {{ segment.text }}
-                </p>
-
-                <!-- 段落进度条 -->
-                <div v-if="segment.status === 'processing'" class="mt-2">
-                  <Progress :value="75" class="h-1" />
-                </div>
-              </div>
-
-              <!-- 操作按钮 -->
-              <div class="flex items-center gap-2">
-                <Button
-                  v-if="segment.status === 'completed' && segment.audioUrl"
-                  variant="ghost"
-                  size="sm"
-                  @click="playAudio(segment.audioUrl)"
+                  v-for="(segment, index) in segmentProgresses" 
+                  :key="index"
+                  class="flex items-center gap-3 sm:gap-4 p-3 sm:p-4 rounded-lg border bg-card/50"
                 >
-                  <Icon name="ph:play" class="w-4 h-4" />
+                  <!-- 段落序号和状态图标 -->
+                  <div class="flex items-center gap-2 sm:gap-3 flex-shrink-0">
+                    <div class="w-6 h-6 sm:w-8 sm:h-8 rounded-full bg-primary/10 flex items-center justify-center text-xs sm:text-sm font-medium">
+                      {{ index + 1 }}
+                    </div>
+                    <div 
+                      class="w-3 h-3 rounded-full flex-shrink-0"
+                      :class="{
+                        'bg-gray-400': segment.status === 'waiting',
+                        'bg-blue-500 animate-pulse': segment.status === 'processing',
+                        'bg-green-500': segment.status === 'completed',
+                        'bg-red-500': segment.status === 'error'
+                      }"
+                    />
+                  </div>
+
+                  <!-- 角色头像 -->
+                  <div class="flex-shrink-0">
+                    <Avatar class="w-8 h-8 sm:w-10 sm:h-10 border-2 border-background/50">
+                      <AvatarImage 
+                        v-if="segment.persona?.avatar_url" 
+                        :src="segment.persona.avatar_url" 
+                        :alt="segment.persona.name || segment.speaker || 'Speaker'"
+                      />
+                      <AvatarFallback class="text-xs font-semibold bg-primary/10">
+                        {{ getInitials(segment.speaker || segment.persona?.name || 'S') }}
+                      </AvatarFallback>
+                    </Avatar>
+                  </div>
+
+                  <!-- 段落信息 -->
+                  <div class="flex-1 min-w-0">
+                    <div class="flex items-center justify-between mb-1">
+                      <p class="text-sm font-medium truncate">
+                        <span class="hidden sm:inline">段落 {{ index + 1 }}</span>
+                        <span class="sm:hidden">{{ index + 1 }}</span>
+                        <span v-if="segment.persona" class="text-muted-foreground ml-1">
+                          {{ segment.persona.name }}
+                        </span>
+                        <span v-else-if="segment.speaker" class="text-muted-foreground ml-1">
+                          {{ segment.speaker }}
+                        </span>
+                      </p>
+                      <span class="text-xs text-muted-foreground flex-shrink-0 ml-2">
+                        {{ getSegmentStatusText(segment.status) }}
+                      </span>
+                    </div>
+                    
+                    <p v-if="segment.text" class="text-xs text-muted-foreground line-clamp-2">
+                      {{ segment.text }}
+                    </p>
+
+                    <!-- 段落进度条 -->
+                    <div v-if="segment.status === 'processing'" class="mt-2">
+                      <Progress :value="75" class="h-1" />
+                    </div>
+                  </div>
+
+                  <!-- 操作按钮 -->
+                  <div class="flex items-center gap-2 flex-shrink-0">
+                    <Button
+                      v-if="segment.status === 'completed' && segment.audioUrl"
+                      variant="ghost"
+                      size="sm"
+                      @click="playAudio(segment.audioUrl)"
+                    >
+                      <Icon name="ph:play" class="w-4 h-4" />
+                    </Button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </Card>
+
+          <!-- 错误信息 -->
+          <Card v-if="task.status === 'failed' || task.error_message" class="p-4 sm:p-6 border-destructive flex-shrink-0">
+            <div class="flex items-start gap-3">
+              <Icon name="ph:warning" class="w-5 h-5 text-destructive mt-0.5" />
+              <div>
+                <h3 class="font-semibold text-destructive mb-2">合成失败</h3>
+                <p class="text-sm text-muted-foreground">{{ task.error_message || '未知错误' }}</p>
+              </div>
+            </div>
+          </Card>
+
+          <!-- 完成操作 -->
+          <Card v-if="task.status === 'completed'" class="p-4 sm:p-6 bg-green-50 dark:bg-green-950/20 border-green-200 dark:border-green-800 flex-shrink-0">
+            <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+              <div class="flex items-center gap-3">
+                <Icon name="ph:check-circle" class="w-6 h-6 text-green-600 flex-shrink-0" />
+                <div>
+                  <h3 class="font-semibold text-green-800 dark:text-green-200">合成完成！</h3>
+                  <p class="text-sm text-green-700 dark:text-green-300">所有音频段落已成功合成</p>
+                </div>
+              </div>
+              <div class="flex gap-2">
+                <Button @click="viewPodcast" variant="outline" size="sm">
+                  查看播客
+                </Button>
+                <Button @click="downloadPodcast" size="sm">
+                  <Icon name="ph:download" class="w-4 h-4 mr-2" />
+                  下载
                 </Button>
               </div>
             </div>
-          </div>
-        </Card>
-
-        <!-- 错误信息 -->
-        <Card v-if="task.status === 'failed' || task.error_message" class="p-6 border-destructive">
-          <div class="flex items-start gap-3">
-            <Icon name="ph:warning" class="w-5 h-5 text-destructive mt-0.5" />
-            <div>
-              <h3 class="font-semibold text-destructive mb-2">合成失败</h3>
-              <p class="text-sm text-muted-foreground">{{ task.error_message || '未知错误' }}</p>
-            </div>
-          </div>
-        </Card>
-
-        <!-- 完成操作 -->
-        <Card v-if="task.status === 'completed'" class="p-6 bg-green-50 dark:bg-green-950/20 border-green-200 dark:border-green-800">
-          <div class="flex items-center justify-between">
-            <div class="flex items-center gap-3">
-              <Icon name="ph:check-circle" class="w-6 h-6 text-green-600" />
-              <div>
-                <h3 class="font-semibold text-green-800 dark:text-green-200">合成完成！</h3>
-                <p class="text-sm text-green-700 dark:text-green-300">所有音频段落已成功合成</p>
-              </div>
-            </div>
-            <div class="flex gap-2">
-              <Button @click="viewPodcast" variant="outline">
-                查看播客
-              </Button>
-              <Button @click="downloadPodcast">
-                <Icon name="ph:download" class="w-4 h-4 mr-2" />
-                下载
-              </Button>
-            </div>
-          </div>
-        </Card>
+          </Card>
+        </div>
       </div>
     </div>
 

@@ -1,5 +1,5 @@
 <template>
-  <div class="flex-1 p-6 flex flex-col items-center justify-center bg-background h-full space-y-8 step3-container">
+  <div class="flex-1 p-4 md:p-6 flex flex-col items-center justify-center bg-background min-h-0 space-y-6 md:space-y-8 step3-container">
     <!-- Audio synthesis completed and has audio -->
     <template v-if="unifiedStore.finalAudioUrl && !unifiedStore.isSynthesizing">
       <div class="w-full max-w-2xl">
@@ -223,7 +223,10 @@ const synthesisProgressData = computed(() => {
 function findPersonaById(personaId?: number | null) {
   if (!personaId) return undefined;
   const persona = availablePersonas.value.find(p => p.id === personaId);
-  if (!persona) return undefined;
+  if (!persona) {
+    console.warn(`[Step3Panel] Persona not found for ID: ${personaId}`);
+    return undefined;
+  }
   
   // 映射到 EnhancedSynthesisProgress 期望的 Persona 类型
   return persona;

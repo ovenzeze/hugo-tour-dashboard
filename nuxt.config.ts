@@ -60,6 +60,24 @@ export default defineNuxtConfig({
     server: {
       allowedHosts: true,
     },
+    optimizeDeps: {
+      include: [
+        'class-variance-authority',
+        'clsx',
+        'tailwind-merge',
+        'reka-ui',
+        'lucide-vue-next',
+        'hls.js',
+        'vee-validate',
+        'date-fns',
+        'qrcode-vue3',
+        '@unovis/ts',
+        '@unovis/vue',
+        '@vee-validate/zod',
+        'zod',
+        '@iconify/vue'
+      ]
+    },
   },
 
   nitro: {
@@ -113,10 +131,8 @@ export default defineNuxtConfig({
   googleFonts: {
     // @ts-ignore
     families: {
-      Inter: [300, 400, 500, 600, 700],
       "Crimson Text": [400, 600, 700],
-      "Noto Serif SC": [400, 500, 600, 700],
-      "Noto Sans SC": [300, 400, 500, 600],
+      "Noto Sans SC": [300, 400, 500, 600, 700],
     },
     subsets: ["latin", "chinese-simplified"],
     download: true,

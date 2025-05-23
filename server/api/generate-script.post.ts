@@ -74,7 +74,7 @@ export default defineEventHandler(async (event: H3Event) => {
     effectiveGuestPersonas = sortedCandidates.slice(0, 3); // 限制guest数量，避免prompt过长
     consola.info(`[generate-script] Auto-selected language-prioritized host: ${effectiveHostPersona?.name}, Guests: ${effectiveGuestPersonas.map(p => p.name).join(', ')}`);
   } else if (!effectiveHostPersona) {
-    consola.warn(`[generate-script] No personas found for language ${language} and none provided by client. Proceeding with default "Host" name.`);
+    consola.warn(`[generate-script] No personas found for language ${language} and none provided by client. Proceeding with default "Smith" name.`);
   }
 
   // Prepare the list of (up to 100) available personas for the LLM prompt
@@ -113,21 +113,21 @@ export default defineEventHandler(async (event: H3Event) => {
     ? effectiveGuestPersonas.map((p) => p.name).join("、") 
     : "Guest"; // Default if no guests or auto-selection failed to find guests
 
-  // Construct voiceMap JSON string for the prompt
-  const voiceMap: { [key: string]: { personaId: number; voice_model_identifier: string } } = {};
+  // Construct simplified speaker map for AI (without voice_model_identifier to avoid language confusion)
+  const speakerMapForAI: { [key: string]: { personaId: number; role: string } } = {};
   if (effectiveHostPersona) {
-    voiceMap[effectiveHostPersona.name] = {
+    speakerMapForAI[effectiveHostPersona.name] = {
       personaId: effectiveHostPersona.persona_id,
-      voice_model_identifier: effectiveHostPersona.voice_model_identifier,
+      role: 'host',
     };
   }
   effectiveGuestPersonas.forEach((p) => {
-    voiceMap[p.name] = {
+    speakerMapForAI[p.name] = {
       personaId: p.persona_id,
-      voice_model_identifier: p.voice_model_identifier,
+      role: 'guest',
     };
   });
-  const voiceMapJsonString = JSON.stringify(voiceMap, null, 2);
+  const speakerMapJsonString = JSON.stringify(speakerMapForAI, null, 2);
 
   // Get current date and time for time-based museum selection
   // This part seems unrelated to the persona changes but is kept as is.
@@ -148,9 +148,12 @@ export default defineEventHandler(async (event: H3Event) => {
   }
   
   const languageName = getLanguageName(language); // Use the language variable defined at the top
-  const languageInstruction = (language === 'en' || language === 'en-US') 
-    ? '' 
-    : `Please use ${languageName} to generate the podcast script.\n`;
+  const languageInstruction = `🌍 MANDATORY LANGUAGE REQUIREMENT: You MUST generate the entire podcast script in ${languageName} (${language}). 
+All dialogue, titles, and content MUST be in ${languageName}. 
+Do NOT use any other language regardless of persona names or voice model identifiers.
+The user has specifically selected ${languageName} as the podcast language.
+
+`;
 
   // Helper for global replace
   const replaceAll = (str: string, find: string, replace: string) => {
@@ -163,13 +166,16 @@ export default defineEventHandler(async (event: H3Event) => {
 
   tempPromptContent = replaceAll(tempPromptContent, "{{title}}", podcastSettings.title || "Suggest an Engaging Title");
   tempPromptContent = replaceAll(tempPromptContent, "{{topic}}", podcastSettings.topic || "A Fascinating Topic");
-  tempPromptContent = replaceAll(tempPromptContent, "{{hostName}}", effectiveHostPersona?.name || "Host");
+  // 获取默认Host名称 - 优先使用推荐的persona名称，否则使用语言默认值
+  const defaultHostName = effectiveHostPersona?.name || (language === 'zh' || language === 'zh-CN' ? '主持人' : 'Smith');
+  
+  tempPromptContent = replaceAll(tempPromptContent, "{{hostName}}", defaultHostName);
   tempPromptContent = replaceAll(tempPromptContent, "{{guestNames}}", guestNames);
   tempPromptContent = replaceAll(tempPromptContent, "{{style}}", podcastSettings.style || "conversational");
   tempPromptContent = replaceAll(tempPromptContent, "{{keywords}}", podcastSettings.keywords || "none");
   tempPromptContent = replaceAll(tempPromptContent, "{{numberOfSegments}}", (podcastSettings.numberOfSegments || 10).toString()); // 默认改为10
   tempPromptContent = replaceAll(tempPromptContent, "{{backgroundMusic}}", podcastSettings.backgroundMusic || "none");
-  tempPromptContent = replaceAll(tempPromptContent, "{{voiceMapJson}}", voiceMapJsonString);
+  tempPromptContent = replaceAll(tempPromptContent, "{{voiceMapJson}}", speakerMapJsonString);
   tempPromptContent = replaceAll(tempPromptContent, "{{availablePersonasJson}}", availablePersonasJsonString);
   tempPromptContent = replaceAll(tempPromptContent, "{{currentTime}}", currentTimeString);
 
@@ -190,11 +196,11 @@ export default defineEventHandler(async (event: H3Event) => {
   
   // 打印关键的替换变量以便调试
   consola.info(`[generate-script] ========== KEY VARIABLES ==========`);
-  consola.info(`Host Name: ${effectiveHostPersona?.name || "Host"}`);
+  consola.info(`Host Name: ${defaultHostName}`);
   consola.info(`Guest Names: ${guestNames}`);
   consola.info(`Number of Segments: ${podcastSettings.numberOfSegments || 10}`);
   consola.info(`Language: ${language}`);
-  consola.info(`Voice Map JSON: ${voiceMapJsonString}`);
+  consola.info(`Speaker Map JSON: ${speakerMapJsonString}`);
   consola.info(`Available Personas Count: ${personasForLlmPrompt.length}`);
   consola.info(`[generate-script] ================================================`);
 
@@ -259,6 +265,26 @@ export default defineEventHandler(async (event: H3Event) => {
       });
     }
 
+    // 🔧 Reconstruct correct voiceMap with actual voice_model_identifier values
+    // AI should not return voice_model_identifier, we add it here based on selected personas
+    const correctVoiceMap: { [key: string]: { personaId: number; voice_model_identifier: string } } = {};
+    if (effectiveHostPersona) {
+      correctVoiceMap[effectiveHostPersona.name] = {
+        personaId: effectiveHostPersona.persona_id,
+        voice_model_identifier: effectiveHostPersona.voice_model_identifier,
+      };
+    }
+    effectiveGuestPersonas.forEach((p) => {
+      correctVoiceMap[p.name] = {
+        personaId: p.persona_id,
+        voice_model_identifier: p.voice_model_identifier,
+      };
+    });
+
+    // Override AI's voiceMap with our correct one
+    parsedResponse.voiceMap = correctVoiceMap;
+
+    consola.info(`[generate-script] Corrected voiceMap: ${JSON.stringify(correctVoiceMap, null, 2)}`);
     consola.success(`[generate-script] Script generated successfully by LLM provider: ${llmProvider}.`);
     return parsedResponse;
 
