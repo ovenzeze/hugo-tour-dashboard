@@ -326,6 +326,15 @@
           </Button>
         </div>
     </div>
+
+    <!-- 继续合成确认对话框 -->
+    <ContinueSynthesisDialog
+      v-model:visible="showContinueDialog"
+      :segment-count="pendingSegmentCount"
+      :podcast-title="podcast.title"
+      @confirm="handleConfirmContinue"
+      @cancel="handleCancelContinue"
+    />
   </Card>
 </template>
 
@@ -337,6 +346,7 @@ import { toast } from 'vue-sonner';
 import { useClientSafeFunctions } from '~/composables/useClientSafeFunctions';
 import { useRouter } from 'vue-router';
 import PodcastSegmentsList from './PodcastSegmentsList.vue';
+import ContinueSynthesisDialog from './ContinueSynthesisDialog.vue';
 
 const { formatRelativeTime } = useDateFormatter();
 const { getWindowOrigin } = useClientSafeFunctions();
@@ -383,6 +393,11 @@ const emit = defineEmits<{
 
 // 悬停状态管理
 const hoveredPodcastId = ref<number | null>(null);
+
+// 继续合成对话框状态
+const showContinueDialog = ref(false);
+const pendingSegmentCount = ref(0);
+const pendingPodcastId = ref<number | null>(null);
 
 // 辅助函数
 function getPodcastTotalDuration(podcast: Podcast): string {
@@ -444,7 +459,68 @@ function getSegmentVisibility(podcastId: string | number): boolean {
 }
 
 function navigateToPlayground(podcastId: number) {
-  router.push(`/playground?podcast=${podcastId}`);
+  // 计算未合成的segments数量
+  const unsynthesizedCount = getUnsynthesizedSegmentsCount(props.podcast);
+  
+  if (unsynthesizedCount > 0) {
+    // 显示确认对话框
+    pendingSegmentCount.value = unsynthesizedCount;
+    pendingPodcastId.value = podcastId;
+    showContinueDialog.value = true;
+  } else {
+    // 没有未合成的segments，直接跳转
+    router.push(`/playground?podcast=${podcastId}`);
+  }
+}
+
+// 获取未合成segments的数量
+function getUnsynthesizedSegmentsCount(podcast: Podcast): number {
+  if (!podcast.podcast_segments || podcast.podcast_segments.length === 0) {
+    return 0;
+  }
+  
+  return podcast.podcast_segments.filter(segment => 
+    !segment.segment_audios || segment.segment_audios.length === 0
+  ).length;
+}
+
+// 触发后台合成
+async function triggerBackgroundSynthesis(podcastId: number, segmentCount: number) {
+  try {
+    console.log(`开始后台合成播客 ${podcastId} 的 ${segmentCount} 个片段`);
+    
+    // 调用后台合成API
+    const response = await $fetch('/api/podcast/continue-synthesis', {
+      method: 'POST',
+      body: { 
+        podcastId: podcastId.toString(),
+        segmentCount 
+      }
+    });
+    
+    if (response.success) {
+      if (response.taskId) {
+        toast.success(`开始后台合成 ${response.segmentsToProcess} 个片段`, {
+          description: `任务ID: ${response.taskId}，您可以在Playground中查看进度`
+        });
+      } else {
+        toast.info(response.message, {
+          description: '所有片段已完成合成'
+        });
+      }
+      
+      // 跳转到playground页面
+      router.push(`/playground?podcast=${podcastId}`);
+    } else {
+      throw new Error(response.message || '合成任务创建失败');
+    }
+    
+  } catch (error: any) {
+    console.error('后台合成启动失败:', error);
+    toast.error('启动后台合成失败', {
+      description: error.data?.message || error.message || '请稍后重试'
+    });
+  }
 }
 
 function openSharePreviewModal(podcastId: string) {
@@ -453,6 +529,21 @@ function openSharePreviewModal(podcastId: string) {
 
 function sharePodcast(podcastId: string) {
   emit('share-podcast', podcastId);
+}
+
+// 确认继续合成
+function handleConfirmContinue() {
+  if (pendingPodcastId.value && pendingSegmentCount.value > 0) {
+    triggerBackgroundSynthesis(pendingPodcastId.value, pendingSegmentCount.value);
+  }
+  handleCancelContinue();
+}
+
+// 取消继续合成
+function handleCancelContinue() {
+  showContinueDialog.value = false;
+  pendingSegmentCount.value = 0;
+  pendingPodcastId.value = null;
 }
 </script>
 

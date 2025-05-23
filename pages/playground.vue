@@ -93,11 +93,14 @@
 </template>
 
 <script setup lang="ts">
-import { computed } from 'vue';
+import { computed, onMounted } from 'vue';
 import { toast } from 'vue-sonner';
 import { usePlaygroundUnifiedStore } from '~/stores/playgroundUnified';
 import { usePersonaCache } from '~/composables/usePersonaCache';
 import { useMobileLayout } from '~/composables/useMobileLayout';
+import { usePodcastDatabase } from '~/composables/usePodcastDatabase';
+import { useRoute } from 'vue-router';
+import { usePlaygroundSettingsStore } from '~/stores/playgroundSettings';
 
 // Component imports
 import PlaygroundStepper from '~/components/playground/PlaygroundStepper.vue';
@@ -110,6 +113,8 @@ import PodcastSynthesisModal from '~/components/podcasts/PodcastSynthesisModal.v
 // State management
 const unifiedStore = usePlaygroundUnifiedStore();
 const personaCache = usePersonaCache();
+const { fetchPodcastById } = usePodcastDatabase();
+const settingsStore = usePlaygroundSettingsStore();
 
 // Mobile layout handling
 const { mobileContentHeight, isMobile } = useMobileLayout();
@@ -122,6 +127,84 @@ const containerStyle = computed(() => ({
 // Ensure personas are loaded
 if (personaCache.personas.value.length === 0) {
   personaCache.fetchPersonas();
+}
+
+// 处理URL参数，加载指定的播客
+onMounted(async () => {
+  const route = useRoute();
+  const podcastId = route.query.podcast as string;
+  
+  if (podcastId) {
+    try {
+      console.log(`[Playground] Loading podcast ${podcastId} from URL parameter`);
+      
+      // 获取播客数据
+      await fetchPodcastById(podcastId);
+      
+      // TODO: 加载播客数据到store中
+      // 这里需要实现从数据库加载播客脚本、设置等信息
+      await loadPodcastIntoPlayground(podcastId);
+      
+      toast.success('播客数据加载成功', {
+        description: `已加载播客 ${podcastId} 的数据到Playground`
+      });
+      
+    } catch (error: any) {
+      console.error('[Playground] Failed to load podcast:', error);
+      toast.error('加载播客数据失败', {
+        description: error.message || '请检查播客ID是否正确'
+      });
+    }
+  }
+});
+
+// 加载播客数据到playground
+async function loadPodcastIntoPlayground(podcastId: string) {
+  try {
+    console.log(`[Playground] Loading podcast ${podcastId} data into playground stores`);
+    
+    // 1. 调用API获取播客详细信息
+    const podcastDetails = await $fetch(`/api/podcast/${podcastId}/details`);
+    
+    if (!podcastDetails.success) {
+      throw new Error(podcastDetails.message || '获取播客数据失败');
+    }
+    
+    // 2. 设置podcast ID到unified store
+    unifiedStore.podcastId = podcastId;
+    
+    // 3. 加载脚本内容
+    if (podcastDetails.script.content) {
+      unifiedStore.updateScriptContent(podcastDetails.script.content);
+    }
+    
+    // 4. 加载播客设置到settings store
+    settingsStore.updatePodcastSettings({
+      title: podcastDetails.settings.title,
+      topic: podcastDetails.settings.topic,
+      language: podcastDetails.settings.language || 'zh',
+      hostPersonaId: podcastDetails.settings.hostPersonaId,
+      guestPersonaIds: podcastDetails.settings.guestPersonaIds || [],
+      ttsProvider: podcastDetails.settings.ttsProvider || 'volcengine'
+    });
+    
+    // 5. 检查是否有未完成的合成任务
+    const uncompletedSegments = podcastDetails.script.segments.filter(s => !s.hasAudio);
+    if (uncompletedSegments.length > 0) {
+      console.log(`[Playground] Found ${uncompletedSegments.length} uncompleted segments`);
+      // 这里可以显示进度信息或启动监控
+    }
+    
+    console.log(`[Playground] Successfully loaded podcast data:`, {
+      title: podcastDetails.settings.title,
+      segments: podcastDetails.script.segments.length,
+      uncompletedSegments: uncompletedSegments.length
+    });
+    
+  } catch (error: any) {
+    console.error(`[Playground] Failed to load podcast data:`, error);
+    throw error;
+  }
 }
 
 // Step switching handler - simplified version
