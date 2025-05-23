@@ -177,9 +177,9 @@ const router = useRouter()
 const searchQuery = ref('')
 const selectedCategory = ref('all')
 
-// 获取所有文档
+// 获取所有文档 - 使用Nuxt Content v3新的API
 const { data: allDocs, pending, error } = await useAsyncData('docs-all', () =>
-  queryContent('docs')
+  queryContent('/')
     .find()
 )
 

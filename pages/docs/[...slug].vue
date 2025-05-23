@@ -185,9 +185,9 @@ const slug = computed(() => {
   return s || 'README'
 })
 
-// Fetch document content
+// Fetch document content - 使用Nuxt Content v3新的API
 const { data: allDocs } = await useAsyncData('docs-sidebar', () =>
-  queryContent('docs')
+  queryContent('/')
     .only(['_path', 'title', 'description'])
     .find()
 )
@@ -196,7 +196,7 @@ const { data: doc, pending, error } = await useAsyncData(
   `docs-${slug.value}`,
   async () => {
     try {
-      // 尝试不同的路径组合
+      // 尝试不同的路径组合 - 使用新的API
       const paths = [
         `/docs/${slug.value}`,
         `docs/${slug.value}`,
@@ -205,8 +205,8 @@ const { data: doc, pending, error } = await useAsyncData(
       
       for (const path of paths) {
         try {
-          const result = await queryContent(path).findOne()
-          return result
+          const result = await queryContent('/').where({ _path: path }).findOne()
+          if (result) return result
         } catch (e) {
           // 继续尝试下一个路径
           continue

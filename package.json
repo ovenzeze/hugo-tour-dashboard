@@ -11,7 +11,8 @@
     "preview": "nuxt preview",
     "postinstall": "nuxt prepare",
     "lint": "nuxi typecheck",
-    "types:gen": "npx supabase gen types typescript --project-id jazocztbwzavmtyprhye --schema public > types/supabase.ts"
+    "types:gen": "npx supabase gen types typescript --project-id jazocztbwzavmtyprhye --schema public > types/supabase.ts",
+    "museum-enrichment": "tsx scripts/museum-data-enrichment-advanced.ts"
   },
   "pnpm": {
     "onlyBuiltDependencies": [
@@ -45,6 +46,7 @@
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
     "date-fns": "^4.1.0",
+    "dotenv": "^16.5.0",
     "exceljs": "^4.4.0",
     "get-audio-duration": "^4.0.1",
     "hls.js": "^1.6.2",
@@ -71,11 +73,13 @@
     "@tailwindcss/typography": "^0.5.16",
     "@types/node": "^22.15.17",
     "@vite-pwa/nuxt": "^1.0.0",
+    "consola": "^3.4.2",
     "elevenlabs": "^1.58.0",
     "h3": "^1.15.3",
     "nuxt": "^3.17.3",
     "sharp": "^0.34.1",
     "ts-node": "^10.9.2",
+    "tsx": "^4.19.4",
     "typescript": "^5.8.3",
     "vue-tsc": "^2.2.10"
   }

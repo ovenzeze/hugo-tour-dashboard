@@ -40,13 +40,20 @@ const currentSegmentData = computed<ScriptSegment | undefined>(() => {
 const assignedPerformanceDetails = computed<AssignedVoicePerformance | undefined>(() => {
   const speakerTag = currentSegmentData.value?.speaker;
   if (!speakerTag) return undefined;
-  return uiStore.assignedVoicePerformances[speakerTag]; // Accessing getter
+  
+  // 直接从 uiStore getter 获取分配信息
+  const performances = uiStore.assignedVoicePerformances;
+  return performances[speakerTag];
 });
 
 const personaForSegment = computed<Persona | undefined>(() => {
   const personaId = assignedPerformanceDetails.value?.persona_id;
-  if (personaId === undefined) return undefined;
-  return uiStore.availableVoices.find(p => p.persona_id === personaId); // Accessing getter
+  if (personaId === undefined) {
+    return undefined;
+  }
+  
+  const persona = uiStore.availableVoices.find(p => p.persona_id === personaId);
+  return persona;
 });
 
 const avatarSrc = computed(() => personaForSegment.value?.avatar_url || "");

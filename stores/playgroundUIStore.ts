@@ -3,6 +3,7 @@ import { defineStore, storeToRefs } from 'pinia';
 import { usePlaygroundSettingsStore } from '~/stores/playgroundSettingsStore';
 import { usePlaygroundScriptStore } from '~/stores/playgroundScriptStore';
 import { usePlaygroundProcessStore } from '~/stores/playgroundProcessStore';
+import { usePlaygroundUnifiedStore } from '~/stores/playgroundUnified';
 import { usePersonaCache } from '~/composables/usePersonaCache';
 import type { Persona } from '~/types/persona';
 import type { ScriptSegment } from '~/types/api/podcast'; // Added for segment.personaMatchStatus
@@ -40,11 +41,17 @@ export const usePlaygroundUIStore = defineStore('playgroundUI', {
     },
 
     assignedVoicePerformances(state): Record<string, AssignedVoicePerformance> {
-      const scriptStore = usePlaygroundScriptStore();
-      // Accessing parsedSegments directly from the store instance for reactivity within a getter
-      const parsedSegmentsDirect = scriptStore.parsedSegments;
-      const { getPersonaById } = usePersonaCache();
+      // 首先尝试从 UnifiedStore 获取数据
+      const unifiedStore = usePlaygroundUnifiedStore();
+      let parsedSegmentsDirect = unifiedStore.parsedSegments;
       
+      // 如果 UnifiedStore 没有数据，fallback 到 ScriptStore
+      if (!parsedSegmentsDirect || parsedSegmentsDirect.length === 0) {
+        const scriptStore = usePlaygroundScriptStore();
+        parsedSegmentsDirect = scriptStore.parsedSegments;
+      }
+      
+      const { getPersonaById } = usePersonaCache();
       const performances: Record<string, AssignedVoicePerformance> = {};
 
       if (!parsedSegmentsDirect || parsedSegmentsDirect.length === 0) {
