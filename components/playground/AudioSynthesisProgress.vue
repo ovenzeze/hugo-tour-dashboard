@@ -23,9 +23,9 @@
         </div>
         
         <!-- Main Progress Circle -->
-        <div class="w-20 h-20 rounded-full bg-gradient-to-br from-muted/40 to-muted/20 relative overflow-hidden shadow-lg">
+        <div class="w-10 h-10 rounded-full bg-gradient-to-br from-muted/40 to-muted/20 relative overflow-hidden shadow-lg">
           <!-- Animated Progress Arc -->
-          <svg class="w-20 h-20 transform -rotate-90" viewBox="0 0 80 80">
+          <svg class="w-10 h-10 transform -rotate-90" viewBox="0 0 80 80">
             <!-- Background circle -->
             <circle
               cx="40"

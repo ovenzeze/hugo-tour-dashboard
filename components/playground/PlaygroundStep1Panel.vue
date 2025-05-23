@@ -354,6 +354,9 @@ onUnmounted(() => {
 // 移动端全屏编辑状态
 const showMobileEditor = ref(false);
 
+// 移动端设置卡片折叠状态 - 默认折叠
+const isSettingsCollapsedOnMobile = ref(true);
+
 </script>
 
 <style scoped>
