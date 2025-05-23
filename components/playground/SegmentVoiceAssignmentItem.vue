@@ -34,7 +34,7 @@ const isPlaying = ref(false);
 
 // --- Computed properties for segment data ---
 const currentSegmentData = computed<ScriptSegment | undefined>(() => {
-  return scriptStore.parsedSegments[props.segmentIndex];
+  return unifiedStore.parsedSegments?.[props.segmentIndex];
 });
 
 const assignedPerformanceDetails = computed<AssignedVoicePerformance | undefined>(() => {

@@ -1,6 +1,7 @@
 <template>
   <div>
     <NuxtLayout>
+      <Analytics />
       <NuxtPage />
     </NuxtLayout>
     <Toaster 
@@ -18,7 +19,7 @@
 import { Toaster } from '@/components/ui/sonner'
 import { useColorMode } from '@vueuse/core'
 import { usePwa } from '~/composables/usePwa'
-
+import { Analytics } from '@vercel/analytics/nuxt'
 const { isPwa } = usePwa()
 
 // Set initial color mode to dark and apply 'dark' class to <html> element

@@ -1,45 +1,45 @@
 <template>
-  <div class="flex flex-col gap-3 md:gap-4 flex-1 p-2 md:p-4 bg-background h-full">
+  <div class="flex flex-col gap-4 md:gap-6 flex-1 p-4 md:p-6 bg-background h-full">
     <!-- 移动端垂直布局，桌面端双栏布局 -->
-    <div class="flex flex-col lg:flex-row gap-3 md:gap-4 flex-1 min-h-0">
-      <!-- Form Area - 移动端优先显示 -->
-      <Card class="flex-none lg:flex-1 min-h-0 max-h-[40vh] lg:max-h-none lg:h-full p-2 bg-muted/60 border-none shadow-md overflow-y-auto relative">
+    <div class="flex flex-col lg:flex-row gap-4 md:gap-6 flex-1 min-h-0">
+      <!-- Form Area - 更轻量的设计 -->
+      <div class="flex-none lg:flex-1 min-h-0 max-h-[40vh] lg:max-h-none lg:h-full bg-muted/20 rounded-2xl md:rounded-3xl p-6 md:p-8 overflow-y-auto relative backdrop-blur-sm">
         <!-- Loading Overlay for Left Card -->
         <div
           v-if="isLeftCardLoading"
-          class="absolute inset-0 bg-background/50 backdrop-blur-sm z-10 flex flex-col items-center justify-center rounded-lg"
+          class="absolute inset-0 bg-primary/5 backdrop-blur-md z-10 flex flex-col items-center justify-center rounded-2xl md:rounded-3xl"
         >
           <Icon name="ph:spinner-gap" class="w-8 md:w-10 h-8 md:h-10 animate-spin text-primary" />
-          <p class="mt-4 text-xs md:text-sm text-muted-foreground">Processing, please wait...</p>
+          <p class="mt-4 text-xs md:text-sm text-primary font-medium">Processing, please wait...</p>
         </div>
         <PodcastSettingsForm
           :model-value="podcastSettings"
           @update:model-value="handlePodcastSettingsUpdate"
         />
-      </Card>
+      </div>
       
-      <!-- Script Editing Area - 移动端可展开编辑 -->
-      <Card class="flex-1 min-h-0 flex flex-col bg-background/25 border-none shadow-md overflow-hidden p-1 relative">
+      <!-- Script Editing Area - 去掉多余的边框 -->
+      <div class="flex-1 min-h-0 flex flex-col bg-muted/20 rounded-2xl md:rounded-3xl overflow-hidden p-4 md:p-6 relative backdrop-blur-sm">
         <!-- Success Message -->
         <Transition name="fade-fast">
           <div
             v-if="showSuccessMessage"
-            class="absolute top-2 md:top-4 right-2 md:right-4 bg-green-100 dark:bg-green-800 text-green-700 dark:text-green-200 px-3 md:px-4 py-1.5 md:py-2 rounded-md shadow-lg text-xs md:text-sm z-20"
+            class="absolute top-4 right-4 bg-green-50/90 dark:bg-green-950/50 text-green-700 dark:text-green-200 px-4 py-2 rounded-xl backdrop-blur-sm text-sm z-20 border border-green-200/30 dark:border-green-800/30"
           >
-            <Icon name="ph:check-circle" class="inline w-4 md:w-5 h-4 md:h-5 mr-1 md:mr-2" />
+            <Icon name="ph:check-circle" class="inline w-4 h-4 mr-2" />
             <span class="hidden sm:inline">Script generated successfully!</span>
             <span class="sm:hidden">Generated!</span>
           </div>
         </Transition>
 
         <!-- 移动端全屏编辑按钮 -->
-        <div class="lg:hidden absolute top-2 left-2 z-10">
+        <div class="lg:hidden absolute top-4 left-4 z-10">
           <Button
             v-if="!isLoadingFromStore && !scriptError"
-            variant="outline"
+            variant="ghost"
             size="sm"
             @click="showMobileEditor = true"
-            class="text-xs"
+            class="text-xs bg-background/60 backdrop-blur-sm hover:bg-background/80"
           >
             <Icon name="ph:arrows-out" class="w-3 h-3 mr-1" />
             <span>Expand</span>
@@ -47,61 +47,75 @@
         </div>
 
         <template v-if="isLoadingFromStore">
-          <div class="flex flex-col items-center justify-center h-full space-y-3 md:space-y-4">
-            <div class="flex flex-col items-center">
-              <Icon name="ph:spinner-gap" class="w-10 md:w-12 h-10 md:h-12 animate-spin text-primary" />
-              <div class="mt-3 md:mt-4 bg-muted/30 rounded-full h-1.5 md:h-2 w-48 md:w-64 overflow-hidden">
-                <div
-                  class="h-full bg-primary transition-all duration-300 ease-in-out"
-                  :style="{ width: `${loadingProgress}%` }"
-                ></div>
+          <div class="flex flex-col items-center justify-center h-full space-y-6 p-6">
+            <!-- 简化的加载状态 -->
+            <div class="bg-primary/5 rounded-2xl p-8 w-full max-w-md">
+              <div class="flex flex-col items-center">
+                <div class="relative">
+                  <Icon name="ph:spinner-gap" class="w-16 h-16 animate-spin text-primary" />
+                  <div class="absolute inset-0 rounded-full border-2 border-primary/20 animate-ping" />
+                </div>
+                <div class="mt-6 bg-muted/40 rounded-full h-2 w-64 overflow-hidden">
+                  <div
+                    class="h-full bg-gradient-to-r from-primary to-purple-500 transition-all duration-1000 ease-out relative"
+                    :style="{ width: `${loadingProgress}%` }"
+                  >
+                    <!-- 进度条光效 -->
+                    <div class="absolute inset-0 bg-gradient-to-r from-transparent via-white/30 to-transparent animate-pulse" />
+                  </div>
+                </div>
               </div>
             </div>
-            <div class="w-full space-y-1.5 md:space-y-2 mt-4 md:mt-6">
-              <Skeleton class="h-3 md:h-4 w-full" />
-              <Skeleton class="h-3 md:h-4 w-5/6" />
-              <Skeleton class="h-3 md:h-4 w-4/6" />
-              <Skeleton class="h-3 md:h-4 w-3/4" />
+            
+            <div class="w-full space-y-3">
+              <Skeleton class="h-4 w-full rounded-lg bg-muted/40" />
+              <Skeleton class="h-4 w-5/6 rounded-lg bg-muted/40" />
+              <Skeleton class="h-4 w-4/6 rounded-lg bg-muted/40" />
+              <Skeleton class="h-4 w-3/4 rounded-lg bg-muted/40" />
             </div>
-            <h3 class="text-center text-base md:text-lg font-semibold mt-4 md:mt-6">
-              <template v-if="isScriptGenerating">
-                <span v-if="aiScriptStep === 1">Analyzing input...</span>
-                <span v-else-if="aiScriptStep === 2">Building outline...</span>
-                <span v-else-if="aiScriptStep === 3">Generating script content...</span>
-                <span v-else>Generating script...</span>
-              </template>
-              <template v-else-if="isValidating">
-                <template v-if="isAnalyzingUserScript">
-                  <Icon name="ph:brain" class="w-4 md:w-5 h-4 md:h-5 inline mr-1 md:mr-2 text-primary" />
-                  <span class="hidden sm:inline">Analyzing script content...</span>
-                  <span class="sm:hidden">Analyzing...</span>
+            
+            <div class="text-center bg-muted/10 rounded-2xl p-6 max-w-md">
+              <h3 class="text-lg font-semibold mb-3">
+                <template v-if="isScriptGenerating">
+                  <span v-if="aiScriptStep === 1">Analyzing input...</span>
+                  <span v-else-if="aiScriptStep === 2">Building outline...</span>
+                  <span v-else-if="aiScriptStep === 3">Generating script content...</span>
+                  <span v-else>Generating script...</span>
+                </template>
+                <template v-else-if="isValidating">
+                  <template v-if="isAnalyzingUserScript">
+                    <Icon name="ph:brain" class="w-5 h-5 inline mr-2 text-primary" />
+                    <span class="hidden sm:inline">Analyzing script content...</span>
+                    <span class="sm:hidden">Analyzing...</span>
+                  </template>
+                  <template v-else>
+                    Validating script...
+                  </template>
                 </template>
                 <template v-else>
-                  Validating script...
+                  Processing...
                 </template>
-              </template>
-              <template v-else>
-                Processing...
-              </template>
-            </h3>
-            <p class="text-center text-xs md:text-sm text-muted-foreground max-w-md px-2">
-              <template v-if="isAnalyzingUserScript">
-                <span class="hidden md:inline">Intelligently analyzing script content, identifying language, extracting speaker information and generating metadata...</span>
-                <span class="md:hidden">Analyzing script structure and speakers...</span>
-              </template>
-              <template v-else>
-                {{ aiScriptStepText || 'Please wait, this may take a moment...' }}
-              </template>
-            </p>
-            <p class="text-xs text-muted-foreground hidden md:block">
-              Estimated time remaining: {{ estimatedTimeRemaining }}
-            </p>
+              </h3>
+              <p class="text-sm text-muted-foreground max-w-md mx-auto">
+                <template v-if="isAnalyzingUserScript">
+                  <span class="hidden md:inline">Intelligently analyzing script content, identifying language, extracting speaker information and generating metadata...</span>
+                  <span class="md:hidden">Analyzing script structure and speakers...</span>
+                </template>
+                <template v-else>
+                  {{ aiScriptStepText || 'Please wait, this may take a moment...' }}
+                </template>
+              </p>
+              <p class="text-xs text-muted-foreground hidden md:block mt-2">
+                Estimated time remaining: {{ estimatedTimeRemaining }}
+              </p>
+            </div>
+            
             <Transition name="fade">
-              <div v-if="mainEditorContent" class="w-full mt-4 md:mt-6">
+              <div v-if="mainEditorContent" class="w-full bg-muted/10 rounded-2xl p-2">
                 <Textarea
                   :model-value="mainEditorContent"
                   placeholder="Script is being generated..."
-                  class="flex-1 w-full h-full resize-none min-h-[80px] md:min-h-[120px] rounded-lg border border-input bg-background p-3 md:p-4 text-sm md:text-base focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 transition placeholder:text-muted-foreground opacity-80 leading-relaxed"
+                  class="flex-1 w-full h-full resize-none min-h-[120px] rounded-xl border-0 bg-background/60 p-4 text-base focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-0 transition placeholder:text-muted-foreground/50 leading-relaxed backdrop-blur-sm"
                   readonly
                 />
               </div>
@@ -109,29 +123,36 @@
           </div>
         </template>
         <template v-else-if="scriptError">
-          <div class="flex flex-col items-center justify-center h-full text-center px-4">
-            <Icon name="ph:x-circle" class="w-12 md:w-16 h-12 md:h-16 text-destructive mb-3 md:mb-4" />
-            <h3 class="text-lg md:text-xl font-semibold text-destructive mb-2">Script Generation Failed</h3>
-            <p class="text-muted-foreground max-w-md text-sm md:text-base">{{ scriptError }}</p>
-            <Button variant="outline" @click="handleClearErrorAndRetry" class="mt-4 md:mt-6">
-              <Icon name="ph:arrow-clockwise" class="w-3 md:w-4 h-3 md:h-4 mr-2" />
-              Retry
-            </Button>
+          <div class="flex flex-col items-center justify-center h-full text-center p-8">
+            <!-- 简化的错误状态 -->
+            <div class="bg-red-50/50 dark:bg-red-950/20 rounded-2xl p-8 max-w-md w-full">
+              <Icon name="ph:x-circle" class="w-16 h-16 text-destructive mb-4 mx-auto" />
+              <h3 class="text-xl font-semibold text-destructive mb-2">Script Generation Failed</h3>
+              <p class="text-muted-foreground text-base mb-6">{{ scriptError }}</p>
+              <Button variant="outline" @click="handleClearErrorAndRetry" class="bg-background/60 backdrop-blur-sm">
+                <Icon name="ph:arrow-clockwise" class="w-4 h-4 mr-2" />
+                Retry
+              </Button>
+            </div>
           </div>
         </template>
-        <Textarea
+        <div
           v-else-if="!selectedPersonaIdForHighlighting"
-          :model-value="mainEditorContent"
-          :placeholder="isMobile ? mobileScriptPlaceholder : desktopScriptPlaceholder"
-          class="flex-1 w-full h-full resize-none min-h-[150px] md:min-h-[200px] rounded- border-input bg-background p-3 md:p-4 text-sm md:text-base transition placeholder:text-muted-foreground/50 leading-relaxed"
-          @update:model-value="handleMainEditorContentUpdate"
-        />
+          class="flex-1 w-full h-full p-4 bg-muted/10 rounded-2xl"
+        >
+          <Textarea
+            :model-value="mainEditorContent"
+            :placeholder="isMobile ? mobileScriptPlaceholder : desktopScriptPlaceholder"
+            class="flex-1 w-full h-full resize-none min-h-[200px] rounded-xl border-0 bg-background/60 backdrop-blur-sm p-4 text-base transition placeholder:text-muted-foreground/50 leading-relaxed focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-0"
+            @update:model-value="handleMainEditorContentUpdate"
+          />
+        </div>
         <div
           v-else
-          class="flex-1 w-full h-full overflow-y-auto p-3 md:p-4 text-xs md:text-sm leading-relaxed"
+          class="flex-1 w-full h-full overflow-y-auto p-4 text-sm leading-relaxed bg-muted/10 rounded-2xl"
           v-html="highlightedScript"
         ></div>
-      </Card>
+      </div>
     </div>
     
     <!-- 移动端全屏编辑器 -->

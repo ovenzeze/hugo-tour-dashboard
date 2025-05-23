@@ -1,19 +1,22 @@
 <template>
-  <CardFooter class="border-t p-2 md:p-3 flex flex-col justify-between items-stretch flex-shrink-0 bg-background gap-2">
+  <CardFooter class="border-t bg-background/60 backdrop-blur-sm p-4 flex flex-col justify-between items-stretch flex-shrink-0 gap-3">
     <!-- 移动端：垂直布局，桌面端：水平布局 -->
-    <div class="flex flex-col md:flex-row md:justify-between md:items-center gap-2 w-full">
+    <div class="flex flex-col md:flex-row md:justify-between md:items-center gap-3 w-full">
       <!-- Left Button Group -->
-      <div class="flex flex-row md:flex-row items-center gap-2 md:gap-2 order-2 md:order-1">
+      <div class="flex flex-row items-center gap-2 order-2 md:order-1">
         <!-- Previous Button -->
         <Button
           v-if="unifiedStore.currentStep > 1"
-          variant="outline"
+          variant="ghost"
           size="sm"
           @click="handlePreviousStep"
-          class="flex-1 md:flex-none"
+          class="flex-1 md:flex-none bg-background/60 hover:bg-muted/40"
         >
-          <Icon name="ph:arrow-left" class="w-3 md:w-4 h-3 md:h-4 mr-1 md:mr-2" />
-          <span class="text-xs md:text-sm">Previous</span>
+          <Icon name="ph:arrow-left" class="w-4 h-4 mr-2" />
+          <span class="text-sm">
+            <span class="hidden sm:inline">Previous</span>
+            <span class="sm:hidden">Back</span>
+          </span>
         </Button>
         
         <!-- Reset Button -->
@@ -21,60 +24,39 @@
           variant="ghost"
           size="sm"
           @click="handleReset"
-          class="flex-1 md:flex-none"
+          class="flex-1 md:flex-none bg-background/60 hover:bg-muted/40"
         >
-          <Icon name="ph:arrow-counter-clockwise" class="w-3 md:w-4 h-3 md:h-4 mr-1 md:mr-2" />
-          <span class="text-xs md:text-sm">Reset</span>
+          <Icon name="ph:arrow-clockwise" class="w-4 h-4 mr-2" />
+          <span class="text-sm">Reset</span>
         </Button>
         
         <!-- Step 1 specific buttons -->
         <template v-if="unifiedStore.currentStep === 1">
           <!-- AI Script Button -->
           <Button
+            variant="ghost"
+            size="sm"
             @click="handleGenerateAiScript"
             :disabled="unifiedStore.isLoading"
-            :variant="!unifiedStore.isScriptEmpty ? 'outline' : 'default'"
-            size="sm"
-            class="flex-1 md:flex-none relative overflow-hidden group"
+            class="flex-1 md:flex-none bg-blue-50/60 dark:bg-blue-950/20 hover:bg-blue-100/60 dark:hover:bg-blue-900/30 text-blue-700 dark:text-blue-300 disabled:opacity-50"
           >
-            <div class="flex items-center justify-center">
-              <Icon
-                v-if="unifiedStore.isLoading"
-                name="ph:spinner"
-                class="w-3 md:w-4 h-3 md:h-4 mr-1 md:mr-2 animate-spin text-primary"
-              />
-              <Icon
-                v-else
-                name="ph:brain"
-                class="w-3 md:w-4 h-3 md:h-4 mr-1 md:mr-2 group-hover:rotate-12 transition-transform duration-300"
-              />
-              <span v-if="unifiedStore.isLoading" class="text-xs md:text-sm">Creating...</span>
-              <span v-else class="text-xs md:text-sm">
-                <span class="hidden sm:inline">AI Script</span>
-                <span class="sm:hidden">AI</span>
-              </span>
-            </div>
-            
-            <!-- Pulsing Effect for Loading -->
-            <div 
-              v-if="unifiedStore.isLoading"
-              class="absolute inset-0 bg-primary/10 animate-pulse"
-            />
+            <Icon v-if="unifiedStore.isLoading" name="ph:spinner-gap" class="w-4 h-4 mr-2 animate-spin" />
+            <Icon v-else name="ph:magic-wand" class="w-4 h-4 mr-2" />
+            <span class="text-sm">
+              <span class="hidden sm:inline">{{ unifiedStore.isLoading ? 'Generating...' : 'AI Generate' }}</span>
+              <span class="sm:hidden">{{ unifiedStore.isLoading ? 'Gen...' : 'AI' }}</span>
+            </span>
           </Button>
           
           <!-- Use Preset Button -->
           <Button
-            variant="outline"
+            variant="ghost"
             size="sm"
             @click="handleUsePresetScript"
-            :disabled="unifiedStore.isLoading"
-            class="flex-1 md:flex-none group"
+            class="flex-1 md:flex-none bg-amber-50/60 dark:bg-amber-950/20 hover:bg-amber-100/60 dark:hover:bg-amber-900/30 text-amber-700 dark:text-amber-300"
           >
-            <Icon
-              name="ph:book-open-text"
-              class="w-3 md:w-4 h-3 md:h-4 mr-1 md:mr-2 group-hover:scale-110 transition-transform duration-300"
-            />
-            <span class="text-xs md:text-sm">
+            <Icon name="ph:file-text" class="w-4 h-4 mr-2" />
+            <span class="text-sm">
               <span class="hidden sm:inline">Use Preset</span>
               <span class="sm:hidden">Preset</span>
             </span>
@@ -89,33 +71,28 @@
           <Button
             variant="default"
             size="sm"
-            :disabled="!unifiedStore.canGoToStep2 || unifiedStore.isValidating"
+            :disabled="!unifiedStore.canProceedToStep2"
             @click="handleGoToNextStep"
-            class="flex-1 md:flex-none relative overflow-hidden group"
+            class="flex-1 md:flex-none bg-gradient-to-r from-green-500 to-emerald-500 hover:from-green-600 hover:to-emerald-600 text-white shadow-md hover:shadow-lg transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed"
           >
-            <div class="flex items-center justify-center">
-              <Icon
-                v-if="unifiedStore.isValidating"
-                name="ph:spinner"
-                class="w-3 md:w-4 h-3 md:h-4 mr-1 md:mr-2 animate-spin text-primary"
-              />
-              <span v-if="unifiedStore.isValidating" class="text-xs md:text-sm">Validating...</span>
-              <span v-else class="text-xs md:text-sm">Next</span>
-              <Icon v-if="!unifiedStore.isValidating" name="ph:arrow-right" class="w-3 md:w-4 h-3 md:h-4 ml-1 md:ml-2" />
-            </div>
+            <Icon name="ph:arrow-right" class="w-4 h-4 mr-2" />
+            <span class="text-sm">
+              <span class="hidden sm:inline">Next Step</span>
+              <span class="sm:hidden">Next</span>
+            </span>
           </Button>
         </template>
         
         <!-- Step 2: Next and Synthesize Buttons -->
         <template v-if="unifiedStore.currentStep === 2">
           <Button
-            variant="outline"
+            variant="ghost"
             size="sm"
             @click="handleGoToNextStep"
-            class="flex-1 md:flex-none"
+            class="flex-1 md:flex-none bg-background/60 hover:bg-muted/40"
           >
-            <Icon name="ph:arrow-right" class="w-3 md:w-4 h-3 md:h-4 mr-1 md:mr-2" />
-            <span class="text-xs md:text-sm">
+            <Icon name="ph:arrow-right" class="w-4 h-4 mr-2" />
+            <span class="text-sm">
               <span class="hidden sm:inline">Skip to Results</span>
               <span class="sm:hidden">Skip</span>
             </span>
@@ -126,32 +103,35 @@
             size="sm"
             :disabled="!unifiedStore.canSynthesize || unifiedStore.isSynthesizing"
             @click="handleSynthesizePodcast"
-            class="flex-1 md:flex-none relative overflow-hidden"
+            class="flex-1 md:flex-none relative overflow-hidden bg-gradient-to-r from-primary to-purple-500 hover:from-primary/90 hover:to-purple-500/90 transition-all duration-300 shadow-md hover:shadow-lg disabled:opacity-50 disabled:cursor-not-allowed"
           >
-            <div class="flex items-center justify-center">
-              <Icon v-if="unifiedStore.isSynthesizing" name="ph:rocket-launch" class="w-3 md:w-4 h-3 md:h-4 mr-1 md:mr-2 animate-spin" />
-              <Icon v-else name="ph:rocket-launch" class="w-3 md:w-4 h-3 md:h-4 mr-1 md:mr-2" />
+            <div class="flex items-center justify-center relative z-10">
+              <Icon v-if="unifiedStore.isSynthesizing" name="ph:rocket-launch" class="w-4 h-4 mr-2 animate-spin" />
+              <Icon v-else name="ph:rocket-launch" class="w-4 h-4 mr-2" />
               
-              <span v-if="unifiedStore.isSynthesizing && unifiedStore.synthesisProgress" class="text-xs md:text-sm">
+              <span v-if="unifiedStore.isSynthesizing && unifiedStore.synthesisProgress" class="text-sm">
                 <span class="hidden sm:inline">Synthesizing... {{ Math.round((unifiedStore.synthesisProgress.completed / unifiedStore.synthesisProgress.total) * 100) }}%</span>
                 <span class="sm:hidden">{{ Math.round((unifiedStore.synthesisProgress.completed / unifiedStore.synthesisProgress.total) * 100) }}%</span>
               </span>
-              <span v-else-if="unifiedStore.isSynthesizing" class="text-xs md:text-sm">
+              <span v-else-if="unifiedStore.isSynthesizing" class="text-sm">
                 <span class="hidden sm:inline">Synthesizing... 0%</span>
                 <span class="sm:hidden">0%</span>
               </span>
-              <span v-else class="text-xs md:text-sm">
+              <span v-else class="text-sm">
                 <span class="hidden sm:inline">Synthesize Podcast</span>
                 <span class="sm:hidden">Synthesize</span>
               </span>
             </div>
             
-            <!-- Progress Bar -->
+            <!-- 简化的进度条 -->
             <div 
               v-if="unifiedStore.isSynthesizing && unifiedStore.synthesisProgress"
-              class="absolute bottom-0 left-0 h-0.5 md:h-1 bg-primary/20 transition-all duration-300"
+              class="absolute bottom-0 left-0 h-1 bg-white/30 transition-all duration-300 rounded-full"
               :style="{ width: `${Math.round((unifiedStore.synthesisProgress.completed / unifiedStore.synthesisProgress.total) * 100)}%` }"
             />
+            
+            <!-- 处理状态的背景动画 -->
+            <div v-if="unifiedStore.isSynthesizing" class="absolute inset-0 bg-white/5 animate-pulse" />
           </Button>
         </template>
         
@@ -159,13 +139,13 @@
         <template v-if="unifiedStore.currentStep === 3">
           <Button
             v-if="unifiedStore.canDownloadAudio"
-            variant="outline"
+            variant="ghost"
             size="sm"
             @click="handleDownloadAudio"
-            class="flex-1 md:flex-none"
+            class="flex-1 md:flex-none bg-emerald-50/60 dark:bg-emerald-950/20 hover:bg-emerald-100/60 dark:hover:bg-emerald-900/30 text-emerald-700 dark:text-emerald-300"
           >
-            <Icon name="ph:download-simple" class="w-3 h-3 md:w-4 md:h-4 mr-1 md:mr-2" />
-            <span class="text-xs md:text-sm">Download</span>
+            <Icon name="ph:download-simple" class="w-4 h-4 mr-2" />
+            <span class="text-sm">Download</span>
           </Button>
           
           <Button
@@ -173,20 +153,25 @@
             :disabled="unifiedStore.isSynthesizing"
             variant="default"
             size="sm"
-            class="flex-1 md:flex-none relative"
+            class="flex-1 md:flex-none relative overflow-hidden bg-gradient-to-r from-primary to-purple-500 hover:from-primary/90 hover:to-purple-500/90 transition-all duration-300 shadow-md hover:shadow-lg disabled:opacity-50"
           >
-            <Icon v-if="unifiedStore.isSynthesizing" name="ph:spinner-gap" class="w-3 h-3 md:w-4 md:h-4 mr-1 md:mr-2 animate-spin" />
-            <Icon v-else name="ph:arrows-clockwise" class="w-3 h-3 md:w-4 md:h-4 mr-1 md:mr-2" />
+            <div class="flex items-center justify-center relative z-10">
+              <Icon v-if="unifiedStore.isSynthesizing" name="ph:spinner-gap" class="w-4 h-4 mr-2 animate-spin" />
+              <Icon v-else name="ph:arrows-clockwise" class="w-4 h-4 mr-2" />
+              
+              <span v-if="unifiedStore.isSynthesizing" class="text-sm">Processing...</span>
+              <span v-else class="text-sm">Re-Synthesize</span>
+            </div>
             
-            <span v-if="unifiedStore.isSynthesizing" class="text-xs md:text-sm">Processing...</span>
-            <span v-else class="text-xs md:text-sm">Re-Synthesize</span>
-            
-            <!-- Progress indicator -->
+            <!-- 简化的进度指示器 -->
             <div 
               v-if="unifiedStore.isSynthesizing && unifiedStore.synthesisProgress"
-              class="absolute bottom-0 left-0 h-0.5 bg-primary-foreground/30 transition-all duration-300"
+              class="absolute bottom-0 left-0 h-1 bg-white/30 transition-all duration-300 rounded-full"
               :style="{ width: `${Math.round((unifiedStore.synthesisProgress.completed / unifiedStore.synthesisProgress.total) * 100)}%` }"
             />
+            
+            <!-- 处理状态的背景动画 -->
+            <div v-if="unifiedStore.isSynthesizing" class="absolute inset-0 bg-white/5 animate-pulse" />
           </Button>
         </template>
       </div>
