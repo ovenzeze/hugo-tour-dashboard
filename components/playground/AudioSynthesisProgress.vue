@@ -1,170 +1,159 @@
 <!--
-@description Enhanced audio synthesis progress component using shadcn/vue components
+@description Compact circular audio synthesis progress indicator with gradient effects
 -->
 
 <template>
-  <div class="synthesis-progress-container space-y-6">
-    <!-- Main Progress Card -->
-    <Card class="p-6">
-      <!-- Header with Icon and Status -->
-      <div class="flex flex-col items-center space-y-4 mb-6">
-        <div class="relative">
-          <!-- Audio Wave Icon -->
-          <div class="w-16 h-16 rounded-full bg-primary/10 flex items-center justify-center relative overflow-hidden">
-            <Icon name="ph:waveform" class="w-6 h-6 text-primary z-10" />
+  <div class="synthesis-progress-container flex flex-col items-center justify-center space-y-6">
+    <!-- Compact Circular Progress -->
+    <div class="relative flex flex-col items-center space-y-4">
+      <!-- Main Circular Progress -->
+      <div class="relative">
+        <!-- Background Circle -->
+        <div class="w-20 h-20 rounded-full bg-muted/30 relative overflow-hidden">
+          <!-- Progress Arc -->
+          <svg class="w-20 h-20 transform -rotate-90" viewBox="0 0 80 80">
+            <!-- Background circle -->
+            <circle
+              cx="40"
+              cy="40"
+              r="36"
+              stroke="currentColor"
+              stroke-width="6"
+              fill="none"
+              class="text-muted-foreground/20"
+            />
+            <!-- Progress circle with gradient -->
+            <circle
+              cx="40"
+              cy="40"
+              r="36"
+              stroke="url(#progressGradient)"
+              stroke-width="6"
+              fill="none"
+              stroke-linecap="round"
+              :stroke-dasharray="circumference"
+              :stroke-dashoffset="circumference - (progressPercentage / 100) * circumference"
+              class="transition-all duration-700 ease-out"
+              :class="{ 'animate-pulse': isProcessing }"
+            />
             
-            <!-- Pulsing Animation -->
-            <div 
-              v-if="isProcessing" 
-              class="absolute inset-0 rounded-full bg-primary/20 animate-ping"
-            />
-            <div 
-              v-if="isProcessing" 
-              class="absolute inset-2 rounded-full bg-primary/30 animate-pulse"
-            />
-          </div>
-        </div>
-        
-        <div class="text-center max-w-md">
-          <h3 class="text-xl font-semibold text-foreground mb-2">
-            {{ statusText }}
-          </h3>
-          <p class="text-sm text-muted-foreground">
-            {{ statusDescription }}
-          </p>
-        </div>
-      </div>
-
-      <!-- Progress Section -->
-      <div class="space-y-4">
-        <div class="flex justify-between items-center">
-          <span class="text-sm font-medium text-foreground">Overall Progress</span>
-          <Badge variant="secondary">
-            {{ progressData.completed }}/{{ progressData.total }}
-          </Badge>
-        </div>
-        
-        <!-- Main Progress Bar -->
-        <div class="space-y-2">
-          <Progress 
-            :model-value="progressPercentage" 
-            class="h-3"
-          />
-          <div class="flex justify-between items-center text-xs text-muted-foreground">
-            <span>{{ progressPercentage }}% complete</span>
-            <span v-if="timeEstimate && isProcessing">
-              <Icon name="ph:clock" class="w-3 h-3 inline mr-1" />
-              {{ timeEstimate }} remaining
+            <!-- Gradient definition -->
+            <defs>
+              <linearGradient id="progressGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+                <stop offset="0%" :stop-color="isProcessing ? '#3b82f6' : '#10b981'" />
+                <stop offset="50%" :stop-color="isProcessing ? '#8b5cf6' : '#059669'" />
+                <stop offset="100%" :stop-color="isProcessing ? '#ec4899' : '#047857'" />
+              </linearGradient>
+            </defs>
+          </svg>
+          
+          <!-- Center Icon and Percentage -->
+          <div class="absolute inset-0 flex flex-col items-center justify-center">
+            <!-- Processing Animation -->
+            <div v-if="isProcessing" class="relative">
+              <div class="w-8 h-8 rounded-full bg-primary/20 flex items-center justify-center relative overflow-hidden">
+                <Icon name="ph:waveform" class="w-4 h-4 text-primary z-10" />
+                <!-- Ripple Effect -->
+                <div class="absolute inset-0 rounded-full bg-primary/30 animate-ping" />
+              </div>
+            </div>
+            
+            <!-- Completed State -->
+            <div v-else-if="progressPercentage === 100" class="relative">
+              <div class="w-8 h-8 rounded-full bg-green-500/20 flex items-center justify-center">
+                <Icon name="ph:check" class="w-4 h-4 text-green-500" />
+              </div>
+            </div>
+            
+            <!-- Ready State -->
+            <div v-else class="relative">
+              <div class="w-8 h-8 rounded-full bg-muted flex items-center justify-center">
+                <Icon name="ph:speaker-high" class="w-4 h-4 text-muted-foreground" />
+              </div>
+            </div>
+            
+            <!-- Percentage Text -->
+            <span class="text-xs font-medium text-foreground mt-1">
+              {{ progressPercentage }}%
             </span>
-          </div>
-        </div>
-      </div>
-    </Card>
-
-    <!-- Audio Segments Card -->
-    <Card class="p-6">
-      <div class="space-y-4">
-        <div class="flex items-center justify-between">
-          <h4 class="text-base font-semibold text-foreground">Audio Segments</h4>
-          <Badge variant="outline" class="text-xs">
-            Processing segments
-          </Badge>
-        </div>
-        
-        <!-- Segments Grid -->
-        <div class="grid grid-cols-4 sm:grid-cols-6 md:grid-cols-8 lg:grid-cols-10 gap-3">
-          <div 
-            v-for="(segment, index) in segmentDisplayItems.slice(0, maxDisplaySegments)" 
-            :key="index"
-            class="flex flex-col items-center space-y-2 p-3 rounded-lg border transition-all duration-300"
-            :class="getSegmentCardClass(segment)"
-          >
-            <!-- Status Icon -->
-            <div class="w-8 h-8 rounded-full flex items-center justify-center">
-              <!-- Processing state -->
-              <div v-if="segment.status === 'processing'" class="relative">
-                <Icon name="ph:spinner" class="w-4 h-4 text-primary animate-spin" />
-              </div>
-              
-              <!-- Success state -->
-              <Icon 
-                v-else-if="segment.status === 'completed'" 
-                name="ph:check-circle-fill" 
-                class="w-4 h-4 text-green-500" 
-              />
-              
-              <!-- Error state -->
-              <Icon 
-                v-else-if="segment.status === 'error'" 
-                name="ph:x-circle-fill" 
-                class="w-4 h-4 text-destructive" 
-              />
-              
-              <!-- Waiting state -->
-              <Icon 
-                v-else 
-                name="ph:clock" 
-                class="w-4 h-4 text-muted-foreground" 
-              />
-            </div>
-            
-            <!-- Segment Info -->
-            <div class="text-center space-y-1">
-              <div class="text-xs font-medium text-foreground">
-                {{ index + 1 }}
-              </div>
-              <Badge 
-                :variant="getSegmentBadgeVariant(segment)" 
-                class="text-xs px-2 py-0"
-              >
-                {{ segment.speaker.split(' ')[0] }}
-              </Badge>
-            </div>
           </div>
           
-          <!-- Show more indicator -->
+          <!-- Glow Effect -->
           <div 
-            v-if="segmentDisplayItems.length > maxDisplaySegments"
-            class="flex flex-col items-center space-y-2 p-3 rounded-lg border border-dashed border-muted-foreground/30"
-          >
-            <div class="w-8 h-8 rounded-full flex items-center justify-center bg-muted">
-              <Icon name="ph:dots-three" class="w-4 h-4 text-muted-foreground" />
-            </div>
-            <Badge variant="outline" class="text-xs">
-              +{{ segmentDisplayItems.length - maxDisplaySegments }}
-            </Badge>
-          </div>
+            v-if="isProcessing" 
+            class="absolute inset-0 rounded-full bg-gradient-to-r from-primary/20 via-purple-500/20 to-pink-500/20 animate-pulse"
+          />
         </div>
       </div>
-    </Card>
+      
+      <!-- Status Text -->
+      <div class="text-center max-w-sm">
+        <h3 class="text-base font-semibold text-foreground mb-1">
+          {{ statusText }}
+        </h3>
+        <p class="text-xs text-muted-foreground">
+          {{ progressData.completed }}/{{ progressData.total }} segments
+          <span v-if="timeEstimate && isProcessing" class="ml-2">
+            • {{ timeEstimate }} remaining
+          </span>
+        </p>
+      </div>
+    </div>
 
-    <!-- Current Processing Status -->
-    <Card 
-      v-if="currentSegmentInfo" 
-      class="p-4 border-primary/20 bg-primary/5"
-    >
-      <div class="flex items-start space-x-3">
-        <div class="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center flex-shrink-0">
-          <Icon name="ph:microphone" class="w-5 h-5 text-primary" />
+    <!-- Compact Segments Display -->
+    <div v-if="progressData.total > 0" class="flex flex-wrap justify-center gap-1.5 max-w-md">
+      <div 
+        v-for="(segment, index) in segmentDisplayItems.slice(0, Math.min(12, progressData.total))" 
+        :key="index"
+        class="w-6 h-6 rounded-full flex items-center justify-center transition-all duration-500"
+        :class="getCompactSegmentClass(segment, index)"
+      >
+        <!-- Processing Animation -->
+        <div v-if="segment.status === 'processing'" class="relative">
+          <div class="w-3 h-3 rounded-full bg-primary animate-pulse" />
+          <div class="absolute inset-0 w-3 h-3 rounded-full bg-primary/30 animate-ping" />
         </div>
-        <div class="flex-1 min-w-0">
-          <div class="flex items-center space-x-2 mb-1">
-            <span class="font-medium text-sm text-foreground">
-              Processing Segment {{ currentSegmentInfo.index + 1 }}
-            </span>
-            <Badge variant="default" class="text-xs">
-              {{ currentSegmentInfo.speaker }}
-            </Badge>
-          </div>
-          <p class="text-xs text-muted-foreground line-clamp-2">
-            {{ currentSegmentInfo.text }}
-          </p>
-        </div>
-        <div class="flex-shrink-0">
-          <Icon name="ph:spinner" class="w-4 h-4 text-primary animate-spin" />
-        </div>
+        
+        <!-- Completed -->
+        <Icon 
+          v-else-if="segment.status === 'completed'" 
+          name="ph:check" 
+          class="w-3 h-3 text-white" 
+        />
+        
+        <!-- Error -->
+        <Icon 
+          v-else-if="segment.status === 'error'" 
+          name="ph:x" 
+          class="w-3 h-3 text-white" 
+        />
+        
+        <!-- Waiting -->
+        <div v-else class="w-2 h-2 rounded-full bg-muted-foreground/40" />
       </div>
-    </Card>
+      
+      <!-- Show more indicator -->
+      <div 
+        v-if="progressData.total > 12"
+        class="w-6 h-6 rounded-full bg-muted/50 flex items-center justify-center"
+      >
+        <span class="text-xs text-muted-foreground">+{{ progressData.total - 12 }}</span>
+      </div>
+    </div>
+
+    <!-- Current Processing Info (Minimal) -->
+    <div 
+      v-if="currentSegmentInfo && isProcessing" 
+      class="bg-primary/5 border border-primary/20 rounded-full px-4 py-2 max-w-sm"
+    >
+      <div class="flex items-center space-x-2">
+        <Icon name="ph:microphone" class="w-3 h-3 text-primary flex-shrink-0" />
+        <span class="text-xs font-medium text-foreground truncate">
+          {{ currentSegmentInfo.speaker }}
+        </span>
+        <Icon name="ph:spinner" class="w-3 h-3 text-primary animate-spin flex-shrink-0" />
+      </div>
+    </div>
   </div>
 </template>
 
@@ -196,6 +185,9 @@ const props = withDefaults(defineProps<Props>(), {
   showTimeEstimate: true
 });
 
+// Circle circumference for SVG progress
+const circumference = computed(() => 2 * Math.PI * 36); // radius = 36
+
 // Computed properties
 const progressPercentage = computed(() => {
   if (props.progressData.total === 0) return 0;
@@ -213,29 +205,14 @@ const statusText = computed(() => {
   }
   
   if (progressPercentage.value === 0) {
-    return 'Initializing Synthesis...';
+    return 'Initializing...';
   } else if (progressPercentage.value < 50) {
     return 'Synthesizing Audio...';
   } else if (progressPercentage.value < 90) {
-    return 'Processing Segments...';
+    return 'Processing...';
   } else {
-    return 'Finalizing Podcast...';
+    return 'Finalizing...';
   }
-});
-
-const statusDescription = computed(() => {
-  if (props.statusOverride) {
-    return 'Audio synthesis is in progress. Please wait while we process your podcast segments.';
-  }
-  
-  if (!props.isProcessing) {
-    if (progressPercentage.value === 100) {
-      return 'Your podcast audio has been successfully generated and is ready to play.';
-    }
-    return 'Click the synthesize button to start generating your podcast audio.';
-  }
-  
-  return 'Converting your script into high-quality audio using advanced text-to-speech technology.';
 });
 
 const segmentDisplayItems = computed(() => {
@@ -269,14 +246,6 @@ const segmentDisplayItems = computed(() => {
   return segments;
 });
 
-const maxDisplaySegments = computed(() => {
-  // Responsive segment display count
-  if (typeof window !== 'undefined') {
-    return window.innerWidth < 640 ? 8 : window.innerWidth < 1024 ? 12 : 16;
-  }
-  return 12;
-});
-
 const currentSegmentInfo = computed(() => {
   if (!props.isProcessing || props.progressData.currentSegment === undefined) {
     return null;
@@ -302,61 +271,43 @@ const timeEstimate = computed(() => {
   const remaining = props.progressData.total - props.progressData.completed;
   if (remaining <= 0) return null;
   
-  // Estimate ~15 seconds per segment
-  const estimatedSeconds = remaining * 15;
+  // Estimate ~10 seconds per segment for compact display
+  const estimatedSeconds = remaining * 10;
   
   if (estimatedSeconds < 60) {
     return `~${estimatedSeconds}s`;
-  } else if (estimatedSeconds < 3600) {
+  } else {
     const minutes = Math.ceil(estimatedSeconds / 60);
     return `~${minutes}m`;
-  } else {
-    const hours = Math.floor(estimatedSeconds / 3600);
-    const minutes = Math.ceil((estimatedSeconds % 3600) / 60);
-    return `~${hours}h ${minutes}m`;
   }
 });
 
-// Helper functions for styling
-function getSegmentCardClass(segment: SegmentProgress) {
+// Helper function for compact segment styling
+function getCompactSegmentClass(segment: SegmentProgress, index: number) {
+  const baseClass = 'border-2 transition-all duration-500 transform';
+  
   switch (segment.status) {
     case 'processing':
-      return 'border-primary/30 bg-primary/5';
+      return `${baseClass} bg-primary border-primary scale-110 shadow-lg shadow-primary/50`;
     case 'completed':
-      return 'border-green-200 bg-green-50 dark:border-green-800 dark:bg-green-950/20';
+      return `${baseClass} bg-green-500 border-green-500 shadow-sm`;
     case 'error':
-      return 'border-destructive/30 bg-destructive/5';
+      return `${baseClass} bg-destructive border-destructive shadow-sm`;
     default:
-      return 'border-muted bg-muted/20';
-  }
-}
-
-function getSegmentBadgeVariant(segment: SegmentProgress) {
-  switch (segment.status) {
-    case 'processing':
-      return 'default';
-    case 'completed':
-      return 'secondary';
-    case 'error':
-      return 'destructive';
-    default:
-      return 'outline';
+      return `${baseClass} bg-muted border-muted-foreground/20`;
   }
 }
 </script>
 
 <style scoped>
 .synthesis-progress-container {
-  width: 100%;
-  max-width: 4xl;
-  margin: 0 auto;
   animation: fadeInUp 0.4s ease-out;
 }
 
 @keyframes fadeInUp {
   from {
     opacity: 0;
-    transform: translateY(20px);
+    transform: translateY(10px);
   }
   to {
     opacity: 1;
@@ -364,10 +315,17 @@ function getSegmentBadgeVariant(segment: SegmentProgress) {
   }
 }
 
-.line-clamp-2 {
-  display: -webkit-box;
-  -webkit-line-clamp: 2;
-  -webkit-box-orient: vertical;
-  overflow: hidden;
+/* Custom glow animation for processing state */
+@keyframes progressGlow {
+  0%, 100% {
+    filter: drop-shadow(0 0 8px rgba(59, 130, 246, 0.3));
+  }
+  50% {
+    filter: drop-shadow(0 0 16px rgba(139, 92, 246, 0.5));
+  }
+}
+
+.animate-pulse {
+  animation: progressGlow 2s ease-in-out infinite;
 }
 </style> 

@@ -10,7 +10,10 @@
         </ClientOnly>
 
         <!-- 主体内容，包含实际页面内容 -->
-        <div class="flex flex-col flex-1 md:ml-[var(--sidebar-width)]">
+        <div 
+          class="flex flex-col flex-1 md:ml-[var(--sidebar-width)]"
+          :style="{ '--mobile-header-height': MOBILE_HEADER_HEIGHT }"
+        >
           <!-- PC端顶部栏 - 已移除 -->
 
           <!-- 移动端顶部栏 -->
@@ -31,7 +34,7 @@
           </header>
 
           <!-- 主内容区 -->
-          <main class="flex-1 flex flex-col md:pb-0 main-content-mobile-full-height">
+          <main class="flex-1 flex flex-col md:pb-0">
             <slot />
           </main>
         </div>
@@ -94,10 +97,14 @@ const menuGroups = {
 // 保持原来的 sidebarOpen 逻辑，同时添加菜单结构
 const sidebarOpen = ref(false);
 
+// 移动端导航栏高度常量（4rem = 64px）
+const MOBILE_HEADER_HEIGHT = '4rem';
+
 // 然后在需要的地方传入 menuGroups
 defineExpose({
   menuGroups,
-  route
+  route,
+  MOBILE_HEADER_HEIGHT
 });
 
 
@@ -150,8 +157,29 @@ defineExpose({
 }
 
 @media (max-width: 767px) {
-  .main-content-mobile-full-height {
-    height: 100svh;
+  /* 移动端主内容区域高度计算：100vh - 顶部导航栏高度(64px) */
+  main {
+    min-height: calc(100svh - 4rem);
+    max-height: calc(100svh - 4rem);
+  }
+  
+  /* 为使用全屏高度的页面提供正确的可用高度 */
+  :global(.mobile-full-height) {
+    height: calc(100svh - 4rem) !important;
+    max-height: calc(100svh - 4rem) !important;
+  }
+  
+  /* 移动端安全区域适配 */
+  @supports (height: calc(100svh - env(safe-area-inset-top))) {
+    main {
+      min-height: calc(100svh - 4rem - env(safe-area-inset-top, 0px));
+      max-height: calc(100svh - 4rem - env(safe-area-inset-top, 0px));
+    }
+    
+    :global(.mobile-full-height) {
+      height: calc(100svh - 4rem - env(safe-area-inset-top, 0px)) !important;
+      max-height: calc(100svh - 4rem - env(safe-area-inset-top, 0px)) !important;
+    }
   }
 }
 </style>

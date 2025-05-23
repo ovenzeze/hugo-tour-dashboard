@@ -104,7 +104,7 @@
 import { computed, onMounted, ref, watch, toRef, nextTick, onBeforeUnmount } from 'vue';
 import { toast } from 'vue-sonner';
 import { usePlaygroundSettingsStore } from '~/stores/playgroundSettingsStore';
-import { usePlaygroundScriptStore } from '~/stores/playgroundScriptStore';
+import { usePlaygroundUnifiedStore } from '~/stores/playgroundUnified';
 import { usePlaygroundProcessStore } from '~/stores/playgroundProcessStore';
 import { usePlaygroundUIStore } from '~/stores/playgroundUIStore';
 import type { Persona } from '~/types/persona';
@@ -140,18 +140,18 @@ interface InternalEnhancedSegment {
 const emit = defineEmits(['update:isValid', 'update:settings']); // Keep emits if parent still needs them for specific actions
 
 const settingsStore = usePlaygroundSettingsStore();
-const scriptStore = usePlaygroundScriptStore();
+const unifiedStore = usePlaygroundUnifiedStore(); // 使用统一store
 const processStore = usePlaygroundProcessStore();
 const uiStore = usePlaygroundUIStore();
 const personaCache = usePersonaCache();
 
 // Replace props with computed properties from stores
-const scriptContent = computed(() => scriptStore.scriptContent);
+const scriptContent = computed(() => unifiedStore.scriptContent);
 const synthProgress = computed(() => { // Example: derive from processStore or uiStore
   // This needs to be defined based on how progress is tracked in new stores
   // For now, a placeholder:
   const synthesizing = processStore.isSynthesizing; // Or a more granular progress from processStore/uiStore
-  const total = scriptStore.parsedSegments.length;
+  const total = unifiedStore.parsedSegments.length;
   const synthesizedCount = segmentStates.value ? Object.values(segmentStates.value).filter(s => s?.status === 'success').length : 0;
   return synthesizing || total > 0 ? { synthesized: synthesizedCount, total } : undefined;
 });
@@ -180,8 +180,8 @@ const scriptLanguageDisplayName = computed(() => {
   }
 });
 
-// Use parsedSegments from scriptStore directly
-const parsedScriptSegmentsFromStore = computed(() => scriptStore.parsedSegments);
+// Use parsedSegments from unifiedStore directly
+const parsedScriptSegmentsFromStore = computed(() => unifiedStore.parsedSegments);
 
 const selectedHostPersona = computed(() => {
   const hostId = settingsStore.getHostPersonaIdNumeric;
@@ -286,8 +286,25 @@ const { speakerAssignments } = useVoiceManagement(
   selectedGuestPersonas
 );
 
+// voiceOptions computed can be removed if SegmentVoiceAssignmentItem handles voice selection internally using personaCache
+
+const {
+  segmentPreviews,
+  combinedPreviewUrl,
+  segmentStates,
+  isPreviewingSegment,
+  setAudioRef,
+  previewSegment,
+  previewAllSegments: previewAllSegmentsFromComposable,
+  onSegmentPlay,
+  onSegmentPauseOrEnd
+} = useSegmentPreview(
+  parsedScriptSegmentsFromStore, // 直接使用parsedSegmentsFromStore
+  speakerAssignments
+);
+
 const previewableEnhancedSegments = computed<PreviewableSegment[]>(() => {
-  return enhancedScriptSegments.value.map((segment: InternalEnhancedSegment): PreviewableSegment => {
+  return enhancedScriptSegments.value.map((segment: InternalEnhancedSegment, index: number): PreviewableSegment => {
     return {
       // Fields required by PreviewableSegment from composables/useSegmentPreview.ts
       id: segment.id,
@@ -296,7 +313,7 @@ const previewableEnhancedSegments = computed<PreviewableSegment[]>(() => {
       speaker: segment.speaker, // segment already has .speaker from InternalEnhancedSegment
       text: segment.text,
       voiceId: segment.voiceId,
-      audioUrl: segment.audioUrl,
+      audioUrl: segmentPreviews.value[index]?.audioUrl || null, // 现在可以安全地访问segmentPreviews
       isLoading: segment.isLoading,
       isEditing: segment.isEditing,
       ttsProvider: segment.ttsProvider,
@@ -312,23 +329,6 @@ const previewableEnhancedSegments = computed<PreviewableSegment[]>(() => {
     };
   });
 });
-
-// voiceOptions computed can be removed if SegmentVoiceAssignmentItem handles voice selection internally using personaCache
-
-const {
-  segmentPreviews,
-  combinedPreviewUrl,
-  segmentStates,
-  isPreviewingSegment,
-  setAudioRef,
-  previewSegment,
-  previewAllSegments: previewAllSegmentsFromComposable,
-  onSegmentPlay,
-  onSegmentPauseOrEnd
-} = useSegmentPreview(
-  previewableEnhancedSegments,
-  speakerAssignments
-);
 
 async function handlePreviewAllSegments() {
   const result = await previewAllSegmentsFromComposable();

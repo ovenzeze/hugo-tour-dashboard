@@ -22,13 +22,13 @@ import { ref, computed } from 'vue';
 import VoicePerformanceSettings from './VoicePerformanceSettings.vue';
 import { usePlaygroundUIStore } from '~/stores/playgroundUIStore';
 import { usePlaygroundSettingsStore } from '~/stores/playgroundSettingsStore';
-import { usePlaygroundScriptStore } from '~/stores/playgroundScriptStore';
+import { usePlaygroundUnifiedStore } from '~/stores/playgroundUnified';
 import { usePersonaCache } from '~/composables/usePersonaCache';
 import type { Persona } from '~/types/persona';
 
 const uiStore = usePlaygroundUIStore();
 const settingsStore = usePlaygroundSettingsStore();
-const scriptStore = usePlaygroundScriptStore();
+const unifiedStore = usePlaygroundUnifiedStore();
 const personaCache = usePersonaCache();
 
 const voicePerformanceSettingsRef = ref<InstanceType<typeof VoicePerformanceSettings> | null>(null);
@@ -42,7 +42,7 @@ const assignedVoicesSummary = computed(() => {
   if (!performanceConfig || !performanceConfig.speakerAssignments) return 'N/A';
 
   const assignments = performanceConfig.speakerAssignments as Record<string, { voiceId: string; provider: string }>;
-  const uniqueSpeakers = scriptStore.uniqueSpeakers; // Assuming this getter exists in scriptStore
+  const uniqueSpeakers = Array.from(new Set(unifiedStore.parsedSegments.map(s => s.speaker))); // Get unique speakers from unifiedStore
 
   if (uniqueSpeakers.length === 0 || Object.keys(assignments).length === 0) return 'No voices assigned yet.';
 

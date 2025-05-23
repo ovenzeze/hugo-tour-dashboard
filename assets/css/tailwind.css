@@ -126,13 +126,13 @@
   body {
     @apply bg-background text-foreground;
     /* 正文: Crimson Text (英文), Noto Sans SC (中文), Tailwind sans-serif (后备) */
-    font-family: "Crimson Text", "Noto Sans SC", sans-serif;
+    font-family: "Crimson Text", "Noto Serif SC", "Noto Sans SC", sans-serif;
   }
 
-  h1, h2, h3, h4, h5, h6 {
+  h1, h2, h3, h4, h5, h6, textarea, input, div, p  {
     /* 标题: Crimson Text (英文), Noto Serif SC (中文), serif (后备) */
     font-family: "Crimson Text", "Noto Serif SC", serif;
-    font-weight: 500; /* 默认为 Bold, 可在具体组件中覆盖为 900 (Black) */
+    font-weight: 600; /* 默认为 Bold, 可在具体组件中覆盖为 900 (Black) */
   }
 
   /* 安全区域适配 - 在PWA模式下生效 */

@@ -15,9 +15,9 @@ export const usePlaygroundUnifiedStore = defineStore('playgroundUnified', {
     finalAudioUrl: null as string | null,
     
     // 加载状态
-    isLoading: false, // AI脚本生成
-    isSynthesizing: false, // 音频合成
-    isValidating: false, // 脚本验证
+    isLoading: false, // AI script generation
+    isSynthesizing: false, // audio synthesis
+    isValidating: false, // script validation
     
     // 错误状态
     error: null as string | null,
@@ -42,6 +42,15 @@ export const usePlaygroundUnifiedStore = defineStore('playgroundUnified', {
     validationResult: null as any,
     podcastSettingsSnapshot: {} as Partial<FullPodcastSettings>,
     selectedPersonaIdForHighlighting: null as string | number | null,
+
+    // === 新增：Modal状态管理 ===
+    showSynthesisModal: false,
+    podcastNameForModal: 'Untitled Podcast',
+    synthesisStatusForModal: 'confirm' as 'confirm' | 'processing' | 'success' | 'error',
+    confirmDataForModal: { estimatedCost: 'Calculating...', estimatedTime: 'Calculating...' },
+    processingDataForModal: { progress: 0, currentStage: 'Initializing...', remainingTime: 'Calculating...' },
+    successDataForModal: { podcastDuration: 'N/A', fileSize: 'N/A' },
+    errorDataForModal: { errorMessage: 'An unknown error occurred' },
   }),
 
   getters: {
@@ -66,9 +75,11 @@ export const usePlaygroundUnifiedStore = defineStore('playgroundUnified', {
     currentError: (state) => state?.error || null,
     currentSelectedPersonaIdForHighlighting: (state) => state?.selectedPersonaIdForHighlighting || null,
     
-    // 移除冲突的别名 getter，避免与 state 属性冲突
-    // scriptContent: (state) => state?.scriptContent || '',  // 注释掉，因为与 state.scriptContent 冲突
-    // audioUrl: (state) => state?.finalAudioUrl || null,     // 注释掉，因为可能造成混淆
+    // === 新增：便捷getters ===
+    isProcessing: (state) => state.isLoading || state.isSynthesizing || state.isValidating,
+    canGoToStep2: (state) => state.currentStep === 1 && !!(state?.scriptContent?.trim()) && (state?.parsedSegments?.length || 0) > 0,
+    canGoToStep3: (state) => state.currentStep === 2,
+    canDownloadAudio: (state) => !!state.finalAudioUrl,
   },
 
   actions: {
@@ -130,33 +141,141 @@ export const usePlaygroundUnifiedStore = defineStore('playgroundUnified', {
     // 辅助方法：添加解析的段落
     addParsedSegment(segments: ScriptSegment[], speaker: string, text: string, personaCache: any, settingsStore: any) {
       let speakerPersonaId: number;
+      let personaMatchStatus: 'exact' | 'fallback' | 'none' = 'none';
       
       // 1. 按名称查找persona
       const persona = personaCache.getPersonaByName(speaker);
+      console.log(`[playgroundUnified] Looking for persona for speaker "${speaker}":`, persona);
+      
       if (persona?.persona_id) {
         speakerPersonaId = persona.persona_id;
+        personaMatchStatus = 'exact';
+        console.log(`[playgroundUnified] Exact match found for "${speaker}": ${persona.name} (ID: ${persona.persona_id})`);
       } else {
-        // 2. 使用主播作为fallback
-        const hostId = settingsStore.getHostPersonaIdNumeric;
-        if (hostId) {
-          speakerPersonaId = hostId;
+        // 2. 智能匹配：根据speaker角色类型分配合适的persona
+        const hostPersonaId = settingsStore.getHostPersonaIdNumeric;
+        const hostPersona = hostPersonaId ? personaCache.getPersonaById(hostPersonaId) : null;
+        const guestPersonaIds = settingsStore.getGuestPersonaIdsNumeric;
+        const guestPersonas = guestPersonaIds.map((id: number) => personaCache.getPersonaById(id)).filter((p: any) => p !== undefined);
+        
+        // 检查speaker名称是否暗示主持人角色
+        const speakerLower = speaker.toLowerCase();
+        const isLikelyHost = speakerLower.includes('host') || 
+                            speakerLower.includes('smith') || // 从生成的脚本看Smith是host
+                            speakerLower.includes('主持') ||
+                            segments.length === 0; // 第一个speaker通常是主持人
+        
+        if (isLikelyHost && hostPersona) {
+          speakerPersonaId = hostPersona.persona_id;
+          personaMatchStatus = 'fallback';
+          console.log(`[playgroundUnified] Host fallback for "${speaker}": ${hostPersona.name} (ID: ${hostPersona.persona_id})`);
+        } else if (guestPersonas.length > 0) {
+          // 为不同的guest speakers循环分配guest personas
+          const guestIndex = Math.max(0, segments.length - (isLikelyHost ? 1 : 0)) % guestPersonas.length;
+          speakerPersonaId = guestPersonas[guestIndex].persona_id;
+          personaMatchStatus = 'fallback';
+          console.log(`[playgroundUnified] Guest fallback for "${speaker}": ${guestPersonas[guestIndex].name} (ID: ${speakerPersonaId})`);
+        } else if (hostPersona) {
+          // 最后fallback到host
+          speakerPersonaId = hostPersona.persona_id;
+          personaMatchStatus = 'fallback';
+          console.log(`[playgroundUnified] Final host fallback for "${speaker}": ${hostPersona.name} (ID: ${hostPersona.persona_id})`);
         } else {
-          // 3. 使用第一个嘉宾作为fallback
-          const guestIds = settingsStore.getGuestPersonaIdsNumeric;
-          if (guestIds.length > 0) {
-            speakerPersonaId = guestIds[0];
-          } else {
-            console.warn(`[playgroundUnified] No persona found for speaker: ${speaker}, and no fallback available`);
-            return; // 跳过这个段落
-          }
+          console.warn(`[playgroundUnified] No persona found for speaker: ${speaker}, and no fallback available`);
+          return; // 跳过这个段落
         }
       }
       
       segments.push({
         speaker,
         speakerPersonaId,
-        text
+        text,
+        personaMatchStatus // 添加匹配状态用于调试和UI显示
+      } as ScriptSegment & { personaMatchStatus: 'exact' | 'fallback' | 'none' });
+    },
+
+    // === 新增：步骤管理 ===
+    async goToStep(step: number) {
+      // 验证步骤切换条件
+      if (step < 1 || step > 3) return false;
+      
+      if (step === 2 && !this.canGoToStep2) {
+        throw new Error('Please complete script writing and validation first');
+      }
+      
+      // 如果从步骤1跳到步骤2，需要先验证
+      if (this.currentStep === 1 && step === 2) {
+        const result = await this.validateAndCreatePodcast();
+        if (!result.success) {
+          throw new Error(result.message || 'Script validation failed');
+        }
+      }
+      
+      this.currentStep = step;
+      return true;
+    },
+
+    async goToNextStep() {
+      if (this.currentStep < 3) {
+        await this.goToStep(this.currentStep + 1);
+      }
+    },
+
+    goToPreviousStep() {
+      if (this.currentStep > 1) {
+        this.currentStep = this.currentStep - 1;
+      }
+    },
+
+    // === 新增：Modal管理 ===
+    showSynthesisModalAction() {
+      this.showSynthesisModal = true;
+      this.synthesisStatusForModal = 'confirm';
+    },
+
+    hideSynthesisModal() {
+      this.showSynthesisModal = false;
+    },
+
+    setSynthesisModalStatus(status: 'confirm' | 'processing' | 'success' | 'error') {
+      this.synthesisStatusForModal = status;
+    },
+
+    updateModalProcessingData(data: { progress?: number; currentStage?: string; remainingTime?: string }) {
+      this.$patch({
+        processingDataForModal: {
+          ...this.processingDataForModal,
+          ...data
+        }
       });
+    },
+
+    // === 核心业务方法 ===
+
+
+
+
+
+    // 重置状态
+    resetPlaygroundState() {
+      this.currentStep = 1;
+      this.scriptContent = '';
+      this.parsedSegments = [];
+      this.podcastId = null;
+      this.finalAudioUrl = null;
+      this.isLoading = false;
+      this.isSynthesizing = false;
+      this.isValidating = false;
+      this.error = null;
+      this.synthesisProgress = null;
+      this.segmentSynthesisProgress = {};
+      this.aiScriptGenerationStep = 0;
+      this.aiScriptGenerationStepText = '';
+      this.validationResult = null;
+      this.podcastSettingsSnapshot = {};
+      this.selectedPersonaIdForHighlighting = null;
+      this.showSynthesisModal = false;
+      this.synthesisStatusForModal = 'confirm';
     },
 
     // 3. AI脚本生成（简化版）
@@ -192,92 +311,151 @@ export const usePlaygroundUnifiedStore = defineStore('playgroundUnified', {
           final: finalLanguage
         });
         
-        // 构建请求
+        // 构建请求 - 修复persona传递格式
+        const hostPersonaId = settingsStore.getHostPersonaIdNumeric;
+        const hostPersona = hostPersonaId ? personaCache.getPersonaById(hostPersonaId) : null;
+        const guestPersonaIds = settingsStore.getGuestPersonaIdsNumeric;
+        const guestPersonas = guestPersonaIds.map((id: number) => personaCache.getPersonaById(id)).filter((p: any) => p !== undefined);
+
         const requestBody: any = {
           podcastSettings: {
-            title: settingsStore.podcastSettings.title || '未命名播客',
-            topic: settingsStore.podcastSettings.topic || '通用主题',
+            title: settingsStore.podcastSettings.title || 'Untitled Podcast',
+            topic: settingsStore.podcastSettings.topic || 'General Topic',
             numberOfSegments: settingsStore.podcastSettings.numberOfSegments || 5,
-            style: settingsStore.podcastSettings.style || 'conversational',
-            keywords: settingsStore.podcastSettings.keywords?.join(', ') || '',
             language: finalLanguage,
+            style: settingsStore.podcastSettings.style || 'conversational',
+            keywords: settingsStore.podcastSettings.keywords?.join(', ') || ''
           }
         };
+
+        // 确保根据语言自动选择合适的personas
+        console.log('[playgroundUnified] Available personas:', personaCache.personas.value.map(p => ({ id: p.persona_id, name: p.name, lang: p.language_support })));
         
-        // 添加主播信息
-        const hostId = settingsStore.getHostPersonaIdNumeric;
-        if (hostId) {
-          const hostPersona = personaCache.getPersonaById(hostId);
-          if (hostPersona) {
-            requestBody.hostPersona = {
-              persona_id: hostPersona.persona_id,
-              name: hostPersona.name,
-              voice_model_identifier: hostPersona.voice_model_identifier || 'default_voice'
-            };
+        // 根据语言过滤personas
+        const languageCompatiblePersonas = personaCache.personas.value.filter(persona => {
+          if (!persona.language_support || persona.language_support.length === 0) {
+            return true; // 如果没有语言限制，认为兼容
           }
-        }
-        
-        // 添加嘉宾信息
-        const guestIds = settingsStore.getGuestPersonaIdsNumeric;
-        if (guestIds.length > 0) {
-          requestBody.guestPersonas = guestIds.map(id => {
-            const persona = personaCache.getPersonaById(id);
-            return persona ? {
-              persona_id: persona.persona_id,
-              name: persona.name,
-              voice_model_identifier: persona.voice_model_identifier || 'default_voice'
-            } : null;
-          }).filter(Boolean);
-        }
-        
-        console.log('[playgroundUnified] AI script request:', requestBody);
-        
-        this.aiScriptGenerationStep = 3;
-        this.aiScriptGenerationStepText = 'Generating script with AI...';
-        
-        // 调用AI脚本生成API
-        const response: any = await $fetch('/api/generate-script', {
-          method: 'POST',
-          body: requestBody,
+          return persona.language_support.some(lang => 
+            lang.toLowerCase().includes(finalLanguage.toLowerCase()) ||
+            lang.toLowerCase() === finalLanguage.toLowerCase()
+          );
         });
         
-        console.log('[playgroundUnified] AI script response:', response);
+        console.log('[playgroundUnified] Language compatible personas for', finalLanguage, ':', languageCompatiblePersonas.map(p => p.name));
         
+        // 如果没有选择host或guest，或者选择的与语言不匹配，自动选择
+        if (!hostPersona || !languageCompatiblePersonas.some(p => p.persona_id === hostPersona.persona_id)) {
+          const autoHostPersona = languageCompatiblePersonas.find(p => 
+            p.name.toLowerCase().includes('host') || 
+            p.name.toLowerCase().includes('主持')
+          ) || languageCompatiblePersonas[0];
+          
+          if (autoHostPersona) {
+            console.log('[playgroundUnified] Auto-selecting host persona:', autoHostPersona.name);
+            settingsStore.setHostPersona(autoHostPersona.persona_id);
+            requestBody.hostPersona = autoHostPersona;
+          }
+        } else {
+          requestBody.hostPersona = hostPersona;
+        }
+        
+        // 自动选择guest personas
+        if (guestPersonas.length === 0 || !guestPersonas.every((g: any) => languageCompatiblePersonas.some(p => p.persona_id === g.persona_id))) {
+          const availableGuests = languageCompatiblePersonas.filter(p => 
+            (!requestBody.hostPersona || p.persona_id !== requestBody.hostPersona.persona_id) &&
+            (p.name.toLowerCase().includes('guest') || 
+             p.name.toLowerCase().includes('嘉宾') ||
+             !p.name.toLowerCase().includes('host') && !p.name.toLowerCase().includes('主持'))
+          );
+          
+          // 选择2-3个guest personas
+          const selectedGuests = availableGuests.slice(0, Math.min(3, availableGuests.length));
+          if (selectedGuests.length > 0) {
+            console.log('[playgroundUnified] Auto-selecting guest personas:', selectedGuests.map(p => p.name));
+            settingsStore.setGuestPersonas(selectedGuests.map(p => p.persona_id));
+            requestBody.guestPersonas = selectedGuests;
+          }
+        } else {
+          requestBody.guestPersonas = guestPersonas;
+        }
+
+        this.aiScriptGenerationStep = 3;
+        this.aiScriptGenerationStepText = 'Generating AI script...';
+
+        console.log('[playgroundUnified] Sending request to /api/generate-script:', requestBody);
+
+        // 调用API - 修复路径
+        const response = await $fetch('/api/generate-script', {
+          method: 'POST',
+          body: requestBody
+        });
+
+        this.aiScriptGenerationStep = 4;
         this.aiScriptGenerationStepText = 'Processing generated script...';
-        
-        // 处理响应
-        if (response && Array.isArray(response.script) && response.script.length > 0) {
-          // 转换为脚本内容格式 - 使用 speaker 字段而不是 name 字段
-          const scriptContent = response.script
+
+        console.log('[playgroundUnified] AI response received:', response);
+
+        // 处理AI响应 - response 直接是解析后的数据，不需要 .data
+        if ((response as any)?.script && Array.isArray((response as any).script)) {
+          // 将AI生成的segments转换为脚本文本格式
+          const scriptContent = (response as any).script
             .filter((segment: any) => {
-              const speakerName = segment?.speaker || segment?.name; // 兼容两种字段
-              return segment && speakerName && segment.text;
+              const speakerName = segment?.speaker || segment?.name;
+              return segment && 
+                     typeof speakerName === 'string' && speakerName.trim() &&
+                     typeof segment.text === 'string' && segment.text.trim();
             })
             .map((segment: any) => {
-              const speakerName = segment.speaker || segment.name; // 优先使用 speaker 字段
+              const speakerName = segment.speaker || segment.name;
               return `${speakerName}: ${segment.text}`;
             })
             .join('\n');
-          
-          console.log('[playgroundUnified] Generated script content:', scriptContent);
+
+          if (!scriptContent.trim()) {
+            throw new Error('Generated AI script content is empty after processing');
+          }
+
+          console.log('[playgroundUnified] Processed script content:', scriptContent);
           this.updateScriptContent(scriptContent);
           
-          // 更新设置（如果AI提供了）
-          if (response.podcastTitle) {
-            settingsStore.setPodcastTitle(response.podcastTitle);
+          // 更新播客设置
+          if ((response as any).podcastTitle) {
+            const settingsStore = usePlaygroundSettingsStore();
+            settingsStore.setPodcastTitle((response as any).podcastTitle);
           }
           
-          console.log('[playgroundUnified] AI script generation successful, script content updated');
-          console.log('[playgroundUnified] Current script content after update:', this.scriptContent);
-          return { success: true, message: '脚本生成成功！内容已更新到编辑器中。' };
+          this.aiScriptGenerationStep = 0;
+          this.aiScriptGenerationStepText = '';
+          
+          return {
+            success: true,
+            message: 'AI script generated successfully!'
+          };
         } else {
-          throw new Error('AI返回的脚本格式无效');
+          console.error('[playgroundUnified] Invalid AI response format:', response);
+          throw new Error('Invalid AI response format or empty script content');
         }
         
-      } catch (err: any) {
-        console.error('[playgroundUnified] AI script generation failed:', err);
-        this.error = `AI脚本生成失败: ${err.message || '未知错误'}`;
-        return { success: false, message: this.error };
+      } catch (error: any) {
+        console.error('[playgroundUnified] AI script generation error:', error);
+        
+        // 提供更详细的错误信息
+        let errorMessage = 'Generation failed';
+        if (error.response?.status) {
+          errorMessage = `Server error (${error.response.status})`;
+        } else if (error.message?.includes('fetch')) {
+          errorMessage = 'Network connection error, please check your connection and try again';
+        } else if (error.message) {
+          errorMessage = error.message;
+        }
+        
+        this.error = errorMessage;
+        
+        return {
+          success: false,
+          message: errorMessage
+        };
       } finally {
         this.isLoading = false;
         this.aiScriptGenerationStep = 0;
@@ -294,17 +472,17 @@ export const usePlaygroundUnifiedStore = defineStore('playgroundUnified', {
       try {
         // 基本验证
         if (this.isScriptEmpty) {
-          throw new Error('脚本内容为空');
+          throw new Error('Script content is empty');
         }
         
         if (this.parsedSegments.length === 0) {
-          throw new Error('脚本解析失败，没有有效的对话段落');
+          throw new Error('Script parsing failed, no valid dialogue segments found');
         }
         
         const settingsStore = usePlaygroundSettingsStore();
         const hostId = settingsStore.getHostPersonaIdNumeric;
         if (!hostId) {
-          throw new Error('请选择主播角色');
+          throw new Error('Please select a host persona');
         }
         
         // 构建API请求
@@ -360,14 +538,14 @@ export const usePlaygroundUnifiedStore = defineStore('playgroundUnified', {
             console.error('[playgroundUnified] Failed to import cover generator:', coverError);
           }
           
-          return { success: true, message: 'Podcast创建成功，现在可以进行音频合成' };
+          return { success: true, message: 'Podcast created successfully, now you can proceed with audio synthesis' };
         } else {
-          throw new Error(response.message || 'Podcast创建失败');
+          throw new Error(response.message || 'Podcast creation failed');
         }
         
       } catch (err: any) {
         console.error('[playgroundUnified] Validation failed:', err);
-        this.error = err.message || '验证失败';
+        this.error = err.message || 'Validation failed';
         return { success: false, message: this.error };
       } finally {
         this.isValidating = false;
@@ -391,11 +569,11 @@ export const usePlaygroundUnifiedStore = defineStore('playgroundUnified', {
       
       try {
         if (!this.podcastId) {
-          throw new Error('Podcast ID缺失，请先验证脚本');
+          throw new Error('Podcast ID is missing, please validate the script first');
         }
         
         if (!this.validationResult?.preparedSegments) {
-          throw new Error('没有准备好的段落数据，请先验证脚本');
+          throw new Error('No prepared segment data found, please validate the script first');
         }
         
         const settingsStore = usePlaygroundSettingsStore();
@@ -427,8 +605,8 @@ export const usePlaygroundUnifiedStore = defineStore('playgroundUnified', {
             console.log('[playgroundUnified] Starting async task monitoring:', response.taskId);
             await this.monitorAsyncTask(response.taskId);
             // 异步任务完成后自动切换到步骤3
-            this.setCurrentStep(3);
-            return { success: true, message: '音频合成完成！' };
+            this.currentStep = 3;
+            return { success: true, message: 'Audio synthesis completed!' };
           } else {
             // 同步模式：直接处理结果或使用模拟进度
             if (segmentCount <= 3) {
@@ -438,17 +616,17 @@ export const usePlaygroundUnifiedStore = defineStore('playgroundUnified', {
             this.processSynthesisResults(response);
             this.isSynthesizing = false; // 确保在同步完成时重置状态
             // 同步任务完成后自动切换到步骤3
-            this.setCurrentStep(3);
+            this.currentStep = 3;
             console.log('[playgroundUnified] Audio synthesis completed synchronously');
-            return { success: true, message: '音频合成成功！', response };
+            return { success: true, message: 'Audio synthesis successful!', response };
           }
         } else {
-          throw new Error(response.message || '音频合成失败');
+          throw new Error(response.message || 'Audio synthesis failed');
         }
         
       } catch (err: any) {
         console.error('[playgroundUnified] Synthesis failed:', err);
-        this.error = err.message || '音频合成失败';
+        this.error = err.message || 'Audio synthesis failed';
         this.isSynthesizing = false;
         this.synthesisProgress = null;
         return { success: false, message: this.error };
@@ -510,10 +688,10 @@ export const usePlaygroundUnifiedStore = defineStore('playgroundUnified', {
             };
             this.processSynthesisResults(status.results);
             this.isSynthesizing = false;
-            return { success: true, message: '音频合成完成' };
+            return { success: true, message: 'Audio synthesis completed' };
           } else if (status.status === 'failed') {
             console.error('[playgroundUnified] Async task failed:', status.error);
-            this.error = status.error || '异步任务失败';
+            this.error = status.error || 'Async task failed';
             this.isSynthesizing = false;
             this.synthesisProgress = null; // Reset progress on failure
             throw new Error(this.error || 'Task failed');
@@ -529,7 +707,7 @@ export const usePlaygroundUnifiedStore = defineStore('playgroundUnified', {
       
       // 超时处理
       this.isSynthesizing = false;
-      throw new Error('任务执行超时，请稍后检查结果');
+      throw new Error('Task execution timed out, please check results later');
     },
 
     // 处理合成结果
@@ -546,19 +724,7 @@ export const usePlaygroundUnifiedStore = defineStore('playgroundUnified', {
       }
     },
 
-    // === 状态管理Actions ===
-    
-    setCurrentStep(step: number) {
-      this.currentStep = step;
-    },
-    
-    setFinalAudioUrl(url: string | null) {
-      this.finalAudioUrl = url;
-    },
-    
-    clearError() {
-      this.error = null;
-    },
+
 
     // 管理单个片段合成进度
     updateSegmentProgress(segmentIndex: number, update: Partial<{ 
@@ -596,25 +762,9 @@ export const usePlaygroundUnifiedStore = defineStore('playgroundUnified', {
       this.segmentSynthesisProgress = {};
     },
 
-    // 重置状态
-    resetPlaygroundState() {
-      console.log('[playgroundUnified] resetPlaygroundState called');
-      this.currentStep = 1;
-      this.scriptContent = '';
-      this.parsedSegments = [];
-      this.podcastId = null;
-      this.finalAudioUrl = null;
-      this.isLoading = false;
-      this.isSynthesizing = false;
-      this.isValidating = false;
+    // 清除错误
+    clearError() {
       this.error = null;
-      this.synthesisProgress = null;
-      this.segmentSynthesisProgress = {};
-      this.aiScriptGenerationStep = 0;
-      this.aiScriptGenerationStepText = '';
-      this.validationResult = null;
-      this.podcastSettingsSnapshot = {};
-      this.selectedPersonaIdForHighlighting = null;
     },
 
     // === 兼容性Actions（保留现有组件兼容性）===
@@ -625,11 +775,11 @@ export const usePlaygroundUnifiedStore = defineStore('playgroundUnified', {
 
     // 预设脚本加载
     loadPresetScript() {
-      const presetScript = `主持人: 欢迎收听我们的播客节目！今天我们将讨论一个非常有趣的话题。
-嘉宾: 谢谢邀请！我很高兴能参与这次讨论。
-主持人: 首先，请您简单介绍一下自己的背景。
-嘉宾: 当然。我在这个领域工作了很多年，积累了丰富的经验。
-主持人: 太好了！那么让我们开始今天的话题吧。`;
+      const presetScript = `Host: Welcome to our podcast show! Today we'll be discussing a very interesting topic.
+Guest: Thank you for having me! I'm excited to participate in this discussion.
+Host: First, could you briefly introduce your background?
+Guest: Of course. I've been working in this field for many years and have accumulated rich experience.
+Host: Great! Let's start today's topic then.`;
       
       this.updateScriptContent(presetScript);
       console.log('[playgroundUnified] Preset script loaded');
@@ -643,7 +793,7 @@ export const usePlaygroundUnifiedStore = defineStore('playgroundUnified', {
       
       try {
         if (this.isScriptEmpty) {
-          throw new Error('脚本内容为空，无法分析');
+          throw new Error('Script content is empty, cannot analyze');
         }
         
         console.log('[playgroundUnified] Calling script analysis API...');
@@ -658,8 +808,8 @@ export const usePlaygroundUnifiedStore = defineStore('playgroundUnified', {
         
         console.log('[playgroundUnified] Script analysis response:', response);
         
-        if (response.success && response.data) {
-          const analysisData = response.data;
+        if ((response as any).success && (response as any).data) {
+          const analysisData = (response as any).data;
           
           // 更新脚本内容（如果AI提供了格式化版本）
           if (analysisData.formattedScript && analysisData.formattedScript !== this.scriptContent) {
@@ -699,16 +849,16 @@ export const usePlaygroundUnifiedStore = defineStore('playgroundUnified', {
           console.log('[playgroundUnified] Script analysis successful');
           return {
             success: true,
-            message: '脚本分析成功！已自动提取说话者信息并优化设置。',
+            message: 'Script analysis successful! Automatic speaker information extraction and setting optimization completed.',
             data: analysisData
           };
         } else {
-          throw new Error('脚本分析失败，请检查脚本格式');
+          throw new Error('Script analysis failed, please check script format');
         }
         
       } catch (err: any) {
         console.error('[playgroundUnified] Script analysis failed:', err);
-        this.error = `脚本分析失败: ${err.message || '未知错误'}`;
+        this.error = `Script analysis failed: ${err.message || 'Unknown error'}`;
         return { success: false, message: this.error };
       } finally {
         this.isValidating = false;

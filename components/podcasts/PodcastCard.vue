@@ -7,7 +7,7 @@
       'transform': hoveredPodcastId === Number(podcast.podcast_id) ? 'translateY(-4px)' : 'translateY(0)'
     }"
     :class="[
-      'border rounded-xl shadow-md flex flex-col min-w-[320px] max-w-[390px]',
+      'border rounded-xl shadow-md flex flex-col min-w-[100px] max-w-[300px]',
       'aspect-[3/4]',
       'group hover:shadow-xl transition-all duration-300 ease-in-out overflow-hidden relative',
       !podcast.cover_image_url ? 'bg-card text-card-foreground' : 'text-white',
@@ -26,7 +26,8 @@
         backgroundImage: podcast.cover_image_url && typeof podcast.cover_image_url === 'string' ? `url(${podcast.cover_image_url})` : 'none',
         opacity: imageLoaded[Number(podcast.podcast_id)] ? 1 : 0,
         transition: 'opacity 0.5s ease-in-out',
-        zIndex: 0
+        zIndex: 0,
+        filter: 'brightness(0.8)'
       }"
     >
       <img
@@ -38,7 +39,7 @@
     </div>
 
     <!-- 顶部整体渐变遮罩，圆角与卡片一致 -->
-    <div class="absolute inset-x-0 top-0 h-[40%] z-10 rounded-t-xl pointer-events-none card-gradient-overlay"></div>
+    <div class="absolute inset-x-0 top-0 h-[50%] z-10 rounded-t-xl pointer-events-none card-gradient-overlay"></div>
 
     <!-- Core content always visible -->
     <div :class="[
@@ -462,7 +463,7 @@ function sharePodcast(podcastId: string) {
 .card-gradient-overlay {
   border-top-left-radius: 0.75rem;
   border-top-right-radius: 0.75rem;
-  background: linear-gradient(to bottom, rgba(0,0,0,0.7) 0%, rgba(0,0,0,0.05) 100%);
+  background: linear-gradient(to bottom, rgba(0,0,0,0.6) 0%, transparent 100%);
   transition: background 0.3s cubic-bezier(.4,0,.2,1);
 }
 .card-title-shadow {

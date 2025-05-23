@@ -1,46 +1,64 @@
 <template>
-  <div class="flex-1 p-2 md:p-4 flex flex-col items-center justify-center bg-background h-full space-y-4 md:space-y-6 step3-container">
-    <!-- 合成完成且有音频 -->
+  <div class="flex-1 p-4 md:p-6 flex flex-col items-center justify-center bg-background h-full space-y-6 md:space-y-8 step3-container">
+    <!-- Audio synthesis completed and has audio -->
     <template v-if="unifiedStore.finalAudioUrl && !unifiedStore.isSynthesizing">
-      <div class="w-full max-w-md text-center">
-        <h3 class="text-xl font-semibold mb-4 text-primary">Podcast Ready!</h3>
-        <p class="text-muted-foreground mb-1">Your podcast audio has been synthesized.</p>
-        <p class="text-xs text-muted-foreground">
-          Provider: {{ selectedTtsProvider || 'N/A' }} | Segments: {{ unifiedStore.parsedSegments?.length || 0 }}
-        </p>
-      </div>
-      <div class="w-full max-w-xl p-4 border rounded-lg shadow-md bg-muted/30">
-        <p class="font-medium text-sm mb-2 text-center">Final Audio Preview:</p>
-        <audio :src="unifiedStore.finalAudioUrl" controls class="w-full"></audio>
+      <div class="w-full max-w-lg text-center space-y-4">
+        <div class="flex flex-col items-center space-y-3">
+          <!-- Success Icon -->
+          <div class="w-16 h-16 rounded-full bg-green-500/10 flex items-center justify-center">
+            <Icon name="ph:check-circle" class="w-8 h-8 text-green-500" />
+          </div>
+          <h3 class="text-xl font-semibold text-primary">Podcast Ready!</h3>
+          <p class="text-muted-foreground">Your podcast audio has been synthesized successfully.</p>
+          <p class="text-xs text-muted-foreground">
+            Provider: {{ selectedTtsProvider || 'N/A' }} | Segments: {{ unifiedStore.parsedSegments?.length || 0 }}
+          </p>
+        </div>
+        
+        <!-- Audio Player Card -->
+        <div class="w-full max-w-xl p-4 border rounded-lg shadow-md bg-card">
+          <p class="font-medium text-sm mb-3 text-center">Final Audio Preview:</p>
+          <audio :src="unifiedStore.finalAudioUrl" controls class="w-full"></audio>
+        </div>
       </div>
     </template>
     
-    <!-- 正在合成音频 -->
+    <!-- Audio synthesis in progress -->
     <template v-else-if="unifiedStore.isSynthesizing">
-      <AudioSynthesisProgress 
-        :is-processing="true"
-        :progress-data="synthesisProgressData"
-        :show-time-estimate="true"
-      />
-    </template>
-    
-    <!-- 合成失败 -->
-    <template v-else-if="unifiedStore.error">
-      <div class="text-center text-destructive">
-        <Icon name="ph:warning-circle" class="h-12 w-12 mx-auto mb-4" />
-        <p class="text-lg font-medium">Error Synthesizing Podcast</p>
-        <p class="text-sm">{{ unifiedStore.error }}</p>
+      <div class="w-full max-w-md">
+        <AudioSynthesisProgress 
+          :is-processing="true"
+          :progress-data="synthesisProgressData"
+          :show-time-estimate="true"
+        />
       </div>
     </template>
     
-    <!-- 还没有开始合成 -->
+    <!-- Synthesis failed -->
+    <template v-else-if="unifiedStore.error">
+      <div class="text-center space-y-4">
+        <div class="w-16 h-16 rounded-full bg-destructive/10 flex items-center justify-center mx-auto">
+          <Icon name="ph:warning-circle" class="w-8 h-8 text-destructive" />
+        </div>
+        <div class="space-y-2">
+          <h3 class="text-lg font-medium text-destructive">Synthesis Error</h3>
+          <p class="text-sm text-muted-foreground max-w-md">{{ unifiedStore.error }}</p>
+        </div>
+      </div>
+    </template>
+    
+    <!-- Ready to synthesize -->
     <template v-else>
-      <div class="text-center">
-        <Icon name="ph:speaker-high" class="h-16 w-16 text-muted-foreground mx-auto mb-4" />
-        <p class="text-lg font-medium text-muted-foreground">Ready to Synthesize</p>
-        <p class="text-sm text-muted-foreground">
-          Your script is validated. Click "Synthesize Podcast" to generate audio.
-        </p>
+      <div class="text-center space-y-4">
+        <div class="w-16 h-16 rounded-full bg-muted/20 flex items-center justify-center mx-auto">
+          <Icon name="ph:speaker-high" class="w-8 h-8 text-muted-foreground" />
+        </div>
+        <div class="space-y-2">
+          <h3 class="text-lg font-medium text-muted-foreground">Ready to Synthesize</h3>
+          <p class="text-sm text-muted-foreground max-w-md">
+            Your script is validated. Click "Synthesize Podcast" to generate audio.
+          </p>
+        </div>
       </div>
     </template>
   </div>
