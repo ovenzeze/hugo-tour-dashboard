@@ -128,7 +128,7 @@ export default defineNuxtConfig({
     head: {
       charset: "utf-8",
       viewport:
-        "width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, minimum-scale=1",
+        "width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, minimum-scale=1, viewport-fit=cover",
       meta: [
         { name: "apple-mobile-web-app-capable", content: "yes" },
         {
@@ -137,6 +137,8 @@ export default defineNuxtConfig({
         },
         { name: "apple-mobile-web-app-title", content: "Hugo Tour Dashboard" },
         { name: "theme-color", content: "#ffffff" },
+        { name: "mobile-web-app-capable", content: "yes" },
+        { name: "format-detection", content: "telephone=no" },
       ],
       link: [
         {
@@ -161,6 +163,10 @@ export default defineNuxtConfig({
           rel: "mask-icon",
           href: "/images/icons/favicons/safari-pinned-tab.svg",
           color: "#5bbad5",
+        },
+        {
+          rel: "apple-touch-startup-image",
+          href: "/images/icons/favicons/apple-touch-icon.png",
         },
       ],
     },

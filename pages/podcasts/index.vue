@@ -1,227 +1,238 @@
 <template>
-  <div class="container mx-auto py-4 md:py-10">
-    <!-- Top Action Bar and Filters -->
-    <div class="w-full mb-6 px-2 md:px-6">
-      <!-- 筛选器容器 -->
-      <div class="bg-background border rounded-lg p-3 shadow-sm">
-        <!-- 移动端垂直布局，桌面端水平布局 -->
-        <div class="flex flex-col md:flex-row md:items-center gap-4">
-          <!-- 标题 -->
-          <div class="flex items-center gap-2 text-sm font-medium">
-            <Icon name="ph:funnel" class="h-4 w-4 text-primary" />
-            Filters
-          </div>
-          
-          <!-- 筛选器组 - 移动端垂直排列 -->
-          <div class="flex flex-col md:flex-row md:items-center gap-3 md:flex-1">
-            <!-- 搜索 - 移动端全宽 -->
-            <div class="relative w-full md:min-w-[200px] md:w-auto">
-              <Icon name="ph:magnifying-glass" class="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-              <Input
-                v-model="searchTerm"
-                placeholder="Search podcasts..."
-                class="pl-10 h-8 text-sm w-full"
-              />
-            </div>
-            
-            <!-- 状态选择器 - 移动端全宽，支持滚动 -->
-            <div class="w-full md:w-auto">
-              <div class="flex items-center bg-muted rounded-md p-1 w-full md:w-auto overflow-x-auto">
-                <Button 
-                  :variant="podcastStatusFilter === 'all' ? 'default' : 'ghost'" 
-                  size="sm"
-                  @click="podcastStatusFilter = 'all'"
-                  class="h-6 px-2 text-xs rounded-sm flex-shrink-0"
-                >
-                  All
-                </Button>
-                <Button 
-                  :variant="podcastStatusFilter === 'completed' ? 'default' : 'ghost'" 
-                  size="sm"
-                  @click="podcastStatusFilter = 'completed'"
-                  class="h-6 px-2 text-xs rounded-sm flex-shrink-0"
-                >
-                  <Icon name="ph:check-circle" class="mr-1 h-3 w-3" />
-                  <span class="hidden xs:inline">Done</span>
-                  <span class="xs:hidden">✓</span>
-                </Button>
-                <Button 
-                  :variant="podcastStatusFilter === 'in-progress' ? 'default' : 'ghost'" 
-                  size="sm"
-                  @click="podcastStatusFilter = 'in-progress'"
-                  class="h-6 px-2 text-xs rounded-sm flex-shrink-0"
-                >
-                  <Icon name="ph:hourglass" class="mr-1 h-3 w-3" />
-                  <span class="hidden xs:inline">Progress</span>
-                  <span class="xs:hidden">⏳</span>
-                </Button>
-                <Button 
-                  :variant="podcastStatusFilter === 'not-started' ? 'default' : 'ghost'" 
-                  size="sm"
-                  @click="podcastStatusFilter = 'not-started'"
-                  class="h-6 px-2 text-xs rounded-sm flex-shrink-0"
-                >
-                  <Icon name="ph:circle-dashed" class="mr-1 h-3 w-3" />
-                  <span class="hidden xs:inline">New</span>
-                  <span class="xs:hidden">○</span>
-                </Button>
-              </div>
-            </div>
-            
-            <!-- 语言选择器 - 移动端全宽，支持滚动 -->
-            <div class="w-full md:w-auto">
-              <div class="flex items-center bg-muted rounded-md p-1 w-full md:w-auto overflow-x-auto">
-                <Button
-                  :variant="languageFilter === 'all' ? 'default' : 'ghost'"
-                  size="sm"
-                  @click="languageFilter = 'all'"
-                  class="h-6 px-2 text-xs rounded-sm flex-shrink-0"
-                >
-                  <Icon name="ph:globe" class="mr-1 h-3 w-3" />
-                  <span class="hidden xs:inline">All</span>
-                  <span class="xs:hidden">🌐</span>
-                </Button>
-                <Button
-                  v-for="lang in availableLanguages.slice(0, 3)"
-                  :key="lang"
-                  :variant="languageFilter === lang ? 'default' : 'ghost'"
-                  size="sm"
-                  @click="languageFilter = lang"
-                  class="h-6 px-2 text-xs rounded-sm flex-shrink-0"
-                >
-                  <div class="flex items-center gap-1">
-                    <span class="text-sm">{{ getLanguageFlag(lang) }}</span>
-                    <span class="hidden sm:inline">{{ lang }}</span>
-                  </div>
-                </Button>
-                <!-- 更多语言按钮 -->
-                <Button
-                  v-if="availableLanguages.length > 3"
-                  variant="ghost"
-                  size="sm"
-                  @click="showMoreLanguages = !showMoreLanguages"
-                  class="h-6 px-2 text-xs rounded-sm flex-shrink-0"
-                >
-                  <Icon name="ph:dots-three" class="h-3 w-3" />
-                  <span class="hidden sm:inline ml-1">+{{ availableLanguages.length - 3 }}</span>
-                </Button>
-              </div>
-            </div>
-            
-            <!-- 展开的更多语言 - 移动端独立一行 -->
-            <div v-if="showMoreLanguages && availableLanguages.length > 3" 
-                 class="w-full md:w-auto">
-              <div class="flex items-center bg-muted rounded-md p-1 w-full md:w-auto overflow-x-auto">
-                <Button
-                  v-for="lang in availableLanguages.slice(3)"
-                  :key="`extra-${lang}`"
-                  :variant="languageFilter === lang ? 'default' : 'ghost'"
-                  size="sm"
-                  @click="selectLanguage(lang)"
-                  class="h-6 px-2 text-xs rounded-sm flex-shrink-0"
-                >
-                  <div class="flex items-center gap-1">
-                    <span class="text-sm">{{ getLanguageFlag(lang) }}</span>
-                    <span class="hidden sm:inline">{{ lang }}</span>
-                  </div>
-                </Button>
-              </div>
-            </div>
-          </div>
-          
-          <!-- 统计和重置 - 移动端水平排列，桌面端不变 -->
-          <div class="flex items-center justify-between md:justify-end gap-3 text-sm">
-            <span class="text-muted-foreground whitespace-nowrap">{{ filteredPodcasts.length }} results</span>
-            <Button variant="ghost" size="sm" @click="resetFilters" class="h-8 px-3 text-sm">
-              <Icon name="ph:arrow-clockwise" class="mr-1 h-4 w-4" />
-              <span class="hidden xs:inline">Reset</span>
-              <span class="xs:hidden">↻</span>
-            </Button>
-          </div>
+  <PWALayout title="Podcasts" :show-header="true" :show-footer="false">
+    <template #header>
+      <div class="flex items-center justify-between p-4 safe-area-top">
+        <h1 class="text-lg font-semibold">Podcasts</h1>
+        <div class="flex items-center gap-2">
+          <!-- 可以在这里添加头部操作按钮 -->
         </div>
       </div>
-    </div>
+    </template>
 
-    <!-- Conditional Rendering for Content Area -->
-    <div class="p-4 mx-auto">
-      <!-- Loading State -->
-      <div v-if="loading" class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6 mt-4 w-full">
-        <div v-for="n in 3" :key="`skeleton-${n}`" class="border rounded-xl overflow-hidden shadow-md bg-card"> 
-          <div class="p-4 space-y-3">
-            <div class="flex justify-between items-start">
-              <div class="flex-1 space-y-2">
-                <Skeleton class="h-5 w-3/4" />
-                <Skeleton class="h-3 w-1/2" />
+    <div class="container mx-auto py-4 md:py-10 safe-area-all">
+      <!-- Top Action Bar and Filters -->
+      <div class="w-full mb-6 px-2 md:px-6">
+        <!-- 筛选器容器 -->
+        <div class="bg-background border rounded-lg p-3 shadow-sm">
+          <!-- 移动端垂直布局，桌面端水平布局 -->
+          <div class="flex flex-col md:flex-row md:items-center gap-4">
+            <!-- 标题 -->
+            <div class="flex items-center gap-2 text-sm font-medium">
+              <Icon name="ph:funnel" class="h-4 w-4 text-primary" />
+              Filters
+            </div>
+            
+            <!-- 筛选器组 - 移动端垂直排列 -->
+            <div class="flex flex-col md:flex-row md:items-center gap-3 md:flex-1">
+              <!-- 搜索 - 移动端全宽 -->
+              <div class="relative w-full md:min-w-[200px] md:w-auto">
+                <Icon name="ph:magnifying-glass" class="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                <Input
+                  v-model="searchTerm"
+                  placeholder="Search podcasts..."
+                  class="pl-10 h-8 text-sm w-full ios-input-fix"
+                />
               </div>
-              <div class="flex gap-1">
-                <Skeleton class="h-7 w-7 rounded" />
-                <Skeleton class="h-7 w-7 rounded" />
+              
+              <!-- 状态选择器 - 移动端全宽，支持滚动 -->
+              <div class="w-full md:w-auto">
+                <div class="flex items-center bg-muted rounded-md p-1 w-full md:w-auto overflow-x-auto ios-fix">
+                  <Button 
+                    :variant="podcastStatusFilter === 'all' ? 'default' : 'ghost'" 
+                    size="sm"
+                    @click="podcastStatusFilter = 'all'"
+                    class="h-6 px-2 text-xs rounded-sm flex-shrink-0 touch-target"
+                  >
+                    All
+                  </Button>
+                  <Button 
+                    :variant="podcastStatusFilter === 'completed' ? 'default' : 'ghost'" 
+                    size="sm"
+                    @click="podcastStatusFilter = 'completed'"
+                    class="h-6 px-2 text-xs rounded-sm flex-shrink-0 touch-target"
+                  >
+                    <Icon name="ph:check-circle" class="mr-1 h-3 w-3" />
+                    <span class="hidden xs:inline">Done</span>
+                    <span class="xs:hidden">✓</span>
+                  </Button>
+                  <Button 
+                    :variant="podcastStatusFilter === 'in-progress' ? 'default' : 'ghost'" 
+                    size="sm"
+                    @click="podcastStatusFilter = 'in-progress'"
+                    class="h-6 px-2 text-xs rounded-sm flex-shrink-0 touch-target"
+                  >
+                    <Icon name="ph:hourglass" class="mr-1 h-3 w-3" />
+                    <span class="hidden xs:inline">Progress</span>
+                    <span class="xs:hidden">⏳</span>
+                  </Button>
+                  <Button 
+                    :variant="podcastStatusFilter === 'not-started' ? 'default' : 'ghost'" 
+                    size="sm"
+                    @click="podcastStatusFilter = 'not-started'"
+                    class="h-6 px-2 text-xs rounded-sm flex-shrink-0 touch-target"
+                  >
+                    <Icon name="ph:circle-dashed" class="mr-1 h-3 w-3" />
+                    <span class="hidden xs:inline">New</span>
+                    <span class="xs:hidden">○</span>
+                  </Button>
+                </div>
+              </div>
+              
+              <!-- 语言选择器 - 移动端全宽，支持滚动 -->
+              <div class="w-full md:w-auto">
+                <div class="flex items-center bg-muted rounded-md p-1 w-full md:w-auto overflow-x-auto ios-fix">
+                  <Button
+                    :variant="languageFilter === 'all' ? 'default' : 'ghost'"
+                    size="sm"
+                    @click="languageFilter = 'all'"
+                    class="h-6 px-2 text-xs rounded-sm flex-shrink-0 touch-target"
+                  >
+                    <Icon name="ph:globe" class="mr-1 h-3 w-3" />
+                    <span class="hidden xs:inline">All</span>
+                    <span class="xs:hidden">🌐</span>
+                  </Button>
+                  <Button
+                    v-for="lang in availableLanguages.slice(0, 3)"
+                    :key="lang"
+                    :variant="languageFilter === lang ? 'default' : 'ghost'"
+                    size="sm"
+                    @click="languageFilter = lang"
+                    class="h-6 px-2 text-xs rounded-sm flex-shrink-0 touch-target"
+                  >
+                    <div class="flex items-center gap-1">
+                      <span class="text-sm">{{ getLanguageFlag(lang) }}</span>
+                      <span class="hidden sm:inline">{{ lang }}</span>
+                    </div>
+                  </Button>
+                  <!-- 更多语言按钮 -->
+                  <Button
+                    v-if="availableLanguages.length > 3"
+                    variant="ghost"
+                    size="sm"
+                    @click="showMoreLanguages = !showMoreLanguages"
+                    class="h-6 px-2 text-xs rounded-sm flex-shrink-0 touch-target"
+                  >
+                    <Icon name="ph:dots-three" class="h-3 w-3" />
+                    <span class="hidden sm:inline ml-1">+{{ availableLanguages.length - 3 }}</span>
+                  </Button>
+                </div>
+              </div>
+              
+              <!-- 展开的更多语言 - 移动端独立一行 -->
+              <div v-if="showMoreLanguages && availableLanguages.length > 3" 
+                   class="w-full md:w-auto">
+                <div class="flex items-center bg-muted rounded-md p-1 w-full md:w-auto overflow-x-auto ios-fix">
+                  <Button
+                    v-for="lang in availableLanguages.slice(3)"
+                    :key="`extra-${lang}`"
+                    :variant="languageFilter === lang ? 'default' : 'ghost'"
+                    size="sm"
+                    @click="selectLanguage(lang)"
+                    class="h-6 px-2 text-xs rounded-sm flex-shrink-0 touch-target"
+                  >
+                    <div class="flex items-center gap-1">
+                      <span class="text-sm">{{ getLanguageFlag(lang) }}</span>
+                      <span class="hidden sm:inline">{{ lang }}</span>
+                    </div>
+                  </Button>
+                </div>
               </div>
             </div>
-            <div class="space-y-2 pt-2">
-              <Skeleton class="h-4 w-full" />
-              <Skeleton class="h-4 w-5/6" />
-              <Skeleton class="h-4 w-full" />
-              <Skeleton class="h-4 w-4/5" />
-              <Skeleton class="h-4 w-full" />
-              <Skeleton class="h-4 w-2/3" />
-            </div>
-            <div class="grid grid-cols-2 gap-2 pt-2">
-              <Skeleton class="h-9 w-full rounded" />
-              <Skeleton class="h-9 w-full rounded" />
+            
+            <!-- 统计和重置 - 移动端水平排列，桌面端不变 -->
+            <div class="flex items-center justify-between md:justify-end gap-3 text-sm">
+              <span class="text-muted-foreground whitespace-nowrap">{{ filteredPodcasts.length }} results</span>
+              <Button variant="ghost" size="sm" @click="resetFilters" class="h-8 px-3 text-sm touch-target">
+                <Icon name="ph:arrow-clockwise" class="mr-1 h-4 w-4" />
+                <span class="hidden xs:inline">Reset</span>
+                <span class="xs:hidden">↻</span>
+              </Button>
             </div>
           </div>
         </div>
       </div>
 
-      <!-- Error State -->
-      <div v-else-if="error" class="text-center py-10">
-        <Icon name="ph:warning-circle-duotone" class="mx-auto h-16 w-16 text-destructive mb-4" />
-        <p class="text-xl font-medium text-destructive">Failed to load podcasts</p>
-        <p class="text-md text-muted-foreground mb-6">{{ error }}</p>
-        <Button @click="fetchPodcasts" size="lg">
-          <Icon name="ph:arrow-clockwise-duotone" class="mr-2 h-5 w-5" />
-          Try Again
-        </Button>
-      </div>
-      
-      <!-- Podcast List (includes its own empty state) -->
-      <PodcastList
-        v-else
-        :podcasts="filteredPodcasts"
-        :current-previewing-id="podcastPlayer.currentPlayingPodcastId.value?.toString() || ''"
-        :is-audio-playing="!!podcastPlayer.isPlaying.value"
-        @select-podcast="handleSelectPodcast"
-        @edit-podcast="handleEditPodcast"
-        @delete-podcast="handleDeletePodcast"
-        @download-podcast="handleDownloadAll"
-        @preview-podcast="handlePreviewPodcast"
-        @stop-preview="stopPreview"
-        @generate-cover="handleGenerateCover"
-      />
-    </div>
+      <!-- Conditional Rendering for Content Area -->
+      <div class="p-4 mx-auto safe-area-bottom">
+        <!-- Loading State -->
+        <div v-if="loading" class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6 mt-4 w-full">
+          <div v-for="n in 3" :key="`skeleton-${n}`" class="border rounded-xl overflow-hidden shadow-md bg-card"> 
+            <div class="p-4 space-y-3">
+              <div class="flex justify-between items-start">
+                <div class="flex-1 space-y-2">
+                  <Skeleton class="h-5 w-3/4" />
+                  <Skeleton class="h-3 w-1/2" />
+                </div>
+                <div class="flex gap-1">
+                  <Skeleton class="h-7 w-7 rounded" />
+                  <Skeleton class="h-7 w-7 rounded" />
+                </div>
+              </div>
+              <div class="space-y-2 pt-2">
+                <Skeleton class="h-4 w-full" />
+                <Skeleton class="h-4 w-5/6" />
+                <Skeleton class="h-4 w-full" />
+                <Skeleton class="h-4 w-4/5" />
+                <Skeleton class="h-4 w-full" />
+                <Skeleton class="h-4 w-2/3" />
+              </div>
+              <div class="grid grid-cols-2 gap-2 pt-2">
+                <Skeleton class="h-9 w-full rounded" />
+                <Skeleton class="h-9 w-full rounded" />
+              </div>
+            </div>
+          </div>
+        </div>
 
-    <!-- Podcast Detail Drawer/Sheet -->
-    <Sheet :open="!!selectedPodcast" @update:open="handleCloseDrawer">
-      <SheetContent side="right" class="w-full sm:max-w-2xl"> 
-        <SheetHeader>
-          <SheetTitle>Podcast Details</SheetTitle>
-          <SheetDescription>
-            View and manage podcast details and segments.
-          </SheetDescription>
-        </SheetHeader>
-        <PodcastDetailDrawer
-          :podcast="selectedPodcast"
-          @close="handleCloseDrawer"
-          @resynthesize-all="handleResynthesizeAll"
-          @download-all="handleDownloadAll"
+        <!-- Error State -->
+        <div v-else-if="error" class="text-center py-10">
+          <Icon name="ph:warning-circle-duotone" class="mx-auto h-16 w-16 text-destructive mb-4" />
+          <p class="text-xl font-medium text-destructive">Failed to load podcasts</p>
+          <p class="text-md text-muted-foreground mb-6">{{ error }}</p>
+          <Button @click="fetchPodcasts" size="lg" class="touch-button">
+            <Icon name="ph:arrow-clockwise-duotone" class="mr-2 h-5 w-5" />
+            Try Again
+          </Button>
+        </div>
+        
+        <!-- Podcast List (includes its own empty state) -->
+        <PodcastList
+          v-else
+          :podcasts="filteredPodcasts"
+          :current-previewing-id="podcastPlayer.currentPlayingPodcastId.value?.toString() || ''"
+          :is-audio-playing="!!podcastPlayer.isPlaying.value"
+          @select-podcast="handleSelectPodcast"
+          @edit-podcast="handleEditPodcast"
           @delete-podcast="handleDeletePodcast"
+          @download-podcast="handleDownloadAll"
+          @preview-podcast="handlePreviewPodcast"
+          @stop-preview="stopPreview"
+          @generate-cover="handleGenerateCover"
         />
-      </SheetContent>
-    </Sheet>
+      </div>
 
-    <!-- No longer need hidden audio player, now using global audio player -->
-  </div>
+      <!-- Podcast Detail Drawer/Sheet -->
+      <Sheet :open="!!selectedPodcast" @update:open="handleCloseDrawer">
+        <SheetContent side="right" class="w-full sm:max-w-2xl safe-area-all"> 
+          <SheetHeader>
+            <SheetTitle>Podcast Details</SheetTitle>
+            <SheetDescription>
+              View and manage podcast details and segments.
+            </SheetDescription>
+          </SheetHeader>
+          <PodcastDetailDrawer
+            :podcast="selectedPodcast"
+            @close="handleCloseDrawer"
+            @resynthesize-all="handleResynthesizeAll"
+            @download-all="handleDownloadAll"
+            @delete-podcast="handleDeletePodcast"
+          />
+        </SheetContent>
+      </Sheet>
+
+      <!-- No longer need hidden audio player, now using global audio player -->
+    </div>
+  </PWALayout>
 </template>
 
 <script setup lang="ts">
@@ -238,6 +249,7 @@ import { usePodcastDatabase } from '~/composables/usePodcastDatabase';
 import { usePersonaCache } from '~/composables/usePersonaCache'; // 新增导入
 import { type Podcast, type Segment, type SegmentAudio } from '~/types/podcast';
 import { usePodcastPlayer } from '~/composables/usePodcastPlayer';
+import PWALayout from '~/components/layout/PWALayout.vue';
 
 const searchTerm = ref('');
 const podcastStatusFilter = ref('completed'); // 播客状态筛选，默认显示已完成状态

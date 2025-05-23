@@ -286,7 +286,8 @@
 </template>
 
 <script setup lang="ts">
-import { computed, ref, watch, onMounted, onUnmounted, useDebounceFn } from 'vue';
+import { computed, ref, watch, onMounted, onUnmounted } from 'vue';
+import { useDebounceFn } from '@vueuse/core';
 
 // Import types using the unified type definition
 import type { ApiPersona } from '~/pages/personas/index.vue';
