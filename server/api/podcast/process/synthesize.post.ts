@@ -17,6 +17,7 @@ import type { Database } from '~/types/supabase';
 import type { SynthesisParams } from '~/types/api/podcast'; // Import shared SynthesisParams
 import { getPersonaById, type AutoSelectedPersona } from '~/server/utils/personaFetcher';
 import { randomUUID } from 'crypto';
+import { SynthesisTaskService } from '~/server/services/synthesisTaskService';
 
 // Define the expected structure for each segment in the request
 interface SynthesizeSegmentRequestData {
@@ -36,29 +37,14 @@ interface SynthesizeRequestBody {
   async?: boolean; // New: whether to run async
 }
 
-// Task status tracking
-interface SynthesisTask {
-  taskId: string;
-  podcastId: string;
-  status: 'pending' | 'processing' | 'completed' | 'failed';
-  progress: {
-    completed: number;
-    total: number;
-    currentSegment?: number;
-  };
-  results?: (TimedAudioSegmentResult & { segmentIndex: number; provider?: string; voiceModelUsed?: string | null })[];
-  error?: string;
-  createdAt: Date;
-  updatedAt: Date;
-}
-
-// In-memory task storage (in production, use Redis or database)
-const activeTasks = new Map<string, SynthesisTask>();
-
 // Define the structure for a processed segment before TTS call
 interface ProcessedSegment extends SynthesizeSegmentRequestData {
   persona: AutoSelectedPersona; // Contains voice_model_identifier and tts_provider
 }
+
+// Task status tracking - removed memory storage, now using database
+// interface SynthesisTask { ... } - moved to SynthesisTaskService
+// const activeTasks = new Map<string, SynthesisTask>(); - removed
 
 function sanitizeProviderForResults(provider: string | null | undefined): 'elevenlabs' | 'volcengine' | undefined {
   if (provider === 'elevenlabs' || provider === 'volcengine') {
@@ -98,35 +84,29 @@ export default defineEventHandler(async (event: H3Event) => {
     
     const { podcastId, segments: inputSegments, defaultModelId, globalTtsProvider, globalSynthesisParams = {} } = body;
 
+    // Initialize database services
+    const supabase = await serverSupabaseServiceRole<Database>(event);
+    if (!supabase) {
+      throw createError({
+        statusCode: 500,
+        statusMessage: 'Failed to initialize database connection'
+      });
+    }
+    const taskService = new SynthesisTaskService(supabase);
+
     // Check if this should be async (default to async for >3 segments)
     const shouldRunAsync = body.async !== false && inputSegments.length > 3;
 
     if (shouldRunAsync) {
-      // Create async task
-      const taskId = randomUUID();
-      const task: SynthesisTask = {
-        taskId,
-        podcastId,
-        status: 'pending',
-        progress: {
-          completed: 0,
-          total: inputSegments.length
-        },
-        createdAt: new Date(),
-        updatedAt: new Date()
-      };
-      
-      activeTasks.set(taskId, task);
+      // Create async task in database
+      const taskId = await taskService.createTask(podcastId, inputSegments.length);
       
       // Start background processing
-      processSegmentsAsync(taskId, body, event).catch(error => {
+      processSegmentsAsync(taskId, body, event, taskService).catch(async (error) => {
         consola.error(`[synthesize.post.ts] Async task ${taskId} failed:`, error);
-        const failedTask = activeTasks.get(taskId);
-        if (failedTask) {
-          failedTask.status = 'failed';
-          failedTask.error = error.message || 'Unknown error';
-          failedTask.updatedAt = new Date();
-        }
+        await taskService.updateTaskStatus(taskId, 'failed', {
+          error_message: error.message || 'Unknown error'
+        });
       });
 
       return {
@@ -156,33 +136,26 @@ export default defineEventHandler(async (event: H3Event) => {
 });
 
 // Async processing function
-async function processSegmentsAsync(taskId: string, body: SynthesizeRequestBody, event: H3Event) {
-  const task = activeTasks.get(taskId);
-  if (!task) return;
-
-  task.status = 'processing';
-  task.updatedAt = new Date();
+async function processSegmentsAsync(taskId: string, body: SynthesizeRequestBody, event: H3Event, taskService: SynthesisTaskService) {
+  await taskService.updateTaskStatus(taskId, 'processing');
 
   try {
-    const result = await processSynchronously(body, event, (completed, current) => {
+    const result = await processSynchronously(body, event, async (completed, current) => {
       // Progress callback
-      const currentTask = activeTasks.get(taskId);
-      if (currentTask) {
-        currentTask.progress.completed = completed;
-        currentTask.progress.currentSegment = current;
-        currentTask.updatedAt = new Date();
-      }
+      await taskService.updateTaskStatus(taskId, 'processing', {
+        progress_completed: completed,
+        progress_current_segment: current
+      });
     });
 
-    task.status = 'completed';
-    task.results = result.generatedSegments;
-    task.updatedAt = new Date();
+    // Update task with results
+    await taskService.updateTaskResults(taskId, result.generatedSegments);
     
     consola.info(`[synthesize.post.ts] Async task ${taskId} completed successfully`);
   } catch (error: any) {
-    task.status = 'failed';
-    task.error = error.message || 'Processing failed';
-    task.updatedAt = new Date();
+    await taskService.updateTaskStatus(taskId, 'failed', {
+      error_message: error.message || 'Processing failed'
+    });
     throw error;
   }
 }
@@ -191,7 +164,7 @@ async function processSegmentsAsync(taskId: string, body: SynthesizeRequestBody,
 async function processSynchronously(
   body: SynthesizeRequestBody, 
   event: H3Event,
-  progressCallback?: (completed: number, currentSegment: number) => void
+  progressCallback?: (completed: number, currentSegment: number) => Promise<void>
 ) {
   const { podcastId, segments: inputSegments, defaultModelId, globalTtsProvider, globalSynthesisParams = {} } = body;
   const storageService: IStorageService = await getStorageService(event);
@@ -334,11 +307,6 @@ async function processSynchronously(
       // ---- DATABASE INSERT FOR AUDIO URL ----
       if (segmentResult && segmentResult.audioFileUrl && !segmentResult.error) {
         try {
-          const supabase = await serverSupabaseServiceRole<Database>(event);
-          if (!supabase) {
-            consola.error(`[DB] Failed to get Supabase client for segment ${segment.segmentIndex}. Skipping DB save.`);
-            continue;
-          }
           const podcastDb = createServerPodcastDatabase(supabase);
           const dbSegments = await podcastDb.getSegmentsByPodcastId(podcastId); // Assumes podcast record exists
           const dbSegment = dbSegments.find(s => s.idx === segment.segmentIndex);
@@ -384,7 +352,7 @@ async function processSynchronously(
     }
 
     if (progressCallback) {
-      progressCallback(i + 1, i);
+      await progressCallback(i + 1, i);
     }
   }
 
@@ -403,15 +371,12 @@ async function processSynchronously(
 
 // Export task getter for status API
 export function getSynthesisTask(taskId: string): SynthesisTask | undefined {
-  return activeTasks.get(taskId);
+  // Implementation needed
+  throw new Error('Method not implemented');
 }
 
 // Cleanup old tasks (call periodically)
 export function cleanupOldTasks(maxAgeHours: number = 24) {
-  const cutoff = new Date(Date.now() - maxAgeHours * 60 * 60 * 1000);
-  for (const [taskId, task] of activeTasks.entries()) {
-    if (task.updatedAt < cutoff) {
-      activeTasks.delete(taskId);
-    }
-  }
+  // Implementation needed
+  throw new Error('Method not implemented');
 }

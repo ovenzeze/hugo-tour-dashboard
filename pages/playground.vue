@@ -100,7 +100,7 @@ import { usePersonaCache } from '~/composables/usePersonaCache';
 import { useMobileLayout } from '~/composables/useMobileLayout';
 import { usePodcastDatabase } from '~/composables/usePodcastDatabase';
 import { useRoute } from 'vue-router';
-import { usePlaygroundSettingsStore } from '~/stores/playgroundSettings';
+import { usePlaygroundSettingsStore } from '~/stores/playgroundSettingsStore';
 
 // Component imports
 import PlaygroundStepper from '~/components/playground/PlaygroundStepper.vue';
@@ -163,8 +163,32 @@ async function loadPodcastIntoPlayground(podcastId: string) {
   try {
     console.log(`[Playground] Loading podcast ${podcastId} data into playground stores`);
     
+    // 定义API响应类型
+    interface PodcastDetailsResponse {
+      success: boolean;
+      message?: string;
+      script: {
+        content: string;
+        segments: Array<{
+          idx: number;
+          speaker: string;
+          text: string;
+          speakerPersonaId?: number;
+          hasAudio: boolean;
+        }>;
+      };
+      settings: {
+        title: string;
+        topic?: string;
+        language?: string;
+        hostPersonaId?: number;
+        guestPersonaIds?: number[];
+        ttsProvider?: string;
+      };
+    }
+    
     // 1. 调用API获取播客详细信息
-    const podcastDetails = await $fetch(`/api/podcast/${podcastId}/details`);
+    const podcastDetails = await $fetch<PodcastDetailsResponse>(`/api/podcast/${podcastId}/details`);
     
     if (!podcastDetails.success) {
       throw new Error(podcastDetails.message || '获取播客数据失败');

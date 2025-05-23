@@ -489,13 +489,21 @@ async function triggerBackgroundSynthesis(podcastId: number, segmentCount: numbe
   try {
     console.log(`开始后台合成播客 ${podcastId} 的 ${segmentCount} 个片段`);
     
+    // 定义API响应类型
+    interface ContinueSynthesisResponse {
+      success: boolean;
+      message: string;
+      taskId?: string;
+      segmentsToProcess: number;
+      podcastId: string;
+    }
+    
     // 调用后台合成API
-    const response = await $fetch('/api/podcast/continue-synthesis', {
-      method: 'POST',
-      body: { 
-        podcastId: podcastId.toString(),
-        segmentCount 
-      }
+    const response = await $fetch<ContinueSynthesisResponse>('/api/podcast/continue-synthesis', {
+      method: 'POST'
+    }, { 
+      podcastId: podcastId.toString(),
+      segmentCount 
     });
     
     if (response.success) {

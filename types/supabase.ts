@@ -754,6 +754,45 @@ export type Database = {
           }
         ];
       };
+      synthesis_tasks: {
+        Row: {
+          created_at: string;
+          error_message: string | null;
+          podcast_id: string;
+          progress_completed: number;
+          progress_current_segment: number | null;
+          progress_total: number;
+          results: Json | null;
+          status: string;
+          task_id: string;
+          updated_at: string;
+        };
+        Insert: {
+          created_at?: string;
+          error_message?: string | null;
+          podcast_id: string;
+          progress_completed?: number;
+          progress_current_segment?: number | null;
+          progress_total: number;
+          results?: Json | null;
+          status?: string;
+          task_id?: string;
+          updated_at?: string;
+        };
+        Update: {
+          created_at?: string;
+          error_message?: string | null;
+          podcast_id?: string;
+          progress_completed?: number;
+          progress_current_segment?: number | null;
+          progress_total?: number;
+          results?: Json | null;
+          status?: string;
+          task_id?: string;
+          updated_at?: string;
+        };
+        Relationships: [];
+      };
       threads: {
         Row: {
           account_id: string | null;
