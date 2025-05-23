@@ -12,16 +12,12 @@
         <div class="flex-1 overflow-hidden">
           <h3 class="text-base font-semibold truncate leading-tight text-primary group-hover:text-primary/90">{{ persona.name }}</h3>
           <Badge 
-            :variant="persona.is_active ? 'default' : 'outline'" 
-            :class="[
-              persona.is_active ? 'bg-green-100 text-green-800 dark:bg-green-900/70 dark:text-green-200 border-green-300 dark:border-green-700' : 'text-destructive-foreground border-destructive/50 bg-destructive/10', 
-              'text-xs px-2 py-0.5 mt-1 rounded-full'
-            ]"
+            :variant="getStatusVariant(persona.status)" 
+            :class="getStatusClass(persona.status)"
           >
             <span class="flex items-center gap-1">
-              <Icon v-if="persona.is_active" name="ph:check-circle" class="h-3 w-3" />
-              <Icon v-else name="ph:x-circle" class="h-3 w-3" />
-              {{ persona.is_active ? 'Active' : 'Inactive' }}
+              <Icon :name="getStatusIcon(persona.status)" class="h-3 w-3" />
+              {{ getStatusLabel(persona.status) }}
             </span>
           </Badge>
         </div>
@@ -145,6 +141,71 @@ const formatDate = (dateString: string | null) => {
     month: 'short', 
     day: 'numeric' 
   });
+};
+
+/**
+ * Get badge variant based on persona status
+ */
+const getStatusVariant = (status: 'active' | 'inactive' | 'deprecated') => {
+  switch (status) {
+    case 'active':
+      return 'default';
+    case 'inactive':
+      return 'outline';
+    case 'deprecated':
+      return 'destructive';
+    default:
+      return 'outline';
+  }
+};
+
+/**
+ * Get badge class based on persona status
+ */
+const getStatusClass = (status: 'active' | 'inactive' | 'deprecated') => {
+  const baseClass = 'text-xs px-2 py-0.5 mt-1 rounded-full';
+  switch (status) {
+    case 'active':
+      return `${baseClass} bg-green-100 text-green-800 dark:bg-green-900/70 dark:text-green-200 border-green-300 dark:border-green-700`;
+    case 'inactive':
+      return `${baseClass} text-muted-foreground border-muted-foreground/50 bg-muted/10`;
+    case 'deprecated':
+      return `${baseClass} text-destructive-foreground border-destructive/50 bg-destructive/10`;
+    default:
+      return `${baseClass} text-muted-foreground border-muted-foreground/50 bg-muted/10`;
+  }
+};
+
+/**
+ * Get icon name based on persona status
+ */
+const getStatusIcon = (status: 'active' | 'inactive' | 'deprecated') => {
+  switch (status) {
+    case 'active':
+      return 'ph:check-circle';
+    case 'inactive':
+      return 'ph:pause-circle';
+    case 'deprecated':
+      return 'ph:x-circle';
+    default:
+      return 'ph:question-mark';
+  }
+};
+
+/**
+ * Get status label based on persona status
+ */
+const getStatusLabel = (status: 'active' | 'inactive' | 'deprecated') => {
+  switch (status) {
+    case 'active':
+      return 'Active';
+    case 'inactive':
+      return 'Inactive';
+    case 'deprecated':
+      return 'Deprecated';
+    default:
+      return 'Unknown';
+  }
 };
 
 const props = defineProps<{

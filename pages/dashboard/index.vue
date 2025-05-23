@@ -4,62 +4,62 @@
       <div>
         <h2 class="text-3xl font-bold tracking-tight">Dashboard</h2>
         <p class="text-muted-foreground">
-          博物馆导览系统总览
+          Museum Tour Guide System Overview
         </p>
       </div>
       <div class="flex items-center space-x-2">
         <Button @click="fetchDashboardData" variant="outline" class="gap-1.5">
           <Icon name="ph:arrow-counter-clockwise" class="h-4 w-4" />
-          <span>刷新</span>
+          <span>Refresh</span>
         </Button>
       </div>
     </div>
 
-    <!-- 加载状态 -->
+    <!-- Loading State -->
     <div v-if="isLoading" class="min-h-[200px] flex items-center justify-center">
       <Icon name="ph:spinner" class="h-8 w-8 animate-spin text-muted-foreground" />
     </div>
 
-    <!-- 错误状态 -->
+    <!-- Error State -->
     <div v-else-if="error" class="min-h-[200px] flex items-center justify-center">
       <div class="text-center space-y-2">
         <Icon name="ph:warning" class="h-8 w-8 text-destructive mx-auto" />
-        <p class="text-muted-foreground">加载数据时出错</p>
-        <Button variant="outline" size="sm" @click="fetchDashboardData">重试</Button>
+        <p class="text-muted-foreground">Error loading data</p>
+        <Button variant="outline" size="sm" @click="fetchDashboardData">Retry</Button>
       </div>
     </div>
 
-    <!-- 主要内容区 -->
+    <!-- Main Content Area -->
     <div v-else class="space-y-6">
-      <!-- 关键指标区 -->
+      <!-- Key Metrics Section -->
       <div class="grid gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-4">
         <MetricCard
-          title="博物馆"
+          title="Museums"
           :value="keyMetrics.total_museums"
           icon="ph:buildings"
         />
         <MetricCard
-          title="展厅"
+          title="Galleries"
           :value="keyMetrics.total_galleries"
           icon="ph:door-open"
         />
         <MetricCard
-          title="展品"
+          title="Objects"
           :value="keyMetrics.total_objects"
           icon="ph:image-square"
         />
         <MetricCard
-          title="导览音频"
+          title="Audio Guides"
           :value="keyMetrics.total_audios"
           icon="ph:headphones"
         />
       </div>
 
-      <!-- 图表区域 - 博物馆分布和语言覆盖 -->
+      <!-- Charts Section - Museum Distribution and Language Coverage -->
       <div class="grid gap-6 grid-cols-1 lg:grid-cols-2">
         <ChartPanel
-          title="博物馆内容分布"
-          description="各博物馆的展品、展厅和导览音频数量统计"
+          title="Museum Content Distribution"
+          description="Statistics of objects, galleries and audio guides per museum"
           :data="museumChartData"
           index-key="label"
           layout="vertical"
@@ -67,8 +67,8 @@
           :y-formatter="(value: number) => value.toString()"
         />
         <ChartPanel
-          title="语言覆盖率"
-          description="多语言文本和音频内容统计"
+          title="Language Coverage"
+          description="Multilingual text and audio content statistics"
           :data="languageChartData"
           index-key="label"
           layout="horizontal"
@@ -77,19 +77,19 @@
         />
       </div>
 
-      <!-- 最近内容和角色使用统计 -->
+      <!-- Recent Content and Persona Usage Statistics -->
       <div class="grid gap-6 grid-cols-1 lg:grid-cols-2">
         <ContentTimeline
-          title="最新添加内容"
-          description="最近添加或更新的博物馆、展品和音频内容"
+          title="Recently Added Content"
+          description="Recently added or updated museums, objects and audio content"
           :items="recentItems"
           :is-loading="isLoading"
         />
         <div class="grid gap-6">
           <Card>
             <CardHeader>
-              <CardTitle>角色使用统计</CardTitle>
-              <CardDescription>各导览角色的使用情况</CardDescription>
+              <CardTitle>Persona Usage Statistics</CardTitle>
+              <CardDescription>Usage statistics for each tour guide persona</CardDescription>
             </CardHeader>
             <CardContent>
               <template v-if="topPersonas && topPersonas.length > 0">
@@ -104,9 +104,9 @@
                     <div class="flex-1 space-y-1">
                       <div class="flex items-center justify-between">
                         <p class="text-sm font-medium leading-none">{{ persona.name }}</p>
-                        <span class="text-sm text-muted-foreground">{{ persona.total_audios }}个音频</span>
+                        <span class="text-sm text-muted-foreground">{{ persona.total_audios }} audios</span>
                       </div>
-                      <div class="text-xs text-muted-foreground">{{ persona.museum_count }}个博物馆</div>
+                      <div class="text-xs text-muted-foreground">{{ persona.museum_count }} museums</div>
                       <div class="h-2 rounded-full bg-secondary overflow-hidden">
                         <div 
                           class="h-full bg-primary" 
@@ -119,7 +119,7 @@
               </template>
               <template v-else>
                 <div class="text-center text-muted-foreground py-4">
-                  <p>暂无角色数据</p>
+                  <p>No persona data available</p>
                 </div>
               </template>
             </CardContent>
@@ -127,7 +127,7 @@
         </div>
       </div>
 
-      <!-- 快速访问区域 -->
+      <!-- Quick Access Section -->
       <div class="grid gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-4">
         <QuickAccessCard
           v-for="item in quickAccessItems"
@@ -207,25 +207,25 @@ const maxPersonaAudios = computed(() => {
 // 快速访问项
 const quickAccessItems = computed<QuickAccessItem[]>(() => [
   {
-    title: "博物馆管理",
+    title: "Museum Management",
     icon: "ph:buildings",
     route: "/museums",
     count: keyMetrics.value?.total_museums || 0,
   },
   {
-    title: "展厅管理",
+    title: "Gallery Management",
     icon: "ph:door-open",
     route: "/galleries",
     count: keyMetrics.value?.total_galleries || 0,
   },
   {
-    title: "展品管理",
+    title: "Object Management",
     icon: "ph:image-square",
     route: "/objects",
     count: keyMetrics.value?.total_objects || 0,
   },
   {
-    title: "角色管理",
+    title: "Persona Management",
     icon: "ph:user",
     route: "/personas",
     count: topPersonas.value?.length || 0, // Use length of topPersonas array

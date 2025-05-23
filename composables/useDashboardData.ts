@@ -51,17 +51,17 @@ export function useDashboardData() {
       labels: topMuseums.value.map((m) => m.museum_name),
       datasets: [
         {
-          label: "展品",
+          label: "Objects",
           data: topMuseums.value.map((m) => m.object_count),
           backgroundColor: "#4f46e5",
         },
         {
-          label: "展厅",
+          label: "Galleries",
           data: topMuseums.value.map((m) => m.gallery_count),
           backgroundColor: "#0ea5e9",
         },
         {
-          label: "导览音频",
+          label: "Audio Guides",
           data: topMuseums.value.map((m) => m.audio_guide_count),
           backgroundColor: "#10b981",
         },
@@ -76,12 +76,12 @@ export function useDashboardData() {
       labels: languageStats.value.map((l) => l.language),
       datasets: [
         {
-          label: "文本",
+          label: "Texts",
           data: languageStats.value.map((l) => l.text_count),
           backgroundColor: "#8b5cf6",
         },
         {
-          label: "音频",
+          label: "Audios",
           data: languageStats.value.map((l) => l.audio_count),
           backgroundColor: "#ec4899",
         },

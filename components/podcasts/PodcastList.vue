@@ -1,15 +1,15 @@
 <template>
-  <div class="grid grid-cols-[repeat(auto-fit,minmax(300px,1fr))] gap-x-10 gap-y-20 md:gap-y-20 mt-4 md:px-6">
+  <div class="grid grid-cols-2 sm:grid-cols-[repeat(auto-fit,minmax(280px,1fr))] gap-10 sm:gap-x-10 sm:gap-y-20 md:gap-y-20 mt-4 md:px-6">
     <!-- Skeleton loading state -->
     <Card v-if="loading" v-for="n in 10" :key="`skeleton-${n}`"
-      class="border rounded-xl overflow-hidden shadow-md min-w-[320px] max-w-[390px] aspect-[3/4] animate-pulse bg-muted/50">
-      <div class="h-48 bg-muted/30"></div>
-      <div class="p-4 space-y-4">
-        <div class="h-6 bg-muted/30 rounded w-3/4"></div>
-        <div class="h-4 bg-muted/30 rounded w-1/2"></div>
-        <div class="space-y-2">
-          <div class="h-3 bg-muted/30 rounded w-full"></div>
-          <div class="h-3 bg-muted/30 rounded w-5/6"></div>
+      class="border rounded-xl overflow-hidden shadow-md min-w-[140px] sm:min-w-[280px] sm:max-w-[390px] aspect-[3/4] animate-pulse bg-muted/50">
+      <div class="h-24 sm:h-48 bg-muted/30"></div>
+      <div class="p-2 sm:p-4 space-y-2 sm:space-y-4">
+        <div class="h-4 sm:h-6 bg-muted/30 rounded w-3/4"></div>
+        <div class="h-3 sm:h-4 bg-muted/30 rounded w-1/2"></div>
+        <div class="space-y-1 sm:space-y-2">
+          <div class="h-2 sm:h-3 bg-muted/30 rounded w-full"></div>
+          <div class="h-2 sm:h-3 bg-muted/30 rounded w-5/6"></div>
         </div>
       </div>
     </Card>

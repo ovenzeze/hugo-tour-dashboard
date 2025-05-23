@@ -57,16 +57,18 @@
             </div>
 
             <div class="sm:grid sm:grid-cols-3 sm:gap-4 sm:items-start sm:border-t sm:border-gray-200 dark:sm:border-gray-700 sm:pt-5">
-              <Label class="block text-sm font-medium text-gray-700 dark:text-gray-300 sm:mt-px sm:pt-2"> Active Status </Label>
+              <Label class="block text-sm font-medium text-gray-700 dark:text-gray-300 sm:mt-px sm:pt-2">Status</Label>
               <div class="mt-1 sm:mt-0 sm:col-span-2">
-                <SwitchGroup as="div" class="flex items-center">
-                  <Switch v-model="formData.is_active" :class="[formData.is_active ? 'bg-indigo-600 dark:bg-indigo-500' : 'bg-gray-200 dark:bg-gray-700', 'relative inline-flex flex-shrink-0 h-6 w-11 border-2 border-transparent rounded-full cursor-pointer transition-colors ease-in-out duration-200 focus:outline-none focus:ring-2 focus:ring-offset-2 dark:focus:ring-offset-gray-800 focus:ring-indigo-500']">
-                    <span aria-hidden="true" :class="[formData.is_active ? 'translate-x-5' : 'translate-x-0', 'pointer-events-none inline-block h-5 w-5 rounded-full bg-white shadow transform ring-0 transition ease-in-out duration-200']" />
-                  </Switch>
-                  <SwitchLabel as="span" class="ml-3">
-                    <span class="text-sm font-medium text-gray-900 dark:text-gray-100">Is Active</span>
-                  </SwitchLabel>
-                </SwitchGroup>
+                <Select v-model="formData.status">
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select status" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="active">Active</SelectItem>
+                    <SelectItem value="inactive">Inactive</SelectItem>
+                    <SelectItem value="deprecated">Deprecated</SelectItem>
+                  </SelectContent>
+                </Select>
               </div>
             </div>
 
@@ -98,6 +100,7 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
 import { Label } from '@/components/ui/label'
+import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from '@/components/ui/select'
 import type { Json } from '~/types/supabase' // Assuming Json type for voice_settings
 
 // Define the structure for persona data submission
@@ -106,8 +109,7 @@ interface PersonaFormData {
   description: string | undefined;
   avatar_url: string | undefined;
   system_prompt: string | undefined;
-  // voice_settings: Json | null; // Add if you plan to manage voice_settings here
-  is_active: boolean;
+  status: 'active' | 'inactive' | 'deprecated';
 }
 
 const formData = ref<PersonaFormData>({
@@ -115,8 +117,7 @@ const formData = ref<PersonaFormData>({
   description: undefined,
   avatar_url: undefined,
   system_prompt: undefined,
-  // voice_settings: null,
-  is_active: true,
+  status: 'active',
 });
 
 const isSubmitting = ref(false);

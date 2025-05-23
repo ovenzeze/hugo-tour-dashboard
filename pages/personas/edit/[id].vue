@@ -65,16 +65,18 @@
               </div>
 
               <div class="sm:grid sm:grid-cols-3 sm:gap-4 sm:items-start sm:border-t sm:border-gray-200 dark:sm:border-gray-700 sm:pt-5">
-                <Label class="block text-sm font-medium text-gray-700 dark:text-gray-300 sm:mt-px sm:pt-2"> Active Status </Label>
+                <Label class="block text-sm font-medium text-gray-700 dark:text-gray-300 sm:mt-px sm:pt-2">Status</Label>
                 <div class="mt-1 sm:mt-0 sm:col-span-2">
-                  <SwitchGroup as="div" class="flex items-center">
-                    <Switch v-model="formData.is_active" :class="[formData.is_active ? 'bg-indigo-600 dark:bg-indigo-500' : 'bg-gray-200 dark:bg-gray-700', 'relative inline-flex flex-shrink-0 h-6 w-11 border-2 border-transparent rounded-full cursor-pointer transition-colors ease-in-out duration-200 focus:outline-none focus:ring-2 focus:ring-offset-2 dark:focus:ring-offset-gray-800 focus:ring-indigo-500']">
-                      <span aria-hidden="true" :class="[formData.is_active ? 'translate-x-5' : 'translate-x-0', 'pointer-events-none inline-block h-5 w-5 rounded-full bg-white shadow transform ring-0 transition ease-in-out duration-200']" />
-                    </Switch>
-                    <SwitchLabel as="span" class="ml-3">
-                      <span class="text-sm font-medium text-gray-900 dark:text-gray-100">Is Active</span>
-                    </SwitchLabel>
-                  </SwitchGroup>
+                  <Select v-model="formData.status">
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select status" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="active">Active</SelectItem>
+                      <SelectItem value="inactive">Inactive</SelectItem>
+                      <SelectItem value="deprecated">Deprecated</SelectItem>
+                    </SelectContent>
+                  </Select>
                 </div>
               </div>
 
@@ -107,6 +109,7 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
 import { Label } from '@/components/ui/label'
+import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from '@/components/ui/select'
 import type { Json } from '~/types/supabase' // For voice_settings if used
 
 // Interface for data coming from the API
@@ -116,7 +119,7 @@ interface ApiPersonaData {
   description: string | null;
   avatar_url: string | null;
   system_prompt: string | null;
-  is_active: boolean | null; // API can return null for is_active
+  status: 'active' | 'inactive' | 'deprecated';
 }
 
 // Interface for the form data
@@ -126,7 +129,7 @@ interface PersonaForm {
   description: string | undefined;
   avatar_url: string | undefined;
   system_prompt: string | undefined;
-  is_active: boolean; // Strictly boolean for the form and Switch component
+  status: 'active' | 'inactive' | 'deprecated';
 }
 
 const route = useRoute()
@@ -138,7 +141,7 @@ const formData = ref<PersonaForm>({
   description: undefined,
   avatar_url: undefined,
   system_prompt: undefined,
-  is_active: true, // Initialize is_active as a boolean
+  status: 'active',
 });
 
 const isSubmitting = ref(false);
@@ -155,11 +158,11 @@ onMounted(async () => {
       if (fetchedPersona) {
         formData.value = { 
           persona_id: fetchedPersona.persona_id,
-          name: fetchedPersona.name,
-          description: fetchedPersona.description ?? undefined,
-          avatar_url: fetchedPersona.avatar_url ?? undefined,
-          system_prompt: fetchedPersona.system_prompt ?? undefined,
-          is_active: fetchedPersona.is_active ?? true // Coalesce null/undefined to true
+          name: fetchedPersona.name || '',
+          description: fetchedPersona.description || undefined,
+          avatar_url: fetchedPersona.avatar_url || undefined,
+          system_prompt: fetchedPersona.system_prompt || undefined,
+          status: fetchedPersona.status || 'active'
         };
       } else {
         personaError.value = new Error('Persona not found or data is invalid.');
@@ -185,7 +188,7 @@ const handleSubmit = async () => {
         description: formData.value.description === undefined ? null : formData.value.description,
         avatar_url: formData.value.avatar_url === undefined ? null : formData.value.avatar_url,
         system_prompt: formData.value.system_prompt === undefined ? null : formData.value.system_prompt,
-        is_active: formData.value.is_active, // This is now boolean
+        status: formData.value.status,
     };
     
     await $fetch(`/api/personas/${personaId.value}`, {

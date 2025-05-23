@@ -20,6 +20,32 @@
           <p class="font-medium text-sm mb-3 text-center">Final Audio Preview:</p>
           <audio :src="unifiedStore.finalAudioUrl" controls class="w-full"></audio>
         </div>
+        
+        <!-- Action Buttons -->
+        <div class="flex flex-col sm:flex-row gap-3 items-center justify-center pt-2">
+          <!-- View Podcast Button -->
+          <Button
+            @click="handleViewPodcast"
+            variant="default"
+            size="lg"
+            class="w-full sm:w-auto flex items-center gap-2 bg-gradient-to-r from-primary to-primary/80 hover:from-primary/90 hover:to-primary/70 transition-all duration-300"
+          >
+            <Icon name="ph:headphones" class="w-5 h-5" />
+            <span>View in Podcasts</span>
+            <Icon name="ph:arrow-right" class="w-4 h-4" />
+          </Button>
+          
+          <!-- Create Another Button -->
+          <Button
+            @click="handleCreateAnother"
+            variant="outline"
+            size="lg"
+            class="w-full sm:w-auto flex items-center gap-2"
+          >
+            <Icon name="ph:plus-circle" class="w-5 h-5" />
+            <span>Create Another</span>
+          </Button>
+        </div>
       </div>
     </template>
     
@@ -69,6 +95,7 @@ import { computed } from 'vue';
 import { usePlaygroundSettingsStore } from '~/stores/playgroundSettingsStore';
 import { usePlaygroundUnifiedStore } from '~/stores/playgroundUnified';
 import AudioSynthesisProgress from './AudioSynthesisProgress.vue';
+import { toast } from 'vue-sonner';
 
 const playgroundSettingsStore = usePlaygroundSettingsStore();
 const unifiedStore = usePlaygroundUnifiedStore();
@@ -124,6 +151,32 @@ const synthesisProgressData = computed(() => {
     })) || []
   };
 });
+
+// Handle view podcast button click
+const handleViewPodcast = () => {
+  if (unifiedStore.podcastId) {
+    // Navigate to specific podcast detail page
+    navigateTo('/podcasts');
+    toast.success('Redirecting to Podcasts', {
+      description: 'You can find your created podcast in the podcasts list.'
+    });
+  } else {
+    // Fallback to podcasts list
+    navigateTo('/podcasts');
+    toast.info('Redirecting to Podcasts', {
+      description: 'Browse all available podcasts.'
+    });
+  }
+};
+
+// Handle create another podcast button click
+const handleCreateAnother = () => {
+  // Reset the playground state and stay on the same page
+  unifiedStore.resetPlaygroundState();
+  toast.success('Ready for New Podcast', {
+    description: 'You can now create a new podcast from scratch.'
+  });
+};
 </script>
 
 <style scoped>

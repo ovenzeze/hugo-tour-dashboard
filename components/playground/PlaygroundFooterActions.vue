@@ -255,9 +255,26 @@ const handleGoToNextStep = async () => {
 
 // 5. Synthesize podcast audio
 const handleSynthesizePodcast = async () => {
-  // If on step 2, show Modal confirmation
+  // If on step 2, start synthesis and go to step 3
   if (unifiedStore.currentStep === 2) {
-    unifiedStore.currentStep = 3
+    try {
+      // Set step to 3 first to show the synthesis progress
+      unifiedStore.currentStep = 3;
+      
+      // Start the actual synthesis process
+      const result = await unifiedStore.synthesizeAudio();
+      if (result.success) {
+        toast.success(result.message || 'Audio Synthesis Successful', {
+          description: 'Podcast audio synthesis completed!'
+        });
+      } else {
+        toast.error(result.message || 'Audio Synthesis Failed');
+      }
+    } catch (error: any) {
+      toast.error('Audio Synthesis Failed', {
+        description: error.message || 'Please try again or check your network connection.'
+      });
+    }
     return;
   }
   

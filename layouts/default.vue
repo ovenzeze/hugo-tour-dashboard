@@ -67,7 +67,6 @@ const menuGroups = {
         { path: '/playground', label: 'Playground', icon: 'ph:flask' },
         { path: '/podcasts', label: 'Podcasts', icon: 'ph:microphone' },
 
-    { path: '/audio-player-demo', label: 'Audio Player', icon: 'ph:speaker-high' }
   ],
   collections: [
     { path: '/transcripts', label: 'Guide Texts', icon: 'ph:file-text' },
@@ -77,6 +76,8 @@ const menuGroups = {
     { path: '/museums', label: 'Museums', icon: 'ph:buildings' },
     { path: '/galleries', label: 'Galleries', icon: 'ph:images' },
     { path: '/objects', label: 'Objects', icon: 'ph:cube' },
+    { path: '/personas', label: 'Personas', icon: 'ph:user-circle' },
+
   ],
   client: [
     { path: '/tour', label: 'Tour', icon: 'ph:map-trifold' },
@@ -89,7 +90,9 @@ const menuGroups = {
     { path: '/docs', label: 'Docs', icon: 'ph:book' },
     { path: '/debug', label: 'Debug', icon: 'ph:bug' },
     { path: '/tts-debug', label: 'TTS Debug', icon: 'ph:speaker-simple-high' }, // 新增 TTS Debug 菜单项
-    { path: '/components', label: 'Components', icon: 'ph:puzzle-piece' }
+    { path: '/components', label: 'Components', icon: 'ph:puzzle-piece' },
+    { path: '/audio-player-demo', label: 'Audio Player', icon: 'ph:speaker-high' }
+
 
   ]
 };

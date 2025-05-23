@@ -102,8 +102,17 @@
             <Textarea id="voice_settings" v-model="editingPersonaVoiceSettings" class="col-span-3" />
           </div>
           <div class="grid grid-cols-4 items-center gap-4">
-            <Label for="is_active" class="text-right">Active</Label>
-            <Switch id="is_active" :checked="editingPersona.is_active ?? false" @update:checked="(val: boolean) => { if (editingPersona) editingPersona.is_active = val; }" class="col-span-3" />
+            <Label for="status" class="text-right">Status</Label>
+            <Select @value-change="(val: string) => { if (editingPersona) editingPersona.status = val as 'active' | 'inactive' | 'deprecated'; }">
+              <SelectTrigger class="col-span-3">
+                <SelectValue :placeholder="editingPersona?.status || 'Select status'" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="active">Active</SelectItem>
+                <SelectItem value="inactive">Inactive</SelectItem>
+                <SelectItem value="deprecated">Deprecated</SelectItem>
+              </SelectContent>
+            </Select>
           </div>
         </div>
         <DialogFooter>
@@ -173,17 +182,22 @@
               </FormItem>
             </FormField>
 
-            <FormField v-slot="{ value, handleChange }" name="is_active">
-              <FormItem class="flex flex-row items-center justify-between rounded-lg border p-3 shadow-sm">
-                <div class="space-y-0.5">
-                  <FormLabel>Active</FormLabel>
-                  <FormDescription>
-                    Inactive personas will not be available for selection.
-                  </FormDescription>
-                </div>
+            <FormField v-slot="{ componentField }" name="status">
+              <FormItem>
+                <FormLabel>Status</FormLabel>
                 <FormControl>
-                  <Switch :checked="value" @update:checked="handleChange" />
+                  <Select v-bind="componentField">
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select status" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="active">Active</SelectItem>
+                      <SelectItem value="inactive">Inactive</SelectItem>
+                      <SelectItem value="deprecated">Deprecated</SelectItem>
+                    </SelectContent>
+                  </Select>
                 </FormControl>
+                <FormMessage />
               </FormItem>
             </FormField>
           </div>
@@ -211,7 +225,7 @@ export interface ApiPersona {
   description: string | null;
   avatar_url: string | null;
   scenario: string | null;
-  is_active: boolean | null;
+  status: 'active' | 'inactive' | 'deprecated';
   system_prompt: string | null;
   voice_settings: string | null; // Assuming this might be JSON or structured string
   voice_description?: string | null;
@@ -260,7 +274,7 @@ const addPersonaFormSchema = toTypedSchema(z.object({
   system_prompt: z.string().max(500).optional().nullable(),
   voice_settings: z.string().max(500).optional().nullable(),
   avatar_url: z.string().url({ message: "Must be a valid URL" }).optional().or(z.literal('')).nullable(),
-  is_active: z.boolean().default(true),
+  status: z.enum(['active', 'inactive', 'deprecated']).default('active'),
 }));
 
 const { handleSubmit: handleAddSubmit, resetForm: resetAddForm, setValues: setAddFormValues } = useForm({
@@ -271,7 +285,7 @@ const { handleSubmit: handleAddSubmit, resetForm: resetAddForm, setValues: setAd
     system_prompt: null,
     voice_settings: null,
     avatar_url: null,
-    is_active: true,
+    status: 'active' as const,
   }
 });
 
@@ -288,7 +302,7 @@ watch(showAddDialog, (newValue) => {
         system_prompt: null,
         voice_settings: null,
         avatar_url: null,
-        is_active: true,
+        status: 'active' as const,
       }
     });
   }
@@ -297,7 +311,7 @@ watch(showAddDialog, (newValue) => {
 const { data: personas, pending, error, refresh: refreshPersonas } = await useAsyncData('personas',
   () => $fetch('/api/personas'), {
     transform: (data: any) => {
-      return Array.isArray(data) ? data.map(p => ({ ...p, is_active: p.is_active ?? false })) : []
+      return Array.isArray(data) ? data.map(p => ({ ...p, status: p.status || 'active' })) : []
     }
   }
 );
@@ -310,7 +324,7 @@ const openAddPersonaDialog = () => {
       system_prompt: null,
       voice_settings: null,
       avatar_url: null,
-      is_active: true,
+      status: 'active' as const,
     }
   });
   showAddDialog.value = true;
@@ -347,7 +361,7 @@ const editPersona = (id: number) => {
       description: foundPersona.description ?? '',
       system_prompt: foundPersona.system_prompt ?? '',
       voice_settings: foundPersona.voice_settings ?? '',
-      is_active: foundPersona.is_active ?? false, // Ensure boolean for Switch
+      status: foundPersona.status || 'active',
     };
     showEditDialog.value = true;
   }

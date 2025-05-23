@@ -65,9 +65,9 @@
     </div>
 
     <!-- Conditional Rendering for Content Area -->
-    <div class="p-4">
+    <div class="p-4 mx-auto">
       <!-- Loading State -->
-      <div v-if="loading" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mt-4">
+      <div v-if="loading" class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6 mt-4 w-full">
         <div v-for="n in 3" :key="`skeleton-${n}`" class="border rounded-xl overflow-hidden shadow-md bg-card"> 
           <div class="p-4 space-y-3">
             <div class="flex justify-between items-start">
