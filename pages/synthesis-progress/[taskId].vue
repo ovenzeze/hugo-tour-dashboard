@@ -14,27 +14,65 @@
             </div>
           </div>
           
-          <!-- 状态指示器 -->
-          <div class="flex items-center gap-2">
-            <div 
-              class="w-3 h-3 rounded-full"
-              :class="{
-                'bg-yellow-500 animate-pulse': task?.status === 'pending',
-                'bg-blue-500 animate-pulse': task?.status === 'processing', 
-                'bg-green-500': task?.status === 'completed',
-                'bg-red-500': task?.status === 'failed',
-                'bg-gray-400': !task
-              }"
-            />
-            <span class="text-sm font-medium capitalize">
-              {{ getStatusText(task?.status) }}
-            </span>
+          <div class="flex items-center gap-4">
+            <!-- 复制进度链接按钮 -->
+            <div class="flex items-center gap-2">
+              <Button 
+                variant="outline" 
+                size="sm" 
+                @click="copyProgressLink"
+                :disabled="copyingLink"
+                class="flex items-center gap-2"
+              >
+                <Icon 
+                  :name="copySuccess ? 'ph:check' : (copyingLink ? 'ph:spinner' : 'ph:link')" 
+                  :class="copyingLink ? 'animate-spin' : ''"
+                  class="w-4 h-4" 
+                />
+                {{ copySuccess ? '已复制' : '复制进度链接' }}
+              </Button>
+              
+              <!-- 提示信息 -->
+              <div v-if="task && ['pending', 'processing'].includes(task.status)" class="text-xs text-muted-foreground hidden sm:block">
+                <p class="flex items-center gap-1">
+                  <Icon name="ph:info" class="w-3 h-3" />
+                  可以离开页面，稍后通过链接查看进度
+                </p>
+              </div>
+            </div>
+            
+            <!-- 状态指示器 -->
+            <div class="flex items-center gap-2">
+              <div 
+                class="w-3 h-3 rounded-full"
+                :class="{
+                  'bg-yellow-500 animate-pulse': task?.status === 'pending',
+                  'bg-blue-500 animate-pulse': task?.status === 'processing', 
+                  'bg-green-500': task?.status === 'completed',
+                  'bg-red-500': task?.status === 'failed',
+                  'bg-gray-400': !task
+                }"
+              />
+              <span class="text-sm font-medium capitalize">
+                {{ getStatusText(task?.status) }}
+              </span>
+            </div>
+          </div>
+        </div>
+
+        <!-- 移动端提示信息 -->
+        <div v-if="task && ['pending', 'processing'].includes(task.status)" class="mt-3 sm:hidden">
+          <div class="text-xs text-muted-foreground bg-muted/50 px-3 py-2 rounded-lg">
+            <p class="flex items-center gap-1">
+              <Icon name="ph:info" class="w-3 h-3" />
+              您可以复制进度链接后离开页面，稍后通过链接查看合成进度
+            </p>
           </div>
         </div>
       </div>
     </div>
 
-    <div class="container mx-auto px-4 py-8">
+    <div class="container mx-auto px-4 pt-6 pb-8">
       <!-- 加载状态 -->
       <div v-if="loading" class="flex items-center justify-center py-12">
         <div class="text-center">
@@ -129,6 +167,20 @@
                 />
               </div>
 
+              <!-- 角色头像 - 新增！ -->
+              <div class="flex-shrink-0">
+                <Avatar class="w-10 h-10 border-2 border-background/50">
+                  <AvatarImage 
+                    v-if="segment.persona?.avatar_url" 
+                    :src="segment.persona.avatar_url" 
+                    :alt="segment.persona.name || segment.speaker || 'Speaker'"
+                  />
+                  <AvatarFallback class="text-xs font-semibold bg-primary/10">
+                    {{ getInitials(segment.speaker || segment.persona?.name || 'S') }}
+                  </AvatarFallback>
+                </Avatar>
+              </div>
+
               <!-- 段落信息 -->
               <div class="flex-1 min-w-0">
                 <div class="flex items-center justify-between mb-1">
@@ -136,6 +188,9 @@
                     段落 {{ index + 1 }}
                     <span v-if="segment.persona" class="text-muted-foreground">
                       - {{ segment.persona.name }}
+                    </span>
+                    <span v-else-if="segment.speaker" class="text-muted-foreground">
+                      - {{ segment.speaker }}
                     </span>
                   </p>
                   <span class="text-xs text-muted-foreground">
@@ -209,8 +264,9 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted, onUnmounted } from 'vue'
+import { ref, computed, onMounted, onUnmounted, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
+import { Avatar, AvatarImage, AvatarFallback } from '@/components/ui/avatar'
 
 interface SynthesisTask {
   task_id: string
@@ -251,6 +307,10 @@ const podcast = ref<Podcast | null>(null)
 const segmentProgresses = ref<SegmentProgress[]>([])
 const currentPlayingUrl = ref<string | null>(null)
 const audioPlayer = ref<HTMLAudioElement>()
+
+// 复制链接相关状态
+const copyingLink = ref(false)
+const copySuccess = ref(false)
 
 // 轮询定时器
 let pollInterval: NodeJS.Timeout | null = null
@@ -368,6 +428,82 @@ function viewPodcast() {
 function downloadPodcast() {
   // TODO: 实现下载功能
   console.log('Download podcast:', task.value?.podcast_id)
+}
+
+// 获取姓名首字母
+function getInitials(name: string): string {
+  if (!name) return 'S'
+  return name
+    .split(' ')
+    .map(word => word.charAt(0))
+    .join('')
+    .toUpperCase()
+    .slice(0, 2)
+}
+
+// 复制进度链接
+async function copyProgressLink() {
+  if (copyingLink.value) return
+  
+  try {
+    copyingLink.value = true
+    
+    // 构建当前页面的完整URL
+    const currentUrl = window.location.href
+    
+    // 使用Clipboard API复制到剪贴板
+    if (navigator.clipboard && window.isSecureContext) {
+      await navigator.clipboard.writeText(currentUrl)
+    } else {
+      // 兜底方案：使用document.execCommand
+      const textArea = document.createElement('textarea')
+      textArea.value = currentUrl
+      textArea.style.position = 'fixed'
+      textArea.style.left = '-9999px'
+      textArea.style.top = '-9999px'
+      document.body.appendChild(textArea)
+      textArea.focus()
+      textArea.select()
+      
+      try {
+        document.execCommand('copy')
+      } catch (err) {
+        console.error('Failed to copy using execCommand:', err)
+        throw new Error('复制失败')
+      } finally {
+        document.body.removeChild(textArea)
+      }
+    }
+    
+    // 显示成功状态
+    copySuccess.value = true
+    
+    // 使用toast显示成功消息
+    if (typeof window !== 'undefined' && window.$toast) {
+      window.$toast.success('进度链接已复制', {
+        description: '您可以分享此链接或保存以便稍后查看合成进度',
+        duration: 3000
+      })
+    }
+    
+    // 3秒后重置状态
+    setTimeout(() => {
+      copySuccess.value = false
+    }, 3000)
+    
+  } catch (err: any) {
+    console.error('Failed to copy progress link:', err)
+    
+    // 显示错误消息
+    if (typeof window !== 'undefined' && window.$toast) {
+      window.$toast.error('复制失败', {
+        description: err.message || '无法复制链接到剪贴板',
+        duration: 3000
+      })
+    }
+  } finally {
+    copyingLink.value = false
+  }
 }
 
 // 生命周期

@@ -11,7 +11,7 @@
         </div>
       </div>
     </CardHeader>
-    <CardContent class="p-0 overflow-auto max-h-[420px] scrollbar-thin scrollbar-thumb-border scrollbar-track-transparent">
+    <CardContent class="p-0 overflow-auto max-h-[360px] scrollbar-thin scrollbar-thumb-border scrollbar-track-transparent">
       <div v-if="isLoading" class="flex items-center justify-center py-12">
         <div class="flex flex-col items-center space-y-3">
           <Icon name="ph:spinner" class="h-8 w-8 animate-spin text-primary" />

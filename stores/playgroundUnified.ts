@@ -312,9 +312,11 @@ export const usePlaygroundUnifiedStore = defineStore('playgroundUnified', {
         });
         
         // 构建请求 - 修复persona传递格式
-        const hostPersonaId = settingsStore.getHostPersonaIdNumeric;
+        const hostPersonaId = settingsStore.podcastSettings.hostPersonaId || settingsStore.getHostPersonaIdNumeric;
         const hostPersona = hostPersonaId ? personaCache.getPersonaById(hostPersonaId) : null;
-        const guestPersonaIds = settingsStore.getGuestPersonaIdsNumeric;
+        const guestPersonaIds = settingsStore.podcastSettings.guestPersonaIds?.length ? 
+          settingsStore.podcastSettings.guestPersonaIds.map(id => Number(id)).filter(id => !isNaN(id)) :
+          settingsStore.getGuestPersonaIdsNumeric;
         const guestPersonas = guestPersonaIds.map((id: number) => personaCache.getPersonaById(id)).filter((p: any) => p !== undefined);
 
         const requestBody: any = {
@@ -331,7 +333,7 @@ export const usePlaygroundUnifiedStore = defineStore('playgroundUnified', {
         // 确保根据语言自动选择合适的personas
         console.log('[playgroundUnified] Available personas:', personaCache.personas.value.map(p => ({ id: p.persona_id, name: p.name, lang: p.language_support })));
         
-        // 根据语言过滤personas
+        // 根据语言过滤personas（用于自动选择的候选）
         const languageCompatiblePersonas = personaCache.personas.value.filter(persona => {
           if (!persona.language_support || persona.language_support.length === 0) {
             return true; // 如果没有语言限制，认为兼容
@@ -344,24 +346,40 @@ export const usePlaygroundUnifiedStore = defineStore('playgroundUnified', {
         
         console.log('[playgroundUnified] Language compatible personas for', finalLanguage, ':', languageCompatiblePersonas.map(p => p.name));
         
-        // 如果没有选择host或guest，或者选择的与语言不匹配，自动选择
-        if (!hostPersona || !languageCompatiblePersonas.some(p => p.persona_id === hostPersona.persona_id)) {
+        // 处理主播角色选择 - 优先使用用户手动选择
+        if (!hostPersona) {
+          // 用户未选择主播，进行自动选择
           const autoHostPersona = languageCompatiblePersonas.find(p => 
             p.name.toLowerCase().includes('host') || 
             p.name.toLowerCase().includes('主持')
           ) || languageCompatiblePersonas[0];
           
           if (autoHostPersona) {
-            console.log('[playgroundUnified] Auto-selecting host persona:', autoHostPersona.name);
-            settingsStore.setHostPersona(autoHostPersona.persona_id);
+            console.log('[playgroundUnified] Auto-selecting host persona (user had no selection):', autoHostPersona.name);
+            settingsStore.updatePodcastSettings({ hostPersonaId: autoHostPersona.persona_id });
             requestBody.hostPersona = autoHostPersona;
           }
         } else {
+          // 用户已手动选择主播，尊重用户选择
+          console.log('[playgroundUnified] Using user-selected host persona:', hostPersona.name);
           requestBody.hostPersona = hostPersona;
+          
+          // 如果用户选择的角色不支持当前语言，给出提示但不强制替换
+          const isHostLanguageCompatible = !hostPersona.language_support || 
+            hostPersona.language_support.length === 0 ||
+            hostPersona.language_support.some(lang => 
+              lang.toLowerCase().includes(finalLanguage.toLowerCase()) ||
+              lang.toLowerCase() === finalLanguage.toLowerCase()
+            );
+          
+          if (!isHostLanguageCompatible) {
+            console.warn(`[playgroundUnified] Warning: Selected host persona "${hostPersona.name}" may not fully support language "${finalLanguage}", but respecting user choice`);
+          }
         }
         
-        // 自动选择guest personas
-        if (guestPersonas.length === 0 || !guestPersonas.every((g: any) => languageCompatiblePersonas.some(p => p.persona_id === g.persona_id))) {
+        // 处理嘉宾角色选择 - 优先使用用户手动选择
+        if (guestPersonas.length === 0) {
+          // 用户未选择嘉宾，进行自动选择
           const availableGuests = languageCompatiblePersonas.filter(p => 
             (!requestBody.hostPersona || p.persona_id !== requestBody.hostPersona.persona_id) &&
             (p.name.toLowerCase().includes('guest') || 
@@ -372,12 +390,29 @@ export const usePlaygroundUnifiedStore = defineStore('playgroundUnified', {
           // 选择2-3个guest personas
           const selectedGuests = availableGuests.slice(0, Math.min(3, availableGuests.length));
           if (selectedGuests.length > 0) {
-            console.log('[playgroundUnified] Auto-selecting guest personas:', selectedGuests.map(p => p.name));
-            settingsStore.setGuestPersonas(selectedGuests.map(p => p.persona_id));
+            console.log('[playgroundUnified] Auto-selecting guest personas (user had no selection):', selectedGuests.map(p => p.name));
+            settingsStore.updatePodcastSettings({ guestPersonaIds: selectedGuests.map(p => p.persona_id) });
             requestBody.guestPersonas = selectedGuests;
           }
         } else {
+          // 用户已手动选择嘉宾，尊重用户选择
+          console.log('[playgroundUnified] Using user-selected guest personas:', guestPersonas.map(p => p.name));
           requestBody.guestPersonas = guestPersonas;
+          
+          // 检查嘉宾语言兼容性，给出提示但不强制替换
+          const incompatibleGuests = guestPersonas.filter(guest => {
+            const isLanguageCompatible = !guest.language_support || 
+              guest.language_support.length === 0 ||
+              guest.language_support.some(lang => 
+                lang.toLowerCase().includes(finalLanguage.toLowerCase()) ||
+                lang.toLowerCase() === finalLanguage.toLowerCase()
+              );
+            return !isLanguageCompatible;
+          });
+          
+          if (incompatibleGuests.length > 0) {
+            console.warn(`[playgroundUnified] Warning: Some selected guest personas may not fully support language "${finalLanguage}":`, incompatibleGuests.map(g => g.name), 'but respecting user choice');
+          }
         }
 
         this.aiScriptGenerationStep = 3;

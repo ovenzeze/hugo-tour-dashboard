@@ -51,6 +51,10 @@ export interface VolcengineParams {
   volumeRatio?: number;
   pitchRatio?: number;
   enableTimestamps?: boolean; // Added for consistency, was previously hardcoded in the function
+  emotion?: string;         // 音色情感
+  enableEmotion?: boolean;  // 是否启用情感
+  emotionScale?: number;    // 情绪值强度
+  loudnessRatio?: number;   // 音量调节
 }
 
 export async function generateAndStoreTimedAudioSegmentElevenLabs(
@@ -139,18 +143,22 @@ export async function generateAndStoreTimedAudioSegmentVolcengine(
     text,
     voiceType,
     storageService,
-    appId, // Destructure appId
-    accessToken, // Destructure accessToken
-    cluster, // Destructure cluster
-    instanceId, // Destructure instanceId
+    appId,
+    accessToken,
+    cluster,
+    instanceId,
     publicOutputDirectory,
     storageOutputDirectory,
     baseFilename,
-    encoding = 'mp3', // Default to mp3 for Volcengine as well
-    speedRatio,
-    volumeRatio,
-    pitchRatio,
-    enableTimestamps = true, // Default to true, can be overridden by params
+    encoding = 'mp3',
+    speedRatio = 1.0,
+    volumeRatio = 1.0,
+    pitchRatio = 1.0,
+    enableTimestamps = true,
+    emotion = 'happy',        // 默认开心情感
+    enableEmotion = true,     // 默认启用情感
+    emotionScale = 4.5,       // 稍微提高情绪强度
+    loudnessRatio = 1.2       // 稍微提高音量
   } = params;
 
   console.log('[Volcengine Config Debug - timedAudioService] Received Volcengine config parameters:');
@@ -172,6 +180,10 @@ export async function generateAndStoreTimedAudioSegmentVolcengine(
       speedRatio,
       volumeRatio,
       pitchRatio,
+      emotion,
+      enableEmotion,
+      emotionScale,
+      loudnessRatio
     };
 
     const volcResponse = await synthesizeSpeechVolcengine(volcengineApiParams);

@@ -302,6 +302,10 @@ async function processSynchronously(
           volumeRatio: currentSynthesisParams.volume,
           pitchRatio: currentSynthesisParams.pitch,
           enableTimestamps: true,
+          emotion: 'happy',
+          enableEmotion: true,
+          emotionScale: 4.5,
+          loudnessRatio: 1.3
         };
         segmentResult = await generateAndStoreTimedAudioSegmentVolcengine(volcConfig);
       } else if (cleanedTtsProvider.toLowerCase() === 'elevenlabs') { // Used cleanedTtsProvider
@@ -337,7 +341,20 @@ async function processSynchronously(
         continue;
       }
       
-      results.push({ ...segmentResult, segmentIndex: segment.segmentIndex, provider: sanitizeProviderForResults(cleanedTtsProvider), voiceModelUsed: actualVoiceId }); // Used cleanedTtsProvider
+      results.push({ 
+        ...segmentResult, 
+        segmentIndex: segment.segmentIndex, 
+        provider: sanitizeProviderForResults(cleanedTtsProvider), 
+        voiceModelUsed: actualVoiceId,
+        speaker: segment.speakerName || segment.persona.name,
+        text: segment.text.substring(0, 200),
+        persona: {
+          persona_id: segment.persona.persona_id,
+          name: segment.persona.name,
+          avatar_url: segment.persona.avatar_url,
+          description: segment.persona.description
+        }
+      });
 
       // ---- DATABASE INSERT FOR AUDIO URL ----
       if (segmentResult && segmentResult.audioFileUrl && !segmentResult.error) {

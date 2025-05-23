@@ -109,7 +109,8 @@
       </TooltipProvider>
       <UnifiedPersonaSelector
         id="hostPersonaUnified"
-        v-model="formHostPersonaId"
+        :value="podcastSettings.hostPersonaId"
+        @update:value="handleHostPersonaChange"
         :personas="availableHostPersonas"
         :selection-mode="'single'"
         placeholder="Select Host Persona"
@@ -131,7 +132,8 @@
       </TooltipProvider>
       <UnifiedPersonaSelector
         id="guestPersonasUnified"
-        v-model="formGuestPersonaIds"
+        :value="podcastSettings.guestPersonaIds"
+        @update:value="handleGuestPersonasChange"
         :personas="availableGuestPersonas"
         :selection-mode="'multiple'"
         placeholder="Select Guest Persona(s) (Optional)"
@@ -515,14 +517,52 @@ const formBackgroundMusic = computed({
     set: (val) => settingsStore.updatePodcastSettings({ backgroundMusic: val })
 });
 const formHostPersonaId = computed({
-    get: () => podcastSettings.value.hostPersonaId,
-    set: (val) => settingsStore.updatePodcastSettings({ hostPersonaId: val })
+    get: () => {
+        const value = podcastSettings.value.hostPersonaId;
+        console.log(`[PodcastSettingsForm] formHostPersonaId getter called, returning:`, value);
+        return value;
+    },
+    set: (val) => {
+        console.log(`[PodcastSettingsForm] formHostPersonaId setter called with:`, val);
+        console.log(`[PodcastSettingsForm] Before update, podcastSettings.hostPersonaId:`, podcastSettings.value.hostPersonaId);
+        settingsStore.updatePodcastSettings({ hostPersonaId: val });
+        console.log(`[PodcastSettingsForm] After update, podcastSettings.hostPersonaId:`, podcastSettings.value.hostPersonaId);
+    }
 });
 const formGuestPersonaIds = computed({
-    get: () => podcastSettings.value.guestPersonaIds,
-    set: (val) => settingsStore.updatePodcastSettings({ guestPersonaIds: val })
+    get: () => {
+        const value = podcastSettings.value.guestPersonaIds;
+        console.log(`[PodcastSettingsForm] formGuestPersonaIds getter called, returning:`, value);
+        return value;
+    },
+    set: (val) => {
+        console.log(`[PodcastSettingsForm] formGuestPersonaIds setter called with:`, val);
+        console.log(`[PodcastSettingsForm] Before update, podcastSettings.guestPersonaIds:`, podcastSettings.value.guestPersonaIds);
+        settingsStore.updatePodcastSettings({ guestPersonaIds: val });
+        console.log(`[PodcastSettingsForm] After update, podcastSettings.guestPersonaIds:`, podcastSettings.value.guestPersonaIds);
+    }
 });
 
+// 🔧 添加：直接监听组件变化的调试
+watch(() => formHostPersonaId.value, (newVal, oldVal) => {
+  console.log(`[PodcastSettingsForm] formHostPersonaId computed value changed from ${oldVal} to ${newVal}`);
+}, { immediate: true });
+
+watch(() => formGuestPersonaIds.value, (newVal, oldVal) => {
+  console.log(`[PodcastSettingsForm] formGuestPersonaIds computed value changed from`, oldVal, 'to', newVal);
+}, { immediate: true, deep: true });
+
+// 🔧 添加：直接事件处理函数，绕过computed复杂性
+const handleHostPersonaChange = (newValue: number | null) => {
+  console.log(`[PodcastSettingsForm] handleHostPersonaChange called with:`, newValue);
+  settingsStore.updatePodcastSettings({ hostPersonaId: newValue });
+};
+
+const handleGuestPersonasChange = (newValue: number[] | null) => {
+  console.log(`[PodcastSettingsForm] handleGuestPersonasChange called with:`, newValue);
+  const guestIds = Array.isArray(newValue) ? newValue : [];
+  settingsStore.updatePodcastSettings({ guestPersonaIds: guestIds });
+};
 
 </script>
 

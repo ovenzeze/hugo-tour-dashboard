@@ -94,11 +94,8 @@ const menuGroups = {
     { path: '/preference', label: 'Preference', icon: 'ph:sliders' },
     { path: '/docs', label: 'Docs', icon: 'ph:book' },
     { path: '/debug', label: 'Debug', icon: 'ph:bug' },
-    { path: '/tts-debug', label: 'TTS Debug', icon: 'ph:speaker-simple-high' }, // 新增 TTS Debug 菜单项
     { path: '/components', label: 'Components', icon: 'ph:puzzle-piece' },
     { path: '/audio-player-demo', label: 'Audio Player', icon: 'ph:speaker-high' }
-
-
   ]
 };
 

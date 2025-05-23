@@ -249,6 +249,11 @@ const selectedDisplayValue = computed(() => {
 });
 
 const handleSelectCommandItem = (personaId: number) => {
+  console.log(`[UnifiedPersonaSelector] handleSelectCommandItem called with personaId: ${personaId}`);
+  console.log(`[UnifiedPersonaSelector] Current selectionMode: ${props.selectionMode}`);
+  console.log(`[UnifiedPersonaSelector] Current selectedInternal.value:`, selectedInternal.value);
+  console.log(`[UnifiedPersonaSelector] Current props.value:`, props.value);
+  
   let newSelectedValue: number | number[] | null = null;
   let changedPersonasPayload: PersonaData | PersonaData[] | null = null;
 
@@ -256,10 +261,13 @@ const handleSelectCommandItem = (personaId: number) => {
     if (selectedInternal.value.includes(personaId)) {
       // In single select, if already selected, clicking again does nothing or deselects.
       // For now, let's make it so clicking an already selected item in single mode does not change selection, just closes.
+      console.log(`[UnifiedPersonaSelector] Single mode: persona ${personaId} already selected, not changing selection`);
       // If deselection is desired, uncomment below:
       // selectedInternal.value = [];
       // newSelectedValue = null;
+      return; // 🔧 修复：避免重复选择时发出emit
     } else {
+      console.log(`[UnifiedPersonaSelector] Single mode: selecting new persona ${personaId}`);
       selectedInternal.value = [personaId];
       newSelectedValue = personaId;
       commandValue.value = personaId; // Sync Command's v-model
@@ -270,9 +278,11 @@ const handleSelectCommandItem = (personaId: number) => {
     const index = currentSelected.indexOf(personaId);
     if (index > -1) {
       currentSelected.splice(index, 1); // Deselect
+      console.log(`[UnifiedPersonaSelector] Multiple mode: deselecting persona ${personaId}`);
     } else {
       if (!isItemDisabled(personaId)) {
         currentSelected.push(personaId); // Select
+        console.log(`[UnifiedPersonaSelector] Multiple mode: selecting persona ${personaId}`);
       }
     }
     selectedInternal.value = currentSelected;
@@ -294,19 +304,9 @@ const handleSelectCommandItem = (personaId: number) => {
     }
   }
   
-  // Emit if the value actually changed or if it's a multi-select update
-  // For single select, only emit if newSelectedValue is different from current props.value
-  let shouldEmit = true;
-  if (props.selectionMode === 'single') {
-      if (newSelectedValue === props.value && newSelectedValue !== null) { // if it's null, it means deselection, should emit
-          // if the value is the same and not null, it means we just closed the popover.
-          // but if newSelectedValue is null (deselected), we should emit.
-          // The logic for newSelectedValue being null if deselected is currently commented out.
-          // If we are not allowing deselection by re-clicking in single mode, then this check is fine.
-      }
-  }
-
-
+  console.log(`[UnifiedPersonaSelector] About to emit update:value with:`, newSelectedValue);
+  console.log(`[UnifiedPersonaSelector] About to emit change with payload:`, changedPersonasPayload);
+  
   // Always emit for multi-select as the array instance might change or items within it.
   // For single select, if newSelectedValue is set (even if same as before, to confirm selection), emit.
   // If newSelectedValue is null (deselection), emit.
@@ -314,6 +314,12 @@ const handleSelectCommandItem = (personaId: number) => {
   // Let's simplify: always emit the new state. Parent can decide if it's a "real" change.
   emit('update:value', newSelectedValue);
   emit('change', newSelectedValue, changedPersonasPayload);
+  
+  // 🔧 添加：检查emit后的状态
+  setTimeout(() => {
+    console.log(`[UnifiedPersonaSelector] After emit, props.value is now:`, props.value);
+    console.log(`[UnifiedPersonaSelector] After emit, selectedInternal.value is:`, selectedInternal.value);
+  }, 100);
 };
 
 const isFullySelectedAndDisabled = () => {

@@ -11,6 +11,27 @@ Voice Map: {{voiceMapJson}}
 
 Generate a complete podcast script containing dialogue between the host and guests. The script should clearly indicate each speaker's name and develop content around the topic, adhering to the specified style and keywords.
 
+**CRITICAL: NATURAL CONVERSATION AND INTERACTION**
+*   **Create Authentic Dialogue:** The script MUST feel like a natural conversation between real people, NOT like separate individuals reading their own prepared statements.
+*   **Build on Each Other's Comments:** Each speaker should actively respond to, build upon, or react to what the previous speaker said. Show listening and engagement.
+*   **Use Interactive Elements:** Include the following conversational patterns:
+    - **Questions and Follow-ups:** Speakers should ask each other questions, seek clarification, and show curiosity
+    - **Agreements and Disagreements:** Natural "Yes, exactly!" or "But wait, I think differently about..." moments
+    - **Interruptions and Overlaps:** Occasional "Oh, that reminds me..." or "Speaking of which..." transitions
+    - **Emotional Reactions:** Express surprise, excitement, concern, or humor in response to others' points
+    - **Personal Anecdotes:** Share relevant personal experiences or memories triggered by the discussion
+    - **Cross-References:** "As [Speaker Name] mentioned earlier..." or "Building on what you said about..."
+*   **Conversational Flow Indicators:** Use phrases like:
+    - "That's fascinating! It reminds me of..."
+    - "Wait, can you elaborate on that?"
+    - "I had no idea! What else..."
+    - "You're absolutely right, and another thing..."
+    - "That's interesting, but have you considered..."
+    - "Oh my goodness, really?"
+    - "I was just about to say the same thing!"
+*   **Avoid Lecture Mode:** Prevent speakers from delivering long monologues. Keep exchanges dynamic with frequent back-and-forth.
+*   **Show Active Listening:** Include verbal acknowledgments like "Mmm-hmm," "Right," "Exactly," or "Wow" to show engagement.
+
 **Important Instructions for Museum Selection and Storytelling:**
 *   **Time-Based Museum Selection:** Use the current timestamp ({{currentTime}}) to select a museum or historical site from a specific historical period. Follow this pattern:
     - If the minute is 0-15: Focus on ancient civilizations (before 500 CE)

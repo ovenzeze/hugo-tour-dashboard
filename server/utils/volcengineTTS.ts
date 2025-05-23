@@ -19,6 +19,10 @@ interface VolcengineAudioConfig {
   speed_ratio?: number;
   volume_ratio?: number;
   pitch_ratio?: number;
+  emotion?: string;        // 音色情感，如 "happy", "sad", "angry", "neutral" 等
+  enable_emotion?: boolean; // 是否启用音色情感
+  emotion_scale?: number;   // 情绪值设置，范围1~5，默认4，数值越大情感越明显
+  loudness_ratio?: number;  // 音量调节，范围[0.5,2]，默认1
 }
 
 interface VolcengineRequestConfig {
@@ -96,6 +100,10 @@ export interface VolcengineSynthesizeParams {
   speedRatio?: number;
   volumeRatio?: number;
   pitchRatio?: number;
+  emotion?: string;         // 音色情感
+  enableEmotion?: boolean;  // 是否启用情感
+  emotionScale?: number;    // 情绪值强度
+  loudnessRatio?: number;   // 音量调节
 }
 
 export interface SynthesizedAudioResult {
@@ -118,7 +126,11 @@ export async function synthesizeSpeechVolcengine(params: VolcengineSynthesizePar
     encoding = 'mp3',
     speedRatio = 1.0,
     volumeRatio = 1.0,
-    pitchRatio = 1.0
+    pitchRatio = 1.0,
+    emotion = 'neutral',      // 默认中性情感
+    enableEmotion = true,     // 默认启用情感
+    emotionScale = 4.0,       // 默认情绪强度4
+    loudnessRatio = 1.2       // 默认音量稍微提高，让声音更有力度
   } = params;
 
   const requestBody: VolcengineTTSApiRequest = {
@@ -136,6 +148,10 @@ export async function synthesizeSpeechVolcengine(params: VolcengineSynthesizePar
       speed_ratio: speedRatio,
       volume_ratio: volumeRatio,
       pitch_ratio: pitchRatio,
+      emotion: emotion,
+      enable_emotion: enableEmotion,
+      emotion_scale: emotionScale,
+      loudness_ratio: loudnessRatio,
     },
     request: {
       reqid: uuidv4(), 

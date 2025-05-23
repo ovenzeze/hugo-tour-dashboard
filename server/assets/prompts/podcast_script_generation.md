@@ -11,8 +11,40 @@ Voice Map: {{voiceMapJson}}
 Available Personas: {{availablePersonasJson}}
 
 Generate a complete podcast script containing dialogue between the host and guests. The script should clearly indicate each speaker's name and develop content around the topic, adhering to the specified style and keywords.
-When selecting speakers for dialogue, **prioritize using personas from the `Available Personas` list**. You can use the `description`, `tts_provider`, and `language_support` fields in `Available Personas` to make informed choices.
-While `{{hostName}}` and `{{guestNames}}` are provided as defaults or suggestions, you have the flexibility to choose other suitable personas from the `Available Personas` list if they better fit the script's narrative or topic.
+
+**CRITICAL: NATURAL CONVERSATION AND INTERACTION**
+*   **Create Authentic Dialogue:** The script MUST feel like a natural conversation between real people, NOT like separate individuals reading their own prepared statements.
+*   **Build on Each Other's Comments:** Each speaker should actively respond to, build upon, or react to what the previous speaker said. Show listening and engagement.
+*   **Use Interactive Elements:** Include the following conversational patterns:
+    - **Questions and Follow-ups:** Speakers should ask each other questions, seek clarification, and show curiosity
+    - **Agreements and Disagreements:** Natural "Yes, exactly!" or "But wait, I think differently about..." moments
+    - **Interruptions and Overlaps:** Occasional "Oh, that reminds me..." or "Speaking of which..." transitions
+    - **Emotional Reactions:** Express surprise, excitement, concern, or humor in response to others' points
+    - **Personal Anecdotes:** Share relevant personal experiences or memories triggered by the discussion
+    - **Cross-References:** "As [Speaker Name] mentioned earlier..." or "Building on what you said about..."
+*   **Conversational Flow Indicators:** Use phrases like:
+    - "That's fascinating! It reminds me of..."
+    - "Wait, can you elaborate on that?"
+    - "I had no idea! What else..."
+    - "You're absolutely right, and another thing..."
+    - "That's interesting, but have you considered..."
+    - "Oh my goodness, really?"
+    - "I was just about to say the same thing!"
+*   **Avoid Lecture Mode:** Prevent speakers from delivering long monologues. Keep exchanges dynamic with frequent back-and-forth.
+*   **Show Active Listening:** Include verbal acknowledgments like "Mmm-hmm," "Right," "Exactly," or "Wow" to show engagement.
+
+**CRITICAL: RESPECT USER-SELECTED PERSONAS**
+*   The user has specifically selected `Host: {{hostName}}` and `Guests: {{guestNames}}` for this podcast.
+*   These are NOT suggestions - they are MANDATORY selections that you MUST use.
+*   **DO NOT** choose different personas from the `Available Personas` list unless the user-selected ones are not present in that list.
+*   The `Available Personas: {{availablePersonasJson}}` list is provided for reference and to ensure the selected personas exist, NOT for you to make alternative choices.
+*   **ALWAYS** prioritize using `{{hostName}}` as the host and personas from `{{guestNames}}` as guests in your script.
+
+When selecting speakers for dialogue, **you MUST use the personas specified by the user**:
+*   Host: `{{hostName}}`
+*   Guests: `{{guestNames}}`
+
+Only if a specified persona is completely missing from the `Available Personas` list should you consider using an alternative from that list.
 
 **Important Instructions for Museum Selection and Storytelling:**
 *   **Time-Based Museum Selection:** Use the current timestamp ({{currentTime}}) to select a museum or historical site from a specific historical period. Follow this pattern:
@@ -35,21 +67,24 @@ for inserting pauses of specified duration (maximum 3 seconds). This is the most
 Please return the result in JSON format, structured as shown in the example below.
 
 **Crucial Instructions for Speaker Names and Voice Map:**
-*   You are provided with a list of `Available Personas: {{availablePersonasJson}}`. This is your primary source for selecting speakers.
-*   The fields `Host: {{hostName}}` and `Guests: {{guestNames}}` provide suggested initial roles. You may use these or choose other more suitable personas from the `Available Personas` list.
-*   The `Voice Map: {{voiceMapJson}}` provides the voice details for these suggested initial roles.
+*   You are provided with a list of `Available Personas: {{availablePersonasJson}}`. This is your primary source for validating the selected personas exist.
+*   The fields `Host: {{hostName}}` and `Guests: {{guestNames}}` are the REQUIRED roles selected by the user. You MUST use these exact personas.
+*   The `Voice Map: {{voiceMapJson}}` provides the voice details for these user-selected roles.
 *   **CRITICAL**: For any speaker in the script, you MUST use the `"speaker"` field (NOT "name") in each script segment:
-    *   The value in `script[].speaker` **MUST** exactly match the `name` of a persona found in the `Available Personas: {{availablePersonasJson}}` list.
+    *   The value in `script[].speaker` **MUST** exactly match `{{hostName}}` for host segments and one of the names from `{{guestNames}}` for guest segments.
+    *   **DO NOT** use personas from `Available Personas` unless the user-specified persona is missing from that list.
 *   For the `voiceMap` object you return:
-    *   The keys **MUST** be the exact names of the speakers used in the script.
-    *   The `personaId` and `voice_model_identifier` for each speaker **MUST** be taken directly from their corresponding entry in the `Available Personas: {{availablePersonasJson}}` list.
-*   **Do NOT invent new speaker names or alter their details.** The `voiceMap` you return must accurately reflect the personas chosen from the `Available Personas` list and used in the script, using their original `name`, `personaId`, and `voice_model_identifier` from that list.
+    *   The keys **MUST** be the exact names `{{hostName}}` and names from `{{guestNames}}` that are used in the script.
+    *   The `personaId` and `voice_model_identifier` for each speaker **MUST** be taken directly from the input `{{voiceMapJson}}`.
+*   **Do NOT invent new speaker names or substitute different personas.** You must use the personas the user specifically selected: `{{hostName}}` and `{{guestNames}}`.
 
 **VERY IMPORTANT JSON FORMAT REQUIREMENTS:**
 *   Each script segment MUST use `"speaker"` field (NOT "name")
 *   Each script segment MUST use `"role"` field  
 *   Each script segment MUST use `"text"` field
 *   The exact format is: `{"speaker": "PersonaName", "role": "host|guest", "text": "content"}`
+*   For host segments: `"speaker"` MUST be exactly `{{hostName}}`
+*   For guest segments: `"speaker"` MUST be exactly one of the names from `{{guestNames}}`
 
 Example JSON structure:
 {
@@ -57,32 +92,31 @@ Example JSON structure:
 "language": "Suggested language code (e.g., en, zh-CN, es). This MUST match the language used in the script.",
 "script": [
 {
-"speaker": "{{hostName}}", // MUST be the exact host name from input - USE "speaker" NOT "name"
+"speaker": "{{hostName}}", // MUST be the exact host name - this is REQUIRED, not optional
 "role": "host",
 "text": "Speaker's text content, can include ElevenLabs SSML <break> tags for pauses."
 },
 {
-"speaker": "AN_EXACT_GUEST_NAME_FROM_INPUT_guestNames", // MUST be one of the exact guest names from {{guestNames}} if a guest speaks - USE "speaker" NOT "name"
+"speaker": "ONE_OF_THE_EXACT_GUEST_NAMES_FROM_{{guestNames}}", // MUST be exactly one of the guest names provided
 "role": "guest",
 "text": "Speaker's text content..."
 }
-// ... more script segments, always using exact "speaker" field (NOT "name") from {{hostName}} or {{guestNames}}
+// ... more script segments, ONLY using {{hostName}} and names from {{guestNames}}
 ],
 "voiceMap": {
-// The keys here MUST be the exact names from {{hostName}} and {{guestNames}} that are actually used in the script.
-// The personaId and voice_model_identifier MUST be copied from the input {{voiceMapJson}}.
+// ONLY include the personas that are actually used in the script from the user's selection
 "{{hostName}}": {
 "personaId": "personaId for {{hostName}} from input {{voiceMapJson}}",
 "voice_model_identifier": "voice_model_identifier for {{hostName}} from input {{voiceMapJson}}"
 },
-"AN_EXACT_GUEST_NAME_FROM_INPUT_guestNames_IF_USED": {
+"EXACT_GUEST_NAME_IF_USED_IN_SCRIPT": {
 "personaId": "personaId for this guest from input {{voiceMapJson}}",
 "voice_model_identifier": "voice_model_identifier for this guest from input {{voiceMapJson}}"
 }
-// ... include mappings ONLY for speakers actually present in the generated script.
+// ... include mappings ONLY for user-selected personas actually used in the script
 },
 "topic": "Suggested podcast topic",
-"style": "Suggested podcast style",
+"style": "Suggested podcast style", 
 "keywords": "Suggested keywords",
 "numberOfSegments": 0 // Suggested number of segments
 }

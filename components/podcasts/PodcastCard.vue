@@ -58,6 +58,7 @@
 
         <!-- 播客基本信息 -->
         <div class="w-full space-y-2 mb-4">
+          <!-- 第一行：主播和时长 -->
           <div class="flex items-center justify-between w-full text-xs">
             <div class="flex items-center" v-if="podcast.host_name">
               <Icon name="ph:microphone" class="h-3 w-3 mr-1.5" :class="podcast.cover_image_url ? 'text-white/80' : 'text-muted-foreground'" />
@@ -66,6 +67,37 @@
             <div class="flex items-center">
               <Icon name="ph:clock" class="h-3 w-3 mr-1.5" :class="podcast.cover_image_url ? 'text-white/80' : 'text-muted-foreground'" />
               <span>{{ getPodcastTotalDuration(podcast) }}</span>
+            </div>
+          </div>
+
+          <!-- 第二行：发布时间和状态 -->
+          <div class="flex items-center justify-between w-full text-xs">
+            <div class="flex items-center" v-if="podcast.created_at">
+              <Icon name="ph:calendar" class="h-3 w-3 mr-1.5" :class="podcast.cover_image_url ? 'text-white/80' : 'text-muted-foreground'" />
+              <span class="truncate" :title="formatDate(podcast.created_at)">{{ formatChineseRelativeTime(podcast.created_at) }}</span>
+            </div>
+            <div class="flex items-center gap-1">
+              <!-- 完成状态标签 -->
+              <Badge 
+                :variant="getPodcastStatusVariant(podcast)"
+                class="text-xs px-1.5 py-0.5 h-5"
+                :class="podcast.cover_image_url ? 'border-white/30' : ''"
+              >
+                <Icon :name="getPodcastStatusIcon(podcast)" class="h-2.5 w-2.5 mr-1" />
+                {{ getPodcastStatusText(podcast) }}
+              </Badge>
+            </div>
+          </div>
+
+          <!-- 第三行：统计信息 -->
+          <div class="flex items-center justify-between w-full text-xs" v-if="podcast.podcast_segments?.length">
+            <div class="flex items-center">
+              <Icon name="ph:list-bullets" class="h-3 w-3 mr-1.5" :class="podcast.cover_image_url ? 'text-white/80' : 'text-muted-foreground'" />
+              <span>{{ podcast.podcast_segments.length }} 段落</span>
+            </div>
+            <div class="flex items-center" v-if="podcast.total_word_count">
+              <Icon name="ph:text-aa" class="h-3 w-3 mr-1.5" :class="podcast.cover_image_url ? 'text-white/80' : 'text-muted-foreground'" />
+              <span>{{ formatWordCount(podcast.total_word_count) }} 字</span>
             </div>
           </div>
 
@@ -438,6 +470,114 @@ function handleCancelContinue() {
   showContinueDialog.value = false;
   pendingSegmentCount.value = 0;
   pendingPodcastId.value = null;
+}
+
+// 格式化日期
+function formatDate(dateString: string): string {
+  const date = new Date(dateString);
+  return date.toLocaleDateString('zh-CN', {
+    year: 'numeric',
+    month: 'long',
+    day: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit'
+  });
+}
+
+// 格式化字数
+function formatWordCount(count: number): string {
+  if (count < 1000) {
+    return count.toString();
+  } else if (count < 10000) {
+    return `${(count / 1000).toFixed(1)}k`;
+  } else {
+    return `${(count / 10000).toFixed(1)}万`;
+  }
+}
+
+// 中文相对时间格式化
+function formatChineseRelativeTime(dateString: string): string {
+  const date = new Date(dateString);
+  const now = new Date();
+  const diffTime = Math.abs(now.getTime() - date.getTime());
+  const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+  
+  if (diffDays === 1) {
+    return '今天';
+  } else if (diffDays === 2) {
+    return '昨天';
+  } else if (diffDays <= 7) {
+    return `${diffDays - 1}天前`;
+  } else if (diffDays <= 30) {
+    const weeks = Math.floor(diffDays / 7);
+    return `${weeks}周前`;
+  } else if (diffDays <= 365) {
+    const months = Math.floor(diffDays / 30);
+    return `${months}个月前`;
+  } else {
+    const years = Math.floor(diffDays / 365);
+    return `${years}年前`;
+  }
+}
+
+// 获取播客状态文本
+function getPodcastStatusText(podcast: Podcast): string {
+  if (!podcast.podcast_segments || podcast.podcast_segments.length === 0) {
+    return '草稿';
+  }
+  
+  const totalSegments = podcast.podcast_segments.length;
+  const synthesizedSegments = podcast.podcast_segments.filter(segment => 
+    segment.segment_audios && segment.segment_audios.length > 0
+  ).length;
+  
+  if (synthesizedSegments === 0) {
+    return '未开始';
+  } else if (synthesizedSegments < totalSegments) {
+    return '制作中';
+  } else {
+    return '已完成';
+  }
+}
+
+// 获取播客状态图标
+function getPodcastStatusIcon(podcast: Podcast): string {
+  if (!podcast.podcast_segments || podcast.podcast_segments.length === 0) {
+    return 'ph:file-dashed';
+  }
+  
+  const totalSegments = podcast.podcast_segments.length;
+  const synthesizedSegments = podcast.podcast_segments.filter(segment => 
+    segment.segment_audios && segment.segment_audios.length > 0
+  ).length;
+  
+  if (synthesizedSegments === 0) {
+    return 'ph:circle-dashed';
+  } else if (synthesizedSegments < totalSegments) {
+    return 'ph:hourglass';
+  } else {
+    return 'ph:check-circle';
+  }
+}
+
+// 获取播客状态样式变体
+function getPodcastStatusVariant(podcast: Podcast): "default" | "secondary" | "destructive" | "outline" {
+  if (!podcast.podcast_segments || podcast.podcast_segments.length === 0) {
+    return 'outline';
+  }
+  
+  const totalSegments = podcast.podcast_segments.length;
+  const synthesizedSegments = podcast.podcast_segments.filter(segment => 
+    segment.segment_audios && segment.segment_audios.length > 0
+  ).length;
+  
+  if (synthesizedSegments === 0) {
+    return 'secondary';
+  } else if (synthesizedSegments < totalSegments) {
+    return 'default';
+  } else {
+    return 'outline';
+  }
 }
 </script>
 

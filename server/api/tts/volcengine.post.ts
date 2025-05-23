@@ -44,6 +44,10 @@ export default defineEventHandler(async (event): Promise<SynthesizedAudioResult>
       speedRatio: body.speedRatio,
       volumeRatio: body.volumeRatio,
       pitchRatio: body.pitchRatio,
+      emotion: body.emotion || 'happy',           // 默认开心情感，让声音更有活力
+      enableEmotion: body.enableEmotion !== undefined ? body.enableEmotion : true,
+      emotionScale: body.emotionScale || 4.5,     // 稍微提高情绪强度
+      loudnessRatio: body.loudnessRatio || 1.2,   // 稍微提高音量
       // Provide actual values from environment variables
       appId: volcengineAppId,
       accessToken: volcengineAccessKeyId, // Using Access Key ID as Access Token for Bearer header

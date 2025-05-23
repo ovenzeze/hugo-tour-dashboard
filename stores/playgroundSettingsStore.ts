@@ -109,6 +109,7 @@ export const usePlaygroundSettingsStore = defineStore('playgroundSettings', {
     },
     setHostPersonaId(id: string | number | null) {
       this.hostPersonaId = id;
+      this.podcastSettings.hostPersonaId = id;
       this.error = null; // Clear error when ID is set/updated
     },
     setHostPersona(id: string | number | null) {
@@ -117,19 +118,37 @@ export const usePlaygroundSettingsStore = defineStore('playgroundSettings', {
     addGuestPersonaId(id: string | number) {
       if (!this.guestPersonaIds.includes(id)) {
         this.guestPersonaIds.push(id);
+        this.podcastSettings.guestPersonaIds = [...this.guestPersonaIds];
       }
     },
     removeGuestPersonaId(id: string | number) {
       this.guestPersonaIds = this.guestPersonaIds.filter(guestId => guestId !== id);
+      this.podcastSettings.guestPersonaIds = [...this.guestPersonaIds];
     },
     setGuestPersonaIds(ids: (string | number)[]) {
       this.guestPersonaIds = [...ids];
+      this.podcastSettings.guestPersonaIds = [...ids];
     },
     setGuestPersonas(ids: (string | number)[]) {
       this.setGuestPersonaIds(ids);
     },
     updatePodcastSettings(settings: Partial<FullPodcastSettings>) {
+      console.log(`[playgroundSettingsStore] updatePodcastSettings called with:`, settings);
+      console.log(`[playgroundSettingsStore] Before update - hostPersonaId:`, this.podcastSettings.hostPersonaId, 'guestPersonaIds:', this.podcastSettings.guestPersonaIds);
+      
       this.podcastSettings = { ...this.podcastSettings, ...settings };
+      
+      // 🔧 修复：同步更新独立状态
+      if (settings.hostPersonaId !== undefined) {
+        this.hostPersonaId = settings.hostPersonaId;
+        console.log(`[playgroundSettingsStore] Updated hostPersonaId to:`, this.hostPersonaId);
+      }
+      if (settings.guestPersonaIds !== undefined) {
+        this.guestPersonaIds = [...settings.guestPersonaIds];
+        console.log(`[playgroundSettingsStore] Updated guestPersonaIds to:`, this.guestPersonaIds);
+      }
+      
+      console.log(`[playgroundSettingsStore] After update - hostPersonaId:`, this.podcastSettings.hostPersonaId, 'guestPersonaIds:', this.podcastSettings.guestPersonaIds);
     },
     updateSynthesisParams(params: Partial<SynthesisParams>) {
       this.synthesisParams = { ...this.synthesisParams, ...params };

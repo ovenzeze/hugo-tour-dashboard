@@ -14,11 +14,11 @@
     <!-- Main Content: Unified Card Layout - 移动端优化 -->
     <Card class="flex-1 flex flex-col min-h-0 overflow-hidden mx-2 md:mx-4 my-2 md:my-4 border rounded-lg shadow-sm">
       <!-- Card Header with Title - Fixed at the top -->
-      <CardHeader v-if="unifiedStore.currentStep === 3" class="border-b flex-shrink-0 py-2 md:py-3">
+      <!-- <CardHeader v-if="unifiedStore.currentStep === 3" class="border-b flex-shrink-0 py-2 md:py-3">
         <div class="flex items-center justify-between">
           <CardTitle class="text-base md:text-lg">Audio Synthesis & Preview</CardTitle>
         </div>
-      </CardHeader>
+      </CardHeader> -->
 
       <!-- Main Content: Step-based panels with transition - 移动端优化滚动 -->
       <CardContent class="flex-1 p-0 flex flex-col min-h-0 overflow-hidden bg-background relative">
