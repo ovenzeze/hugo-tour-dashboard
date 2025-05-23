@@ -1,37 +1,65 @@
 <template>
-  <Card class="h-full flex flex-col">
-    <CardHeader class="flex flex-row items-center justify-between">
-      <div>
-        <CardTitle>{{ title }}</CardTitle>
-        <CardDescription v-if="description">{{ description }}</CardDescription>
+  <Card class="h-full flex flex-col bg-gradient-to-br from-card to-card/80 border-border/50 hover:border-border/80 transition-all duration-300 overflow-hidden">
+    <CardHeader class="flex flex-row items-center justify-between pb-4">
+      <div class="space-y-1">
+        <div class="flex items-center gap-3">
+          <div class="p-2 rounded-lg bg-primary/10">
+            <Icon name="ph:chart-bar" class="h-5 w-5 text-primary" />
+          </div>
+          <div>
+            <CardTitle class="text-lg">{{ title }}</CardTitle>
+            <CardDescription v-if="description" class="text-sm">{{ description }}</CardDescription>
+          </div>
+        </div>
       </div>
       <div v-if="filters && filters.length" class="flex items-center space-x-2">
-        <Button v-for="filter in filters" 
-                :key="filter.value" 
-                :variant="activeFilter === filter.value ? 'default' : 'outline'"
-                size="sm"
-                @click="activeFilter = filter.value">
+        <Button 
+          v-for="filter in filters" 
+          :key="filter.value" 
+          :variant="activeFilter === filter.value ? 'default' : 'outline'"
+          size="sm"
+          class="transition-all duration-200 hover:scale-105"
+          @click="activeFilter = filter.value"
+        >
           {{ filter.label }}
         </Button>
       </div>
     </CardHeader>
-    <CardContent class="flex-1 min-h-[200px]" :style="{ height: height }">
+    <CardContent class="flex-1 min-h-[200px] relative" :style="{ height: height }">
+      <!-- Loading State -->
       <div v-if="isLoading" class="flex items-center justify-center h-full">
-        <Icon name="ph:spinner" class="h-8 w-8 animate-spin text-muted-foreground" />
+        <div class="flex flex-col items-center space-y-3">
+          <Icon name="ph:spinner" class="h-8 w-8 animate-spin text-primary" />
+          <p class="text-sm text-muted-foreground">Loading chart data...</p>
+        </div>
       </div>
-      <div v-else-if="!transformedData || transformedData.length === 0" class="flex items-center justify-center h-full text-muted-foreground">
-        No data available
+      
+      <!-- Empty State -->
+      <div v-else-if="!transformedData || transformedData.length === 0" class="flex items-center justify-center h-full">
+        <div class="text-center space-y-3">
+          <div class="mx-auto w-16 h-16 rounded-full bg-muted/50 flex items-center justify-center">
+            <Icon name="ph:chart-bar" class="h-8 w-8 text-muted-foreground" />
+          </div>
+          <div>
+            <p class="font-medium text-muted-foreground">No data available</p>
+            <p class="text-sm text-muted-foreground/70">Chart will appear here once data is loaded</p>
+          </div>
+        </div>
       </div>
-      <BarChart
-        v-else
-        :data="transformedData"
-        :index="indexKey"
-        :categories="categories"
-        :layout="layout"
-        :y-formatter="yFormatter"
-        :colors="chartColors"
-        class="w-full h-full"
-      />
+      
+      <!-- Chart Container with gradient background -->
+      <div v-else class="relative h-full">
+        <div class="absolute inset-0 bg-gradient-to-br from-primary/5 via-transparent to-secondary/5 rounded-lg pointer-events-none"></div>
+        <BarChart
+          :data="transformedData"
+          :index="indexKey"
+          :categories="categories"
+          :layout="layout"
+          :y-formatter="yFormatter"
+          :colors="chartColors"
+          class="w-full h-full relative z-10"
+        />
+      </div>
     </CardContent>
   </Card>
 </template>

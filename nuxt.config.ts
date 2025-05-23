@@ -113,15 +113,16 @@ export default defineNuxtConfig({
   googleFonts: {
     // @ts-ignore
     families: {
-      Inter: [400, 700],
+      Inter: [300, 400, 500, 600, 700],
       "Crimson Text": [400, 600, 700],
-      "Noto Serif SC": [700, 900], // 标题字体: Bold 700, Black 900
-      "Noto Sans SC": [400], // 文案字体: Regular 400
+      "Noto Serif SC": [400, 500, 600, 700],
+      "Noto Sans SC": [300, 400, 500, 600],
     },
     subsets: ["latin", "chinese-simplified"],
     download: true,
     preload: true,
     useStylesheet: true,
+    display: 'swap',
   },
   app: {
     head: {

@@ -1,67 +1,134 @@
 <template>
   <div class="container mx-auto py-4 md:py-10">
     <!-- Top Action Bar and Filters -->
-    <div class="w-full flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-6 px-2 md:px-6">
-      <div class="flex flex-col sm:flex-row w-full md:w-auto items-start sm:items-center gap-4 flex-wrap">
-        <!-- 搜索框 -->
-        <!-- <Input
-          v-model="searchTerm"
-          placeholder="Search by title or topic..."
-          class="w-full sm:w-auto sm:max-w-xs h-10 opacity-50"
-        /> -->
-        
-        <!-- 播客状态筛选 -->
-        <div class="flex flex-wrap items-center gap-2 border rounded-lg p-2 bg-card w-full">
-          <!-- <Label class="text-sm font-medium mr-2">Status:</Label> -->
+    <div class="w-full mb-6 px-2 md:px-6">
+      <!-- 筛选器容器 -->
+      <div class="bg-background border rounded-lg p-3 shadow-sm">
+        <!-- 标题和筛选器一行布局 -->
+        <div class="flex items-center gap-4">
+          <!-- 标题 -->
+          <div class="flex items-center gap-2 text-sm font-medium">
+            <Icon name="ph:funnel" class="h-4 w-4 text-primary" />
+            Filters
+          </div>
           
-          <div class="w-full flex flex-wrap items-center justify-around gap-1">
-            <Button 
-              :variant="podcastStatusFilter === 'all' ? 'default' : 'outline'" 
-              size="sm"
-              @click="podcastStatusFilter = 'all'"
-              class="h-8"
-            >
-              All
-            </Button>
+          <!-- 筛选器组 -->
+          <div class="flex items-center gap-3 flex-1">
+            <!-- 搜索 -->
+            <div class="relative min-w-[200px]">
+              <Icon name="ph:magnifying-glass" class="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+              <Input
+                v-model="searchTerm"
+                placeholder="Search..."
+                class="pl-10 h-8 text-sm"
+              />
+            </div>
             
-            <Button 
-              :variant="podcastStatusFilter === 'completed' ? 'default' : 'outline'" 
-              size="sm"
-              @click="podcastStatusFilter = 'completed'"
-              class="h-8"
-            >
-              <Icon name="ph:check-circle" class="mr-1 h-4 w-4 text-green-500" />
-              <span class="hidden sm:inline">Completed</span>
-            </Button>
+            <!-- 状态选择器 -->
+            <div class="flex items-center bg-muted rounded-md p-1">
+              <Button 
+                :variant="podcastStatusFilter === 'all' ? 'default' : 'ghost'" 
+                size="sm"
+                @click="podcastStatusFilter = 'all'"
+                class="h-6 px-2 text-xs rounded-sm"
+              >
+                All
+              </Button>
+              <Button 
+                :variant="podcastStatusFilter === 'completed' ? 'default' : 'ghost'" 
+                size="sm"
+                @click="podcastStatusFilter = 'completed'"
+                class="h-6 px-2 text-xs rounded-sm"
+              >
+                <Icon name="ph:check-circle" class="mr-1 h-3 w-3" />
+                Done
+              </Button>
+              <Button 
+                :variant="podcastStatusFilter === 'in-progress' ? 'default' : 'ghost'" 
+                size="sm"
+                @click="podcastStatusFilter = 'in-progress'"
+                class="h-6 px-2 text-xs rounded-sm"
+              >
+                <Icon name="ph:hourglass" class="mr-1 h-3 w-3" />
+                Progress
+              </Button>
+              <Button 
+                :variant="podcastStatusFilter === 'not-started' ? 'default' : 'ghost'" 
+                size="sm"
+                @click="podcastStatusFilter = 'not-started'"
+                class="h-6 px-2 text-xs rounded-sm"
+              >
+                <Icon name="ph:circle-dashed" class="mr-1 h-3 w-3" />
+                New
+              </Button>
+            </div>
             
-            <Button 
-              :variant="podcastStatusFilter === 'in-progress' ? 'default' : 'outline'" 
-              size="sm"
-              @click="podcastStatusFilter = 'in-progress'"
-              class="h-8"
-            >
-              <Icon name="ph:hourglass" class="mr-1 h-4 w-4 text-amber-500" />
-              <span class="hidden sm:inline">In Progress</span>
-            </Button>
+            <!-- 语言选择器 -->
+            <div class="flex items-center bg-muted rounded-md p-1">
+              <Button
+                :variant="languageFilter === 'all' ? 'default' : 'ghost'"
+                size="sm"
+                @click="languageFilter = 'all'"
+                class="h-6 px-2 text-xs rounded-sm"
+              >
+                <Icon name="ph:globe" class="mr-1 h-3 w-3" />
+                All
+              </Button>
+              <Button
+                v-for="lang in availableLanguages.slice(0, 3)"
+                :key="lang"
+                :variant="languageFilter === lang ? 'default' : 'ghost'"
+                size="sm"
+                @click="languageFilter = lang"
+                class="h-6 px-2 text-xs rounded-sm"
+              >
+                <div class="flex items-center gap-1">
+                  <span class="text-sm">{{ getLanguageFlag(lang) }}</span>
+                  <span class="hidden sm:inline">{{ lang }}</span>
+                </div>
+              </Button>
+              <!-- 更多语言按钮 -->
+              <Button
+                v-if="availableLanguages.length > 3"
+                variant="ghost"
+                size="sm"
+                @click="showMoreLanguages = !showMoreLanguages"
+                class="h-6 px-2 text-xs rounded-sm"
+              >
+                <Icon name="ph:dots-three" class="h-3 w-3" />
+                <span class="hidden sm:inline ml-1">+{{ availableLanguages.length - 3 }}</span>
+              </Button>
+            </div>
             
-            <Button 
-              :variant="podcastStatusFilter === 'not-started' ? 'default' : 'outline'" 
-              size="sm"
-              @click="podcastStatusFilter = 'not-started'"
-              class="h-8"
-            >
-              <Icon name="ph:circle-dashed" class="mr-1 h-4 w-4 text-gray-500" />
-              <span class="hidden sm:inline">Not Started</span>
+            <!-- 展开的更多语言 -->
+            <div v-if="showMoreLanguages && availableLanguages.length > 3" 
+                 class="flex items-center bg-muted rounded-md p-1 ml-2">
+              <Button
+                v-for="lang in availableLanguages.slice(3)"
+                :key="`extra-${lang}`"
+                :variant="languageFilter === lang ? 'default' : 'ghost'"
+                size="sm"
+                @click="selectLanguage(lang)"
+                class="h-6 px-2 text-xs rounded-sm"
+              >
+                <div class="flex items-center gap-1">
+                  <span class="text-sm">{{ getLanguageFlag(lang) }}</span>
+                  <span class="hidden sm:inline">{{ lang }}</span>
+                </div>
+              </Button>
+            </div>
+          </div>
+          
+          <!-- 统计和重置 -->
+          <div class="flex items-center gap-3 text-sm">
+            <span class="text-muted-foreground whitespace-nowrap">{{ filteredPodcasts.length }} results</span>
+            <Button variant="ghost" size="sm" @click="resetFilters" class="h-8 px-3 text-sm">
+              <Icon name="ph:arrow-clockwise" class="mr-1 h-4 w-4" />
+              Reset
             </Button>
           </div>
         </div>
       </div>
-      
-      <!-- 创建新播客按钮 -->
-      <!-- <Button @click="handleCreateNewPodcast" size="lg" class="w-full sm:w-auto">
-        <Icon name="ph:plus-circle-duotone" class="mr-2 h-5 w-5" />
-        New Podcast
-      </Button> -->
     </div>
 
     <!-- Conditional Rendering for Content Area -->
@@ -152,16 +219,20 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from '@/components/ui/sheet';
 import { Skeleton } from '@/components/ui/skeleton';
-// import { Switch } from '@/components/ui/switch';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { computed, nextTick, onMounted, ref } from 'vue';
 import PodcastDetailDrawer from '~/components/podcasts/PodcastDetailDrawer.vue';
 import PodcastList from '~/components/podcasts/PodcastList.vue';
 import { usePodcastDatabase } from '~/composables/usePodcastDatabase';
+import { usePersonaCache } from '~/composables/usePersonaCache'; // 新增导入
 import { type Podcast, type Segment, type SegmentAudio } from '~/types/podcast';
 import { usePodcastPlayer } from '~/composables/usePodcastPlayer';
 
 const searchTerm = ref('');
 const podcastStatusFilter = ref('completed'); // 播客状态筛选，默认显示已完成状态
+const languageFilter = ref('all'); // 新增语言筛选状态
+const availableLanguages = ref<string[]>([]); // 新增可用语言列表
+const showMoreLanguages = ref(false);
 
 const {
   podcasts,
@@ -174,6 +245,8 @@ const {
   downloadPodcast,
   resynthesizeAllSegments
 } = usePodcastDatabase();
+
+const personaCache = usePersonaCache(); // 新增
 
 // Initialize podcast player
 const podcastPlayer = usePodcastPlayer();
@@ -226,13 +299,35 @@ const filteredPodcasts = computed<Podcast[]>(() => {
     console.log(`[PodcastsPage] Podcasts after ${podcastStatusFilter.value} filter:`, JSON.parse(JSON.stringify(result)));
   }
 
+  // Apply language filter
+  if (languageFilter.value !== 'all') {
+    result = result.filter(podcast => {
+      const podcastLanguages = new Set<string>();
+      if (podcast.host_persona?.language_support) {
+        podcast.host_persona.language_support.forEach(lang => podcastLanguages.add(lang));
+      }
+      if (podcast.guest_persona?.language_support) {
+        podcast.guest_persona.language_support.forEach(lang => podcastLanguages.add(lang));
+      }
+      if (podcast.creator_persona?.language_support) {
+        podcast.creator_persona.language_support.forEach(lang => podcastLanguages.add(lang));
+      }
+      // Check if any of the podcast's languages match the filter
+      return podcastLanguages.has(languageFilter.value);
+    });
+    console.log(`[PodcastsPage] Podcasts after ${languageFilter.value} language filter:`, JSON.parse(JSON.stringify(result)));
+  }
+
   console.log('[PodcastsPage] Final filteredPodcasts:', JSON.parse(JSON.stringify(result)));
   return result;
 });
 
-// Fetch podcasts on component mount
-onMounted(() => {
-  fetchPodcasts();
+// Fetch podcasts and languages on component mount
+onMounted(async () => {
+  await fetchPodcasts();
+  await personaCache.fetchPersonas();
+  availableLanguages.value = personaCache.getSupportedLanguages();
+  console.log('[PodcastsPage] Available languages:', availableLanguages.value);
 });
 
 // Handle selecting a podcast from the list
@@ -310,6 +405,38 @@ const handleGenerateCover = async (podcastId: string) => {
   } catch (error) {
     console.error('[PodcastsPage] Error refreshing podcasts:', error);
   }
+};
+
+const resetFilters = () => {
+  searchTerm.value = '';
+  podcastStatusFilter.value = 'completed';
+  languageFilter.value = 'all';
+  showMoreLanguages.value = false;
+};
+
+// 获取语言对应的国旗
+const getLanguageFlag = (lang: string) => {
+  const languageFlags: Record<string, string> = {
+    'English': '🇬🇧',
+    'Chinese': '🇨🇳',
+    'Japanese': '🇯🇵',
+    'Korean': '🇰🇷',
+    'Spanish': '🇪🇸',
+    'French': '🇫🇷',
+    'German': '🇩🇪',
+    'Italian': '🇮🇹',
+    'Portuguese': '🇵🇹',
+    'Russian': '🇷🇺',
+    'Arabic': '🇦🇪',
+    'Hindi': '🇮🇳'
+  };
+  return languageFlags[lang] || '🌐';
+};
+
+// 选择语言并关闭更多语言面板
+const selectLanguage = (lang: string) => {
+  languageFilter.value = lang;
+  showMoreLanguages.value = false;
 };
 </script>
 

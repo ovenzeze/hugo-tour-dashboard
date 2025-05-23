@@ -62,7 +62,37 @@ useHead({
   font-feature-settings: normal;
   font-variation-settings: normal;
   -webkit-tap-highlight-color: transparent;
-  font-family: "Crimson Text", "Noto Sans SC", Inter var, Inter, system-ui;
+  /* 使用Crimson Text作为主要英文字体，提供优雅的阅读体验 */
+  font-family: "Crimson Text", "Times New Roman", "Noto Serif SC", "Source Han Serif SC", serif;
+  font-weight: 400;
+  text-rendering: optimizeLegibility;
+  /* 优化衬线字体的自然显示效果 */
+  font-feature-settings: "kern" 1, "liga" 1, "onum" 1;
+  font-variant-ligatures: common-ligatures;
+  font-variant-numeric: oldstyle-nums;
+  /* 优化字体渲染的亚像素精度 */
+  font-optical-sizing: auto;
+}
+
+/* 针对Crimson Text字体的全局粗体优化 */
+strong, b {
+  font-weight: 600; /* 使用Crimson Text 600而不是传统的700，更优雅 */
+  letter-spacing: -0.005em;
+}
+
+/* 针对不同屏幕密度的字体优化 */
+@media (-webkit-min-device-pixel-ratio: 2), (min-resolution: 192dpi) {
+  :root {
+    -webkit-font-smoothing: subpixel-antialiased;
+  }
+}
+
+/* 深色模式下的字体优化 */
+@media (prefers-color-scheme: dark) {
+  :root {
+    -webkit-font-smoothing: antialiased;
+    font-weight: 400; /* 深色模式下稍微减轻字重 */
+  }
 }
 
 *::-webkit-scrollbar {

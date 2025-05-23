@@ -1,24 +1,32 @@
 <template>
-  <Card class="overflow-hidden h-full">
-    <CardHeader class="flex flex-row items-center justify-between space-y-0 pb-2">
-      <CardTitle class="text-sm font-medium">{{ title }}</CardTitle>
-      <Icon :name="icon" class="h-4 w-4 text-muted-foreground" />
-    </CardHeader>
-    <CardContent>
-      <div class="text-2xl font-bold">{{ formattedValue }}</div>
-      <div v-if="change !== undefined" class="text-xs text-muted-foreground flex items-center space-x-1">
-        <Icon 
-          :name="change >= 0 ? 'ph:arrow-up' : 'ph:arrow-down'" 
-          class="h-3 w-3" 
-          :class="change >= 0 ? 'text-emerald-500' : 'text-rose-500'" 
-        />
-        <span :class="change >= 0 ? 'text-emerald-500' : 'text-rose-500'">
-          {{ Math.abs(change).toFixed(1) }}%
-        </span>
-        <span>from {{ compareLabel }}</span>
+  <Card class="overflow-hidden h-full bg-gradient-to-br from-card to-card/80 border-border/50 hover:border-border transition-all duration-300 hover:shadow-md group">
+    <CardHeader class="flex flex-row items-center justify-between space-y-0 pb-3">
+      <CardTitle class="text-sm font-medium text-muted-foreground group-hover:text-foreground transition-colors duration-300">
+        {{ title }}
+      </CardTitle>
+      <div class="p-2 rounded-lg bg-primary/10 group-hover:bg-primary/15 transition-all duration-300">
+        <Icon :name="icon" class="h-4 w-4 text-primary" />
       </div>
-      <div v-if="secondaryValue" class="mt-2 pt-2 border-t text-xs text-muted-foreground">
-        {{ secondaryLabel }}: <span class="font-medium">{{ secondaryValue }}</span>
+    </CardHeader>
+    <CardContent class="pb-4">
+      <div class="text-3xl font-bold tracking-tight text-foreground mb-2">{{ formattedValue }}</div>
+      <div v-if="change !== undefined" class="text-xs flex items-center space-x-1.5">
+        <div class="flex items-center space-x-1" :class="change >= 0 ? 'text-emerald-600' : 'text-rose-600'">
+          <Icon 
+            :name="change >= 0 ? 'ph:trend-up' : 'ph:trend-down'" 
+            class="h-3 w-3" 
+          />
+          <span class="font-medium">
+            {{ Math.abs(change).toFixed(1) }}%
+          </span>
+        </div>
+        <span class="text-muted-foreground">from {{ compareLabel }}</span>
+      </div>
+      <div v-if="secondaryValue" class="mt-3 pt-3 border-t border-border/50 text-xs">
+        <div class="flex justify-between items-center">
+          <span class="text-muted-foreground">{{ secondaryLabel }}</span>
+          <span class="font-medium text-foreground">{{ secondaryValue }}</span>
+        </div>
       </div>
     </CardContent>
   </Card>

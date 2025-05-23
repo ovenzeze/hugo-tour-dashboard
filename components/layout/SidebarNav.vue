@@ -24,10 +24,13 @@
               <SidebarMenuButton
                 as-child
                 :isActive="$route.path.startsWith(link.path)"
-                @click="$emit('close')"
                 :tooltip="link.label"
               >
-                <NuxtLink :to="link.path" class="flex items-center overflow-hidden min-w-0">
+                <NuxtLink 
+                  :to="link.path" 
+                  class="flex items-center overflow-hidden min-w-0"
+                  @click="$emit('close')"
+                >
                   <Icon :name="link.icon" class="mr-2 h-5 w-5 shrink-0" />
                   <span class="truncate text-sm font-medium">{{ link.label }}</span>
                 </NuxtLink>
@@ -48,10 +51,13 @@
               <SidebarMenuButton
                 as-child
                 :isActive="$route.path.startsWith(link.path)"
-                @click="$emit('close')"
                 :tooltip="link.label"
               >
-                <NuxtLink :to="link.path" class="flex items-center overflow-hidden min-w-0">
+                <NuxtLink 
+                  :to="link.path" 
+                  class="flex items-center overflow-hidden min-w-0"
+                  @click="$emit('close')"
+                >
                   <Icon :name="link.icon" class="mr-2 h-5 w-5 shrink-0" />
                   <span class="truncate text-sm font-medium">{{ link.label }}</span>
                   
@@ -77,10 +83,13 @@
               <SidebarMenuButton
                 as-child
                 :isActive="$route.path.startsWith(link.path)"
-                @click="$emit('close')"
                 :tooltip="link.label"
               >
-                <NuxtLink :to="link.path" class="flex items-center overflow-hidden min-w-0">
+                <NuxtLink 
+                  :to="link.path" 
+                  class="flex items-center overflow-hidden min-w-0"
+                  @click="$emit('close')"
+                >
                   <Icon :name="link.icon" class="mr-2 h-5 w-5 shrink-0" />
                   <span class="truncate text-sm font-medium">{{ link.label }}</span>
                 </NuxtLink>
@@ -101,10 +110,13 @@
               <SidebarMenuButton
                 as-child
                 :isActive="$route.path.startsWith(link.path)"
-                @click="$emit('close')"
                 :tooltip="link.label"
               >
-                <NuxtLink :to="link.path" class="flex items-center overflow-hidden min-w-0">
+                <NuxtLink 
+                  :to="link.path" 
+                  class="flex items-center overflow-hidden min-w-0"
+                  @click="$emit('close')"
+                >
                   <Icon :name="link.icon" class="mr-2 h-5 w-5 shrink-0" />
                   <span class="truncate text-sm font-medium">{{ link.label }}</span>
                 </NuxtLink>
@@ -125,10 +137,13 @@
               <SidebarMenuButton
                 as-child
                 :isActive="$route.path.startsWith(link.path)"
-                @click="$emit('close')"
                 :tooltip="link.label"
               >
-                <NuxtLink :to="link.path" class="flex items-center overflow-hidden min-w-0">
+                <NuxtLink 
+                  :to="link.path" 
+                  class="flex items-center overflow-hidden min-w-0"
+                  @click="$emit('close')"
+                >
                   <Icon :name="link.icon" class="mr-2 h-5 w-5 shrink-0" />
                   <span class="truncate text-sm font-medium">{{ link.label }}</span>
                 </NuxtLink>
@@ -190,9 +205,21 @@
 
 <script setup lang="ts">
 import { useAuthStore } from '~/stores/auth';
+import { watch, nextTick } from 'vue';
 
 const authStore = useAuthStore();
 const router = useRouter();
+const route = useRoute();
+
+// 作为备用机制，监听路由变化自动关闭侧边栏（主要用于移动端）
+watch(() => route.path, (newPath, oldPath) => {
+  // 只在路由实际发生变化时触发关闭事件
+  if (newPath !== oldPath) {
+    nextTick(() => {
+      emit('close');
+    });
+  }
+}, { immediate: false });
 
 const handleLogout = async () => {
   await authStore.logout();

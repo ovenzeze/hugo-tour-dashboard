@@ -1,33 +1,27 @@
 <template>
-  <Card
+  <div
     @mouseenter="hoveredPodcastId = Number(podcast.podcast_id)"
     @mouseleave="hoveredPodcastId = null"
-    :style="{
-      'transition': 'all 0.3s ease-in-out',
-      'transform': hoveredPodcastId === Number(podcast.podcast_id) ? 'translateY(-4px)' : 'translateY(0)'
-    }"
     :class="[
-      'border rounded-xl shadow-md flex flex-col min-w-[100px] sm:min-w-[280px] max-w-none',
+      'rounded-2xl md:rounded-3xl bg-muted/20 backdrop-blur-sm flex flex-col min-w-[100px] sm:min-w-[280px] max-w-none',
       'aspect-[3/4]',
-      'group hover:shadow-xl transition-all duration-300 ease-in-out overflow-hidden relative',
-      !podcast.cover_image_url ? 'bg-card text-card-foreground' : 'text-white',
-      podcast.cover_image_url && 'bg-center bg-cover bg-no-repeat',
-      currentPreviewingId === podcast.podcast_id ? 'ring-2 ring-primary shadow-xl' : 'cursor-pointer',
-      hoveredPodcastId === Number(podcast.podcast_id) && 'shadow-lg',
-      hoveredPodcastId === Number(podcast.podcast_id) ? 'scale-[1.02]' : 'scale-100'
+      'group transition-all duration-300 ease-in-out overflow-hidden relative cursor-pointer',
+      !podcast.cover_image_url ? 'text-card-foreground' : 'text-white',
+      currentPreviewingId === podcast.podcast_id && 'ring-2 ring-primary',
+      hoveredPodcastId === Number(podcast.podcast_id) && 'transform hover:scale-[1.02]'
     ]"
     @click.prevent="currentPreviewingId === podcast.podcast_id ? null : emit('select-podcast', podcast.podcast_id)"
   >
     <!-- Background image with loading state -->
     <div
       v-if="podcast.cover_image_url"
-      class="absolute inset-0 bg-center bg-cover transition-opacity duration-500 ease-in-out rounded-md"
+      class="absolute inset-0 bg-center bg-cover transition-opacity duration-500 ease-in-out rounded-2xl md:rounded-3xl"
       :style="{
         backgroundImage: podcast.cover_image_url && typeof podcast.cover_image_url === 'string' ? `url(${podcast.cover_image_url})` : 'none',
         opacity: imageLoaded[Number(podcast.podcast_id)] ? 1 : 0,
         transition: 'opacity 0.5s ease-in-out',
         zIndex: 0,
-        filter: 'brightness(0.8)'
+        filter: 'brightness(0.7)'
       }"
     >
       <img
@@ -38,293 +32,180 @@
       />
     </div>
 
-    <!-- 顶部整体渐变遮罩，圆角与卡片一致 -->
-    <div class="absolute inset-x-0 top-0 h-[50%] z-10 rounded-t-xl pointer-events-none card-gradient-overlay"></div>
+    <!-- 简化的渐变遮罩 -->
+    <div v-if="podcast.cover_image_url" class="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-black/30 z-10 pointer-events-none rounded-2xl md:rounded-3xl"></div>
 
-    <!-- Core content always visible -->
-    <div :class="[
-      'card-content-fade',
-      hoveredPodcastId === Number(podcast.podcast_id) ? 'opacity-100' : 'opacity-100'
-    ]">
-      <CardHeader class="pb-1 sm:pb-2 relative z-20 p-2 sm:p-6">
-        <div class="flex flex-col items-start">
-          <div class="flex justify-between items-start w-full">
-            <CardTitle class="text-sm sm:text-lg font-bold leading-tight text-left card-title-shadow">
-              <span class="line-clamp-2 break-words" :title="podcast.title">{{ podcast.title || `Podcast #${podcast.podcast_id}` }}</span>
-            </CardTitle>
+    <!-- Core content -->
+    <div class="relative z-20 h-full flex flex-col p-4 md:p-6">
+      <!-- Header Area -->
+      <div class="flex flex-col items-start flex-1">
+        <div class="flex justify-between items-start w-full mb-3">
+          <h3 class="text-sm sm:text-lg font-bold leading-tight text-left line-clamp-2 break-words flex-1 mr-2" :title="podcast.title">
+            {{ podcast.title || `Podcast #${podcast.podcast_id}` }}
+          </h3>
 
-            <Button 
-              variant="ghost"
-              size="icon"
-              class="h-5 w-5 sm:h-7 sm:w-7 transition-opacity duration-300 ease-in-out hidden sm:flex"
-              :class="[
-                podcast.cover_image_url ? 'text-white hover:bg-white/20' : '',
-                hoveredPodcastId === Number(podcast.podcast_id) ? 'opacity-100' : 'opacity-0'
-              ]"
-              title="Delete Podcast"
-              @click.stop="emit('delete-podcast', podcast.podcast_id)"
-            >
-              <Icon name="ph:trash" class="h-3 w-3 sm:h-4 sm:w-4" />
-            </Button>
-        </div>
-
-        <!-- 播客基本信息 - 主持人和时长 (始终可见) -->
-        <div class="flex items-center justify-between w-full mt-1 sm:mt-2 text-xs transition-all duration-300 ease-in-out"
-          :class="{
-            'opacity-100': hoveredPodcastId === Number(podcast.podcast_id),
-            'opacity-0': hoveredPodcastId !== Number(podcast.podcast_id) && podcast.cover_image_url
-          }">
-          <div class="flex items-center" v-if="podcast.host_name">
-            <Icon name="ph:microphone" class="h-2.5 w-2.5 sm:h-3.5 sm:w-3.5 mr-1" :class="podcast.cover_image_url ? 'text-white/80' : 'text-muted-foreground'" />
-            <span class="truncate max-w-[60px] sm:max-w-[100px] text-xs" :title="podcast.host_name">{{ podcast.host_name }}</span>
-          </div>
-          <div class="flex items-center">
-            <Icon name="ph:clock" class="h-2.5 w-2.5 sm:h-3.5 sm:w-3.5 mr-1" :class="podcast.cover_image_url ? 'text-white/80' : 'text-muted-foreground'" />
-            <span class="text-xs">{{ getPodcastTotalDuration(podcast) }}</span>
-          </div>
-        </div>
-
-        <!-- Topic tag always visible -->
-        <div class="flex items-center mt-1 sm:mt-2 w-full transition-all duration-300 ease-in-out"
-          :class="{
-            'opacity-80': hoveredPodcastId === Number(podcast.podcast_id),
-            'opacity-0': hoveredPodcastId !== Number(podcast.podcast_id) && podcast.cover_image_url
-          }">
-          <span
-            v-if="podcast.topic"
-            class="px-2 sm:px-3 py-0.5 sm:py-1 rounded-full text-xs font-semibold line-clamp-1 transition-all duration-300 ease-in-out"
-            :class="[
-              podcast.cover_image_url ? 'text-white' : 'bg-primary/10 text-primary',
-              hoveredPodcastId === Number(podcast.podcast_id) && podcast.cover_image_url ? 'bg-white/30' : 'bg-white/10'
-            ]"
-            :title="podcast.topic"
+          <Button 
+            variant="ghost"
+            size="sm"
+            class="h-6 w-6 sm:h-8 sm:w-8 opacity-0 group-hover:opacity-100 transition-opacity duration-300 backdrop-blur-sm"
+            :class="podcast.cover_image_url ? 'text-white hover:bg-white/20' : 'hover:bg-muted/40'"
+            title="Delete Podcast"
+            @click.stop="emit('delete-podcast', podcast.podcast_id)"
           >
-            {{ podcast.topic }}
-          </span>
+            <Icon name="ph:trash" class="h-3 w-3 sm:h-4 sm:w-4" />
+          </Button>
         </div>
-        </div>
-      </CardHeader>
 
-      <!-- Extended content on hover - simple opacity change -->
-      <CardContent class="py-1 sm:py-2 text-sm relative z-10 flex-1 p-2 sm:p-6">
-        <div 
-          :class="{
-            'opacity-100 transform translate-y-0': hoveredPodcastId === Number(podcast.podcast_id),
-            'opacity-0 transform translate-y-2': hoveredPodcastId !== Number(podcast.podcast_id)
-          }"
-          class="transition-all duration-300 ease-in-out h-full flex flex-col">
-          <!-- Podcast description -->
-          <CardDescription v-if="podcast.description"
-            :class="podcast.cover_image_url ? 'text-white/90' : 'text-muted-foreground'"
-            class="text-xs sm:text-sm line-clamp-2 text-left mb-1 sm:mb-3">
-            {{ podcast.description }}
-          </CardDescription>
-        </div>
-      </CardContent>
-    </div>
+        <!-- 播客基本信息 -->
+        <div class="w-full space-y-2 mb-4">
+          <div class="flex items-center justify-between w-full text-xs">
+            <div class="flex items-center" v-if="podcast.host_name">
+              <Icon name="ph:microphone" class="h-3 w-3 mr-1.5" :class="podcast.cover_image_url ? 'text-white/80' : 'text-muted-foreground'" />
+              <span class="truncate max-w-[60px] sm:max-w-[100px]" :title="podcast.host_name">{{ podcast.host_name }}</span>
+            </div>
+            <div class="flex items-center">
+              <Icon name="ph:clock" class="h-3 w-3 mr-1.5" :class="podcast.cover_image_url ? 'text-white/80' : 'text-muted-foreground'" />
+              <span>{{ getPodcastTotalDuration(podcast) }}</span>
+            </div>
+          </div>
 
-    <!-- 中央播放/暂停按钮或继续按钮 (二选一) -->
-    <div class="z-20 absolute inset-16 sm:inset-20 flex items-end justify-center">
-      <!-- 继续制作按钮 (未完成的播客) -->
-      <Button
-        v-if="hasUnsynthesizedSegments(podcast)"
-        variant="outline"
-        class="flex items-center justify-center rounded-lg shadow-md bg-secondary/70 hover:bg-secondary text-white px-2 py-1 sm:px-4 sm:py-2 text-xs sm:text-sm"
-        @click.stop="navigateToPlayground(Number(podcast.podcast_id))"
-        title="Some segments need audio synthesis"
-      >
-        <Icon name="ph:arrow-square-out" class="mr-1 sm:mr-2 h-3 w-3 sm:h-5 sm:w-5" />
-        <span class="hidden sm:inline">Continue on Playground</span>
-        <span class="sm:hidden">Continue</span>
-      </Button>
-      
-      <!-- 播放按钮 (已完成的播客，当前未播放) -->
-      <Button
-        v-else-if="hasPlayableSegments(podcast) && currentPreviewingId !== podcast.podcast_id"
-        variant="outline"
-        class="flex items-center justify-center rounded-lg shadow-md bg-secondary/70 hover:bg-secondary text-white px-2 py-1 sm:px-4 sm:py-2 text-xs sm:text-sm"
-        @click.stop="emit('preview-podcast', podcast.podcast_id)"
-      >
-        <Icon name="ph:play-fill" class="mr-1 sm:mr-2 h-3 w-3 sm:h-5 sm:w-5" />
-        Preview
-      </Button>
-      
-      <!-- 停止按钮 (当前正在播放) -->
-      <Button
-        v-else-if="currentPreviewingId === podcast.podcast_id"
-        variant="outline"
-        class="flex items-center justify-center rounded-lg shadow-md bg-destructive/70 hover:bg-destructive text-white px-2 py-1 sm:px-4 sm:py-2 text-xs sm:text-sm"
-        @click.stop="emit('stop-preview')"
-      >
-        <Icon name="ph:stop-fill" class="mr-1 sm:mr-2 h-3 w-3 sm:h-5 sm:w-5" />
-        Stop
-      </Button>
-      
-      <!-- 禁用状态 (无可播放内容) -->
-      <TooltipProvider v-else>
-        <Tooltip>
-          <TooltipTrigger as-child>
-            <Button
-              variant="outline"
-              class="flex items-center justify-center rounded-lg shadow-md bg-muted/50 text-muted-foreground opacity-50 cursor-not-allowed px-2 py-1 sm:px-4 sm:py-2 text-xs sm:text-sm"
-              disabled
+          <!-- Topic tag -->
+          <div v-if="podcast.topic" class="flex items-center">
+            <span
+              class="px-3 py-1 rounded-full text-xs font-medium line-clamp-1 transition-all duration-300"
+              :class="podcast.cover_image_url ? 'bg-white/20 text-white hover:bg-white/30' : 'bg-primary/10 text-primary'"
+              :title="podcast.topic"
             >
-              <Icon name="ph:play-fill" class="mr-1 sm:mr-2 h-3 w-3 sm:h-5 sm:w-5" />
-              Preview
-            </Button>
-          </TooltipTrigger>
-          <TooltipContent>
-            <p>No audio content available for this podcast</p>
-          </TooltipContent>
-        </Tooltip>
-      </TooltipProvider>
-    </div>
-    
-    <!-- 底部操作区域 (始终显示，悬停时更明显) -->
-    <div 
-      class="z-10 absolute bottom-0 left-0 right-0 p-2 sm:p-4 bg-gradient-to-t from-black/80 to-transparent transition-all duration-300 ease-in-out"
-      :class="{
-        'opacity-100': hoveredPodcastId === Number(podcast.podcast_id),
-        'opacity-80': hoveredPodcastId !== Number(podcast.podcast_id)
-      }"
-    >
-      <!-- 主要操作按钮区域 -->
-      <div class="flex gap-1 sm:gap-2 w-full mb-1 sm:mb-3">
-        <!-- 留空作为布局占位符 -->
+              {{ podcast.topic }}
+            </span>
+          </div>
+        </div>
+
+        <!-- Extended content - Description -->
+        <div class="flex-1">
+          <p 
+            v-if="podcast.description"
+            :class="podcast.cover_image_url ? 'text-white/90' : 'text-muted-foreground'"
+            class="text-xs sm:text-sm line-clamp-3 opacity-0 group-hover:opacity-100 transition-opacity duration-300"
+          >
+            {{ podcast.description }}
+          </p>
+        </div>
+      </div>
+
+      <!-- 中央播放按钮区域 -->
+      <div class="absolute bottom-4 right-4 z-30">
+        <!-- 继续制作按钮 -->
+        <Button
+          v-if="hasUnsynthesizedSegments(podcast)"
+          variant="default"
+          size="icon"
+          class="w-12 h-12 rounded-full bg-primary hover:bg-primary/90 text-primary-foreground shadow-lg hover:scale-110 transition-all"
+          @click.stop="navigateToPlayground(Number(podcast.podcast_id))"
+          title="Continue editing in Playground"
+        >
+          <Icon name="ph:arrow-square-out" class="w-5 h-5" />
+        </Button>
+        
+        <!-- 播放按钮 -->
+        <Button
+          v-else-if="hasPlayableSegments(podcast) && currentPreviewingId !== podcast.podcast_id"
+          variant="default"
+          size="icon"
+          class="w-12 h-12 rounded-full bg-primary hover:bg-primary/90 text-primary-foreground shadow-lg hover:scale-110 transition-all"
+          @click.stop="emit('preview-podcast', podcast.podcast_id)"
+          title="Preview podcast"
+        >
+          <Icon name="ph:play-fill" class="w-5 h-5" />
+        </Button>
+        
+        <!-- 停止按钮 -->
+        <Button
+          v-else-if="currentPreviewingId === podcast.podcast_id"
+          variant="destructive"
+          size="icon"
+          class="w-12 h-12 rounded-full bg-destructive hover:bg-destructive/90 text-destructive-foreground shadow-lg hover:scale-110 transition-all animate-pulse"
+          @click.stop="emit('stop-preview')"
+          title="Stop preview"
+        >
+          <Icon name="ph:stop-fill" class="w-5 h-5" />
+        </Button>
+        
+        <!-- 禁用状态 -->
+        <Button
+          v-else
+          variant="secondary"
+          size="icon"
+          class="w-12 h-12 rounded-full bg-muted/50 text-muted-foreground opacity-50 cursor-not-allowed"
+          disabled
+          title="No audio available"
+        >
+          <Icon name="ph:play-fill" class="w-5 h-5" />
+        </Button>
       </div>
       
-      <!-- 工具按钮 -->
-      <div class="flex flex-wrap gap-1 sm:gap-2 w-full justify-center">
+      <!-- 底部操作区域 -->
+      <div class="absolute bottom-4 left-4 flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity duration-300 z-30">
         <!-- Generate cover button -->
         <Button
-            variant="ghost"
-            size="icon"
-            class="h-6 w-6 sm:h-10 sm:w-10 rounded-lg bg-black/10 hover:bg-black/20 dark:bg-white/5 dark:hover:bg-white/10"
-            title="Generate cover image"
-            @click.stop="emit('generate-cover', String(podcast.podcast_id))"
-            :disabled="currentPreviewingId === podcast.podcast_id || (loadingCovers && loadingCovers[Number(podcast.podcast_id)])"
-            :class="podcast.cover_image_url ? 'text-white hover:text-white' : ''"
-          >
-            <Icon 
-              v-if="!(loadingCovers && loadingCovers[Number(podcast.podcast_id)])" 
-              name="ph:image" 
-              class="h-3 w-3 sm:h-5 sm:w-5" 
-            />
-            <Icon 
-              v-else 
-              name="ph:spinner" 
-              class="h-3 w-3 sm:h-5 sm:w-5 animate-spin" 
-            />
-          </Button>
-          
-          <!-- Download button -->
-          <TooltipProvider v-if="!hasPlayableSegments(podcast)">
-            <Tooltip>
-              <TooltipTrigger as-child>
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  class="h-6 w-6 sm:h-10 sm:w-10 rounded-lg bg-black/10 dark:bg-white/5"
-                  :disabled="!hasPlayableSegments(podcast)"
-                  :class="[{ 'opacity-50 cursor-not-allowed': !hasPlayableSegments(podcast) },
-                    podcast.cover_image_url ? 'text-white/80' : '']"
-                >
-                  <Icon 
-                    name="ph:download-simple" 
-                    class="h-3 w-3 sm:h-5 sm:w-5" 
-                  />
-                </Button>
-              </TooltipTrigger>
-              <TooltipContent>
-                <p>No audio content available to download</p>
-              </TooltipContent>
-            </Tooltip>
-          </TooltipProvider>
-          <Button
-            v-else
-            variant="ghost"
-            size="icon"
-            class="h-6 w-6 sm:h-10 sm:w-10 rounded-lg bg-black/10 hover:bg-black/20 dark:bg-white/5 dark:hover:bg-white/10"
-            title="Download podcast"
-            @click.stop="emit('download-podcast', String(podcast.podcast_id))"
-            :disabled="!hasPlayableSegments(podcast)"
-            :class="podcast.cover_image_url ? 'text-white hover:text-white' : ''"
-          >
-            <Icon 
-              name="ph:download-simple" 
-              class="h-3 w-3 sm:h-5 sm:w-5" 
-            />
-          </Button>
-          
-          <!-- Edit button -->
-          <Button
-            variant="ghost"
-            size="icon"
-            class="h-6 w-6 sm:h-10 sm:w-10 rounded-lg bg-black/10 hover:bg-black/20 dark:bg-white/5 dark:hover:bg-white/10"
-            title="Edit podcast"
-            @click.stop="emit('edit-podcast', podcast.podcast_id)"
-            :class="podcast.cover_image_url ? 'text-white hover:text-white' : ''"
-          >
-            <Icon 
-              name="ph:pencil-simple" 
-              class="h-3 w-3 sm:h-5 sm:w-5" 
-            />
-          </Button>
-          
-          <!-- Preview share button -->
-          <TooltipProvider v-if="!hasPlayableSegments(podcast)">
-            <Tooltip>
-              <TooltipTrigger as-child>
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  class="h-6 w-6 sm:h-10 sm:w-10 rounded-lg bg-black/10 dark:bg-white/5"
-                  :disabled="!hasPlayableSegments(podcast)"
-                  :class="[{ 'opacity-50 cursor-not-allowed': !hasPlayableSegments(podcast) },
-                    podcast.cover_image_url ? 'text-white/80' : '']"
-                >
-                  <Icon 
-                    name="ph:eye" 
-                    class="h-3 w-3 sm:h-5 sm:w-5" 
-                  />
-                </Button>
-              </TooltipTrigger>
-              <TooltipContent>
-                <p>No audio content available for this podcast</p>
-              </TooltipContent>
-            </Tooltip>
-          </TooltipProvider>
-          <Button
-            v-else
-            variant="ghost"
-            size="icon"
-            class="h-6 w-6 sm:h-10 sm:w-10 rounded-lg bg-black/10 hover:bg-black/20 dark:bg-white/5 dark:hover:bg-white/10"
-            title="Preview share"
-            @click.stop="openSharePreviewModal(podcast.podcast_id)"
-            :disabled="!hasPlayableSegments(podcast)"
-            :class="podcast.cover_image_url ? 'text-white hover:text-white' : ''"
-          >
-            <Icon 
-              name="ph:eye" 
-              class="h-3 w-3 sm:h-5 sm:w-5" 
-            />
-          </Button>
-          
-          <!-- Share button -->
-          <Button
-            variant="ghost"
-            size="icon"
-            class="h-6 w-6 sm:h-10 sm:w-10 rounded-lg bg-black/10 hover:bg-black/20 dark:bg-white/5 dark:hover:bg-white/10"
-            title="Share podcast"
-            @click.stop="sharePodcast(podcast.podcast_id)"
-            :class="podcast.cover_image_url ? 'text-white hover:text-white' : ''"
-          >
-            <Icon 
-              name="ph:share-network" 
-              class="h-3 w-3 sm:h-5 sm:w-5 text-primary" 
-            />
-          </Button>
-        </div>
+          variant="ghost"
+          size="icon"
+          class="h-8 w-8 rounded-full backdrop-blur-sm bg-background/20 hover:bg-background/40"
+          :class="podcast.cover_image_url ? 'text-white' : 'text-foreground'"
+          title="Generate cover image"
+          @click.stop="emit('generate-cover', String(podcast.podcast_id))"
+          :disabled="currentPreviewingId === podcast.podcast_id || (loadingCovers && loadingCovers[Number(podcast.podcast_id)])"
+        >
+          <Icon 
+            v-if="!(loadingCovers && loadingCovers[Number(podcast.podcast_id)])" 
+            name="ph:image" 
+            class="h-4 w-4" 
+          />
+          <Icon 
+            v-else 
+            name="ph:spinner" 
+            class="h-4 w-4 animate-spin" 
+          />
+        </Button>
+        
+        <!-- Download button -->
+        <Button
+          v-if="hasPlayableSegments(podcast)"
+          variant="ghost"
+          size="icon"
+          class="h-8 w-8 rounded-full backdrop-blur-sm bg-background/20 hover:bg-background/40"
+          :class="podcast.cover_image_url ? 'text-white' : 'text-foreground'"
+          title="Download podcast"
+          @click.stop="emit('download-podcast', String(podcast.podcast_id))"
+        >
+          <Icon name="ph:download-simple" class="h-4 w-4" />
+        </Button>
+        
+        <!-- Edit button -->
+        <Button
+          variant="ghost"
+          size="icon"
+          class="h-8 w-8 rounded-full backdrop-blur-sm bg-background/20 hover:bg-background/40"
+          :class="podcast.cover_image_url ? 'text-white' : 'text-foreground'"
+          title="Edit podcast"
+          @click.stop="emit('edit-podcast', podcast.podcast_id)"
+        >
+          <Icon name="ph:pencil-simple" class="h-4 w-4" />
+        </Button>
+        
+        <!-- Share button -->
+        <Button
+          v-if="hasPlayableSegments(podcast)"
+          variant="ghost"
+          size="icon"
+          class="h-8 w-8 rounded-full backdrop-blur-sm bg-background/20 hover:bg-background/40"
+          :class="podcast.cover_image_url ? 'text-white' : 'text-foreground'"
+          title="Share podcast"
+          @click.stop="openSharePreviewModal(podcast.podcast_id)"
+        >
+          <Icon name="ph:share" class="h-4 w-4" />
+        </Button>
+      </div>
     </div>
 
     <!-- 继续合成确认对话框 -->
@@ -335,7 +216,7 @@
       @confirm="handleConfirmContinue"
       @cancel="handleCancelContinue"
     />
-  </Card>
+  </div>
 </template>
 
 <script setup lang="ts">
@@ -500,25 +381,30 @@ async function triggerBackgroundSynthesis(podcastId: number, segmentCount: numbe
     
     // 调用后台合成API
     const response = await $fetch<ContinueSynthesisResponse>('/api/podcast/continue-synthesis', {
-      method: 'POST'
-    }, {
-      podcastId: podcastId.toString(),
-      segmentCount 
+      method: 'POST',
+      // @ts-ignore - Following project pattern for body type handling
+      body: {
+        podcastId: podcastId.toString(),
+        segmentCount 
+      }
     });
     
     if (response.success) {
       if (response.taskId) {
         toast.success(`开始后台合成 ${response.segmentsToProcess} 个片段`, {
-          description: `任务ID: ${response.taskId}，您可以在Playground中查看进度`
+          description: `任务ID: ${response.taskId}，正在跳转到进度页面`
         });
+        
+        // 跳转到公共合成进度页面
+        router.push(`/synthesis-progress/${response.taskId}`);
       } else {
         toast.info(response.message, {
           description: '所有片段已完成合成'
         });
+        
+        // 如果没有需要合成的，跳转到playground查看结果
+        router.push(`/playground?podcast=${podcastId}`);
       }
-      
-      // 跳转到playground页面
-      router.push(`/playground?podcast=${podcastId}`);
     } else {
       throw new Error(response.message || '合成任务创建失败');
     }
@@ -556,33 +442,28 @@ function handleCancelContinue() {
 </script>
 
 <style scoped>
-/* Text shadow effects */
-.card-content-fade {
-  transition: opacity 0.3s cubic-bezier(.4,0,.2,1);
-}
-.card-gradient-overlay {
-  border-top-left-radius: 0.75rem;
-  border-top-right-radius: 0.75rem;
-  background: linear-gradient(to bottom, rgba(0,0,0,0.6) 0%, transparent 100%);
-  transition: background 0.3s cubic-bezier(.4,0,.2,1);
-}
-.card-title-shadow {
-  text-shadow: 0 2px 8px rgba(0,0,0,0.7);
-  transition: text-shadow 0.3s cubic-bezier(.4,0,.2,1);
+/* 保持简洁的动画效果 */
+.group {
+  transition: all 0.3s cubic-bezier(.4,0,.2,1);
 }
 
-/* 保留按钮阴影等与卡片功能相关的样式 */
-.card-hover-effect {
-  transition: all 0.3s ease-in-out;
+/* 简化的悬停效果 */
+.group:hover {
+  transform: scale(1.02);
 }
-.card-hover-effect:hover {
-  transform: translateY(-4px);
-  box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.1), 0 8px 10px -6px rgba(0, 0, 0, 0.1);
+
+/* 保留必要的文本阴影效果 */
+.line-clamp-2 {
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
 }
-.btn-shadow {
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
-}
-.btn-shadow:hover {
-  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+
+.line-clamp-3 {
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
 }
 </style>

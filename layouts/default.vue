@@ -50,13 +50,18 @@
 </template>
 
 <script setup lang="ts">
-import { useRoute } from '#imports';
+import { useRoute, watch } from '#imports';
+import { useMediaQuery } from '@vueuse/core';
 import { Toaster } from 'vue-sonner';
+import { nextTick } from 'vue';
 // import MobileBottomBar from '@/components/layout/MobileBottomBar.vue';
 import SidebarNav from '@/components/layout/SidebarNav.vue';
 import AudioPlayer from '@/components/global/AudioPlayer.vue';
 
 const route = useRoute()
+
+// 使用useMediaQuery检测移动端
+const isMobile = useMediaQuery('(max-width: 767px)')
 
 // layouts/default.vue 脚本部分
 const menuGroups = {
@@ -99,6 +104,20 @@ const menuGroups = {
 
 // 保持原来的 sidebarOpen 逻辑，同时添加菜单结构
 const sidebarOpen = ref(false);
+
+// 优化路由监听，移动端导航跳转后自动关闭侧边栏
+watch(() => route.path, (newPath, oldPath) => {
+  // 只在移动端且路由实际发生变化时关闭侧边栏
+  if (isMobile.value && newPath !== oldPath && sidebarOpen.value) {
+    // 使用 nextTick 确保路由跳转完成后再关闭侧边栏
+    nextTick(() => {
+      // 添加小延迟以避免视觉上的闪烁
+      setTimeout(() => {
+        sidebarOpen.value = false;
+      }, 100);
+    });
+  }
+}, { immediate: false });
 
 // 移动端导航栏高度常量（4rem = 64px）
 const MOBILE_HEADER_HEIGHT = '4rem';

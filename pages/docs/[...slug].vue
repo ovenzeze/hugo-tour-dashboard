@@ -8,28 +8,58 @@
           <!-- Fixed Header -->
           <div class="p-4 border-b border-gray-200 dark:border-gray-700">
             <h3 class="font-bold text-lg text-gray-800 dark:text-gray-200">
-              Contents
+              文档导航
             </h3>
           </div>
           
           <!-- Scrollable Content Area -->
-          <div class="flex-1 overflow-y-auto p-4 toc-content">
-            <TableOfContents 
-              :links="toc?.links || []" 
-              :active-id="activeHeadingId" 
-              @link-click="closeSheet"
-            />
-            <p v-if="!toc?.links?.length" class="text-sm text-muted-foreground">No contents available</p>
+          <div class="flex-1 overflow-y-auto p-4 space-y-4">
+            <!-- 文档列表 -->
+            <div v-if="allDocs && allDocs.length > 0">
+              <h4 class="text-sm font-semibold text-muted-foreground mb-2">所有文档</h4>
+              <div class="space-y-1">
+                <NuxtLink
+                  v-for="docItem in allDocs.slice(0, 10)"
+                  :key="docItem._path"
+                  :to="docItem._path"
+                  class="block px-2 py-1.5 text-sm rounded hover:bg-primary/10 transition-colors"
+                  :class="{ 'bg-primary/20 text-primary font-medium': docItem._path === doc?._path }"
+                >
+                  {{ docItem.title || getDocNameFromPath(docItem._path) }}
+                </NuxtLink>
+                <NuxtLink
+                  v-if="allDocs.length > 10"
+                  to="/docs"
+                  class="block px-2 py-1.5 text-sm text-muted-foreground hover:text-primary transition-colors"
+                >
+                  查看全部 {{ allDocs.length }} 篇文档 →
+                </NuxtLink>
+              </div>
+            </div>
+            
+            <!-- 目录 -->
+            <div v-if="toc?.links?.length">
+              <h4 class="text-sm font-semibold text-muted-foreground mb-2">页面目录</h4>
+              <TableOfContents 
+                :links="toc.links" 
+                :active-id="activeHeadingId" 
+                @link-click="closeSheet"
+              />
+            </div>
+            
+            <p v-if="!toc?.links?.length && (!allDocs || allDocs.length === 0)" class="text-sm text-muted-foreground">
+              暂无内容
+            </p>
           </div>
           
           <!-- Fixed Footer -->
-          <div class="p-4 border-t border-gray-200 dark:border-gray-700 mt-auto mx-auto">
+          <div class="p-4 border-t border-gray-200 dark:border-gray-700 mt-auto">
             <NuxtLink 
               to="/docs" 
               class="flex items-center text-sm text-blue-600 dark:text-blue-400 hover:underline"
             >
               <ArrowLeft class="w-4 h-4 mr-1" />
-              Back to all documents
+              返回文档中心
             </NuxtLink>
           </div>
         </div>
@@ -137,7 +167,7 @@ import {
   SheetTrigger,
 } from '@/components/ui/sheet'
 import { Menu, X, ArrowLeft, Loader2, AlertCircle } from 'lucide-vue-next'
-import { useRoute, ref, computed, watch, nextTick, onMounted, onBeforeUnmount, useHead, useAsyncData, queryCollection } from '#imports'
+import { useRoute, ref, computed, watch, nextTick, onMounted, onBeforeUnmount, useHead, useAsyncData } from '#imports'
 import { useMotion } from '@vueuse/motion'
 
 definePageMeta({
@@ -156,9 +186,40 @@ const slug = computed(() => {
 })
 
 // Fetch document content
+const { data: allDocs } = await useAsyncData('docs-sidebar', () =>
+  queryContent('docs')
+    .only(['_path', 'title', 'description'])
+    .find()
+)
+
 const { data: doc, pending, error } = await useAsyncData(
   `docs-${slug.value}`,
-  () => queryCollection('docs').path(`/docs/${slug.value}`).first()
+  async () => {
+    try {
+      // 尝试不同的路径组合
+      const paths = [
+        `/docs/${slug.value}`,
+        `docs/${slug.value}`,
+        slug.value
+      ]
+      
+      for (const path of paths) {
+        try {
+          const result = await queryContent(path).findOne()
+          return result
+        } catch (e) {
+          // 继续尝试下一个路径
+          continue
+        }
+      }
+      
+      // 如果都没找到，抛出错误
+      throw new Error(`Document not found: ${slug.value}`)
+    } catch (e) {
+      console.error('Document fetch error:', e)
+      throw e
+    }
+  }
 )
 
 // Ref for the main page container and animation effect
@@ -265,6 +326,12 @@ const smoothScrollTo = (id) => {
       behavior: 'smooth'
     })
   }
+}
+
+// 从路径获取文档名称
+function getDocNameFromPath(path) {
+  if (!path) return '未知文档'
+  return path.split('/').pop()?.replace('.md', '') || '未知文档'
 }
 </script>
 

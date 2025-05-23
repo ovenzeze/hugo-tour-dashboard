@@ -13,6 +13,135 @@
       </div>
     </div>
 
+    <!-- Filters -->
+    <div class="w-full mb-6">
+      <div class="bg-background border rounded-lg p-3 shadow-sm">
+        <div class="flex items-center gap-4">
+          <!-- 标题 -->
+          <div class="flex items-center gap-2 text-sm font-medium">
+            <Icon name="ph:funnel" class="h-4 w-4 text-primary" />
+            Filters
+          </div>
+          
+          <!-- 筛选器组 -->
+          <div class="flex items-center gap-3 flex-1">
+            <!-- 搜索 -->
+            <div class="relative min-w-[200px]">
+              <Icon name="ph:magnifying-glass" class="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+              <Input
+                v-model="searchTerm"
+                placeholder="Search personas..."
+                class="pl-10 h-8 text-sm"
+              />
+            </div>
+            
+            <!-- 状态选择器 -->
+            <div class="flex items-center bg-muted rounded-md p-1">
+              <Button 
+                :variant="statusFilter === 'all' ? 'default' : 'ghost'" 
+                size="sm"
+                @click="statusFilter = 'all'"
+                class="h-6 px-2 text-xs rounded-sm"
+              >
+                All
+              </Button>
+              <Button 
+                :variant="statusFilter === 'active' ? 'default' : 'ghost'" 
+                size="sm"
+                @click="statusFilter = 'active'"
+                class="h-6 px-2 text-xs rounded-sm"
+              >
+                <Icon name="ph:check-circle" class="mr-1 h-3 w-3" />
+                Active
+              </Button>
+              <Button 
+                :variant="statusFilter === 'inactive' ? 'default' : 'ghost'" 
+                size="sm"
+                @click="statusFilter = 'inactive'"
+                class="h-6 px-2 text-xs rounded-sm"
+              >
+                <Icon name="ph:pause-circle" class="mr-1 h-3 w-3" />
+                Inactive
+              </Button>
+              <Button 
+                :variant="statusFilter === 'deprecated' ? 'default' : 'ghost'" 
+                size="sm"
+                @click="statusFilter = 'deprecated'"
+                class="h-6 px-2 text-xs rounded-sm"
+              >
+                <Icon name="ph:x-circle" class="mr-1 h-3 w-3" />
+                Deprecated
+              </Button>
+            </div>
+            
+            <!-- 语言选择器 -->
+            <div class="flex items-center bg-muted rounded-md p-1">
+              <Button
+                :variant="languageFilter === 'all' ? 'default' : 'ghost'"
+                size="sm"
+                @click="languageFilter = 'all'"
+                class="h-6 px-2 text-xs rounded-sm"
+              >
+                <Icon name="ph:globe" class="mr-1 h-3 w-3" />
+                All
+              </Button>
+              <Button
+                v-for="lang in availableLanguages.slice(0, 3)"
+                :key="lang"
+                :variant="languageFilter === lang ? 'default' : 'ghost'"
+                size="sm"
+                @click="languageFilter = lang"
+                class="h-6 px-2 text-xs rounded-sm"
+              >
+                <div class="flex items-center gap-1">
+                  <span class="text-sm">{{ getLanguageFlag(lang) }}</span>
+                  <span class="hidden sm:inline">{{ lang }}</span>
+                </div>
+              </Button>
+              <!-- 更多语言按钮 -->
+              <Button
+                v-if="availableLanguages.length > 3"
+                variant="ghost"
+                size="sm"
+                @click="showMoreLanguages = !showMoreLanguages"
+                class="h-6 px-2 text-xs rounded-sm"
+              >
+                <Icon name="ph:dots-three" class="h-3 w-3" />
+                <span class="hidden sm:inline ml-1">+{{ availableLanguages.length - 3 }}</span>
+              </Button>
+            </div>
+            
+            <!-- 展开的更多语言 -->
+            <div v-if="showMoreLanguages && availableLanguages.length > 3" 
+                 class="flex items-center bg-muted rounded-md p-1 ml-2">
+              <Button
+                v-for="lang in availableLanguages.slice(3)"
+                :key="`extra-${lang}`"
+                :variant="languageFilter === lang ? 'default' : 'ghost'"
+                size="sm"
+                @click="selectLanguage(lang)"
+                class="h-6 px-2 text-xs rounded-sm"
+              >
+                <div class="flex items-center gap-1">
+                  <span class="text-sm">{{ getLanguageFlag(lang) }}</span>
+                  <span class="hidden sm:inline">{{ lang }}</span>
+                </div>
+              </Button>
+            </div>
+          </div>
+          
+          <!-- 统计和重置 -->
+          <div class="flex items-center gap-3 text-sm">
+            <span class="text-muted-foreground whitespace-nowrap">{{ filteredPersonas.length }} results</span>
+            <Button variant="ghost" size="sm" @click="resetFilters" class="h-8 px-3 text-sm">
+              <Icon name="ph:arrow-clockwise" class="mr-1 h-4 w-4" />
+              Reset
+            </Button>
+          </div>
+        </div>
+      </div>
+    </div>
+
     <!-- Card View for all screen sizes -->
     <div class="mt-8">
       <div v-if="pending" class="space-y-4 py-4">
@@ -36,15 +165,28 @@
       <div v-else-if="error" class="text-center py-4">
         <p class="text-red-500">Failed to load personas: {{ error.message }}</p>
       </div>
-      <div v-else-if="personas && personas.length > 0" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+      <div v-else-if="filteredPersonas && filteredPersonas.length > 0" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
         <PersonaCard
-          v-for="persona in personas"
+          v-for="persona in filteredPersonas"
           :key="persona.persona_id"
           :persona="persona"
           @edit="editPersona"
           @delete="confirmDeletePersona"
           @view-details="viewPersonaDetails"
         />
+      </div>
+      <div v-else-if="searchTerm || statusFilter !== 'all' || languageFilter !== 'all'" class="text-center py-16 px-4 border-2 border-dashed border-muted rounded-xl bg-muted/5">
+        <div class="flex flex-col items-center max-w-md mx-auto">
+          <Icon name="ph:magnifying-glass" class="h-16 w-16 text-muted-foreground/60" />
+          <h3 class="mt-4 text-lg font-medium">No Personas Found</h3>
+          <p class="mt-2 text-sm text-muted-foreground">No personas match your current filters. Try adjusting your search criteria.</p>
+          <div class="mt-6">
+            <Button @click="resetFilters" size="lg" class="gap-2">
+              <Icon name="ph:arrow-clockwise" class="h-5 w-5" />
+              <span>Clear Filters</span>
+            </Button>
+          </div>
+        </div>
       </div>
       <div v-else class="text-center py-16 px-4 border-2 border-dashed border-muted rounded-xl bg-muted/5">
         <div class="flex flex-col items-center max-w-md mx-auto">
@@ -241,6 +383,13 @@ const showEditDialog = ref(false);
 const editingPersona = ref<ApiPersona | null>(null);
 const showAddDialog = ref(false);
 
+// 筛选器相关变量
+const searchTerm = ref('');
+const statusFilter = ref('all');
+const languageFilter = ref('all');
+const showMoreLanguages = ref(false);
+const availableLanguages = ref<string[]>([]);
+
 const editingPersonaDescription = computed({
   get: () => editingPersona.value?.description || '',
   set: (val) => {
@@ -315,6 +464,85 @@ const { data: personas, pending, error, refresh: refreshPersonas } = await useAs
     }
   }
 );
+
+// 提取可用语言
+watch(personas, (newPersonas) => {
+  if (newPersonas && newPersonas.length > 0) {
+    const languages = new Set<string>();
+    newPersonas.forEach(persona => {
+      if (persona.language_support && Array.isArray(persona.language_support)) {
+        persona.language_support.forEach(lang => languages.add(lang));
+      }
+    });
+    availableLanguages.value = Array.from(languages).sort();
+  }
+}, { immediate: true });
+
+// 筛选后的personas
+const filteredPersonas = computed(() => {
+  if (!personas.value) return [];
+  
+  let result = personas.value;
+  
+  // 搜索筛选
+  if (searchTerm.value) {
+    const lowerSearchTerm = searchTerm.value.toLowerCase();
+    result = result.filter(persona =>
+      (persona.name && persona.name.toLowerCase().includes(lowerSearchTerm)) ||
+      (persona.description && persona.description.toLowerCase().includes(lowerSearchTerm))
+    );
+  }
+  
+  // 状态筛选
+  if (statusFilter.value !== 'all') {
+    result = result.filter(persona => persona.status === statusFilter.value);
+  }
+  
+  // 语言筛选
+  if (languageFilter.value !== 'all') {
+    result = result.filter(persona => {
+      if (!persona.language_support || !Array.isArray(persona.language_support)) {
+        return false;
+      }
+      return persona.language_support.includes(languageFilter.value);
+    });
+  }
+  
+  return result;
+});
+
+// 重置筛选器
+const resetFilters = () => {
+  searchTerm.value = '';
+  statusFilter.value = 'all';
+  languageFilter.value = 'all';
+  showMoreLanguages.value = false;
+};
+
+// 获取语言对应的国旗
+const getLanguageFlag = (lang: string) => {
+  const languageFlags: Record<string, string> = {
+    'English': '🇬🇧',
+    'Chinese': '🇨🇳',
+    'Japanese': '🇯🇵',
+    'Korean': '🇰🇷',
+    'Spanish': '🇪🇸',
+    'French': '🇫🇷',
+    'German': '🇩🇪',
+    'Italian': '🇮🇹',
+    'Portuguese': '🇵🇹',
+    'Russian': '🇷🇺',
+    'Arabic': '🇦🇪',
+    'Hindi': '🇮🇳'
+  };
+  return languageFlags[lang] || '🌐';
+};
+
+// 选择语言并关闭更多语言面板
+const selectLanguage = (lang: string) => {
+  languageFilter.value = lang;
+  showMoreLanguages.value = false;
+};
 
 const openAddPersonaDialog = () => {
   resetAddForm({

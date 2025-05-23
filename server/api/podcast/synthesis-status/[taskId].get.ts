@@ -33,8 +33,36 @@ export default defineEventHandler(async (event) => {
       });
     }
 
-    // Return task status without internal details
+    // Fetch podcast information
+    let podcast = null;
+    if (task.podcast_id) {
+      const { data: podcastData, error: podcastError } = await supabase
+        .from('podcasts')
+        .select('podcast_id, title, description, created_at')
+        .eq('podcast_id', task.podcast_id)
+        .single();
+      
+      if (!podcastError && podcastData) {
+        podcast = podcastData;
+      }
+    }
+
+    // Return response with both task and podcast information
     const response = {
+      task: {
+        task_id: task.task_id,
+        podcast_id: task.podcast_id,
+        status: task.status,
+        progress_completed: task.progress_completed,
+        progress_total: task.progress_total,
+        progress_current_segment: task.progress_current_segment,
+        error_message: task.error_message,
+        results: task.results,
+        created_at: task.created_at,
+        updated_at: task.updated_at,
+      },
+      podcast: podcast,
+      // Legacy format for backward compatibility
       taskId: task.task_id,
       podcastId: task.podcast_id,
       status: task.status,

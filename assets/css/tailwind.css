@@ -125,14 +125,126 @@
 
   body {
     @apply bg-background text-foreground;
-    /* 正文: Crimson Text (英文), Noto Sans SC (中文), Tailwind sans-serif (后备) */
-    font-family: "Crimson Text", "Noto Serif SC", "Noto Sans SC", sans-serif;
+    /* 使用Crimson Text作为主要英文字体，提供优雅的阅读体验 */
+    font-family: "Crimson Text", "Times New Roman", "Noto Serif SC", "Source Han Serif SC", serif;
+    font-weight: 400;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    text-rendering: optimizeLegibility;
+    /* 优化衬线字体的显示效果 */
+    font-feature-settings: "kern" 1, "liga" 1, "onum" 1;
+    font-variant-ligatures: common-ligatures;
+    font-variant-numeric: oldstyle-nums;
   }
 
-  h1, h2, h3, h4, h5, h6, textarea, input, div, p  {
-    /* 标题: Crimson Text (英文), Noto Serif SC (中文), serif (后备) */
-    font-family: "Crimson Text", "Noto Serif SC", serif;
-    font-weight: 600; /* 默认为 Bold, 可在具体组件中覆盖为 900 (Black) */
+  /* 标题使用Crimson Text字体 */
+  h1, h2, h3, h4, h5, h6 {
+    font-family: "Crimson Text", "Times New Roman", "Noto Serif SC", "Source Han Serif SC", serif;
+    font-weight: 600; /* Crimson Text 600权重很优雅 */
+    letter-spacing: -0.01em; /* 针对衬线字体优化的字符间距 */
+    line-height: 1.3; /* 衬线字体需要稍大的行高 */
+    font-feature-settings: "kern" 1, "liga" 1, "swsh" 1;
+    font-variant-ligatures: common-ligatures discretionary-ligatures;
+  }
+
+  /* 针对不同标题级别的权重优化 */
+  h1 {
+    font-weight: 700; /* Crimson Text 700 用于最重要的标题 */
+    font-size: 2.25rem;
+    line-height: 1.2;
+    letter-spacing: -0.015em;
+  }
+
+  h2 {
+    font-weight: 600;
+    font-size: 1.875rem;
+    line-height: 1.25;
+    letter-spacing: -0.01em;
+  }
+
+  h3 {
+    font-weight: 600;
+    font-size: 1.5rem;
+    line-height: 1.3;
+    letter-spacing: -0.005em;
+  }
+
+  h4, h5, h6 {
+    font-weight: 600;
+    line-height: 1.4;
+    letter-spacing: 0;
+  }
+
+  /* 表单元素使用无衬线字体，提高输入体验 */
+  textarea, input, select {
+    font-family: "Crimson Text", "Inter", "SF Pro Display", -apple-system, BlinkMacSystemFont, "Segoe UI", "Roboto", "Noto Sans SC", "Helvetica Neue", Arial, sans-serif;
+    font-weight: 400;
+    font-feature-settings: "kern" 1, "liga" 1;
+  }
+
+  /* 内容区域使用Crimson Text */
+  div, p, span, a, * {
+    font-family: "Crimson Text", "Times New Roman", "Noto Serif SC", "Source Han Serif SC", serif;
+    font-weight: 400;
+    line-height: 1.6; /* 衬线字体需要更大的行高提升可读性 */
+  }
+
+  /* 按钮使用无衬线字体，更适合交互元素 */
+  button {
+    font-family: "Crimson Text", "Inter", "SF Pro Display", -apple-system, BlinkMacSystemFont, "Segoe UI", "Roboto", "Noto Sans SC", "Helvetica Neue", Arial, sans-serif;
+    font-weight: 500;
+    letter-spacing: 0.01em;
+    font-feature-settings: "kern" 1, "liga" 1;
+  }
+
+  /* 代码和等宽字体区域 */
+  code, pre, kbd, samp {
+    font-family: "Crimson Text", "SF Mono", "Monaco", "Inconsolata", "Roboto Mono", "Courier New", monospace;
+    font-weight: 400;
+  }
+
+  /* 优化粗体效果 - 使用Inter字体的最佳权重映射 */
+  .font-light {
+    font-weight: 300 !important;
+    letter-spacing: 0.01em;
+  }
+
+  .font-normal {
+    font-weight: 400 !important;
+  }
+
+  .font-medium {
+    font-weight: 500 !important; /* Inter 500 提供完美的中等粗细 */
+    letter-spacing: -0.005em;
+  }
+
+  .font-semibold {
+    font-weight: 600 !important; /* Inter 600 比传统 bold 更自然 */
+    letter-spacing: -0.01em;
+  }
+
+  .font-bold {
+    font-weight: 700 !important; /* 仅在需要强调时使用 */
+    letter-spacing: -0.015em;
+  }
+
+  /* 为Inter字体添加特殊的渲染优化 */
+  .inter-optimized {
+    font-feature-settings: "kern" 1, "liga" 1, "calt" 1, "ss01" 1, "ss02" 1;
+    font-variant-numeric: lining-nums;
+    text-rendering: optimizeLegibility;
+  }
+
+  /* 针对小尺寸文本的优化 */
+  .text-xs, .text-sm {
+    font-weight: 400;
+    letter-spacing: 0.005em; /* 小文本需要稍微增加字符间距 */
+  }
+
+  /* 针对大尺寸文本的优化 */
+  .text-lg, .text-xl, .text-2xl, .text-3xl, .text-4xl {
+    letter-spacing: -0.02em; /* 大文本可以减少字符间距 */
+    font-feature-settings: "kern" 1, "liga" 1, "calt" 1;
   }
 
   /* 安全区域适配 - 在PWA模式下生效 */
