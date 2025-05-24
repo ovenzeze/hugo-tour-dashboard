@@ -14,8 +14,89 @@ export const usePodcastDatabase = () => {
   const loading = ref(false); // For general list loading
   const loadingSelected = ref(false); // For loading individual podcast details
   const error = ref<string | null>(null);
+  
+  // 合成状态跟踪
+  const synthesisState = ref<{
+    isProcessing: boolean;
+    taskId: string | null;
+    podcastId: string | null;
+    progress: number;
+    currentSegment: number | null;
+    totalSegments: number;
+  }>({
+    isProcessing: false,
+    taskId: null,
+    podcastId: null,
+    progress: 0,
+    currentSegment: null,
+    totalSegments: 0
+  });
 
   const commonSelectQuery = '*, cover_image_url, podcast_segments(*, segment_audios(*)), host_persona:personas!podcasts_host_persona_id_fkey(*), creator_persona:personas!podcasts_creator_persona_id_fkey(*), guest_persona:personas!podcasts_guest_persona_id_fkey(*)';
+
+  // 合成进度跟踪函数
+  const startSynthesisTracking = (taskId: string, podcastId: string, totalSegments: number) => {
+    synthesisState.value = {
+      isProcessing: true,
+      taskId,
+      podcastId,
+      progress: 0,
+      currentSegment: 0,
+      totalSegments
+    };
+    
+    // 开始轮询合成状态
+    pollSynthesisStatus();
+  };
+  
+  const pollSynthesisStatus = async () => {
+    if (!synthesisState.value.isProcessing || !synthesisState.value.taskId) {
+      return;
+    }
+    
+    try {
+      // 检查合成状态
+      const statusResponse = await $fetch<{
+        isCompleted: boolean;
+        progress?: number;
+        currentSegment?: number;
+        error?: string;
+      }>(`/api/podcast/synthesis-status/${synthesisState.value.taskId}`);
+      
+      if (statusResponse.isCompleted) {
+        synthesisState.value.isProcessing = false;
+        synthesisState.value.progress = 100;
+        
+        // 刷新播客数据
+        if (synthesisState.value.podcastId) {
+          await fetchPodcastById(synthesisState.value.podcastId);
+        }
+        
+        console.log('合成完成');
+      } else {
+        // 更新进度
+        if (statusResponse.progress !== undefined) {
+          synthesisState.value.progress = statusResponse.progress;
+        }
+        if (statusResponse.currentSegment !== undefined) {
+          synthesisState.value.currentSegment = statusResponse.currentSegment;
+        }
+        
+        // 继续轮询
+        setTimeout(pollSynthesisStatus, 2000); // 每2秒检查一次
+      }
+    } catch (error) {
+      console.error('轮询合成状态失败:', error);
+      // 继续尝试轮询，但增加间隔时间
+      setTimeout(pollSynthesisStatus, 5000);
+    }
+  };
+  
+  const stopSynthesisTracking = () => {
+    synthesisState.value.isProcessing = false;
+    synthesisState.value.taskId = null;
+    synthesisState.value.podcastId = null;
+  };
 
   // Fetch all podcasts with nested segments and segment audios
   const fetchPodcasts = async () => {
@@ -240,9 +321,8 @@ export const usePodcastDatabase = () => {
         segmentsToProcess: number;
         podcastId: string;
       }>(`/api/podcast/continue-synthesis`, {
-        method: 'POST',
-        body: { podcastId } as any
-      });
+        method: 'POST'
+      }, { podcastId });
       
       console.log('Continue synthesis response:', response);
       
@@ -251,12 +331,16 @@ export const usePodcastDatabase = () => {
           console.log('All segments are already synthesized');
         } else {
           console.log(`Started synthesis for ${response.segmentsToProcess} unsynthesized segments`);
-        }
-        
-        // 刷新播客数据
-        const podcastToRefresh = podcasts.value.find((p: any) => p.podcast_id === podcastId);
-        if (podcastToRefresh) {
-          await fetchPodcastById(podcastToRefresh.podcast_id);
+          
+          // 如果有taskId，开始进度跟踪
+          if (response.taskId) {
+            startSynthesisTracking(response.taskId, podcastId, response.segmentsToProcess);
+          } else {
+            // 如果是同步处理，直接刷新数据
+            setTimeout(async () => {
+              await fetchPodcastById(podcastId);
+            }, 1000);
+          }
         }
       } else {
         throw new Error(response.message || 'Continue synthesis failed');
@@ -297,11 +381,10 @@ export const usePodcastDatabase = () => {
         segmentId: string;
         taskId?: string;
       }>('/api/podcast/resynthesize-segment', {
-        method: 'POST',
-        body: { 
-          podcastId: targetPodcastId,
-          segmentId 
-        } as any
+        method: 'POST'
+      }, { 
+        podcastId: targetPodcastId,
+        segmentId 
       });
       
       console.log('Resynthesize segment response:', response);
@@ -329,6 +412,11 @@ export const usePodcastDatabase = () => {
     loading,
     loadingSelected, // Export the new loading state
     error,
+    // 合成状态
+    synthesisState: readonly(synthesisState),
+    startSynthesisTracking,
+    stopSynthesisTracking,
+    // 函数
     fetchPodcasts,
     fetchPodcastById,
     createPodcast,

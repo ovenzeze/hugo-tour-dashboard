@@ -96,7 +96,7 @@
     </Card>
 
     <!-- 合成进度动画区域 -->
-    <Card v-if="isProcessing || synthesizedCount < totalSegments" class="mb-6">
+    <Card v-if="isProcessing || synthesizedCount < totalSegments || currentSynthesisProgress" class="mb-6">
       <CardHeader>
         <div class="flex items-center justify-between">
           <div class="flex items-center gap-3">
@@ -111,16 +111,32 @@
               <div v-if="isProcessing" class="absolute inset-0 rounded-full border-2 border-primary/20 animate-ping" />
             </div>
             <div>
-              <h3 class="text-lg font-semibold">{{ isProcessing ? 'Synthesizing Audio...' : 'Ready to Synthesize' }}</h3>
+              <h3 class="text-lg font-semibold">
+                {{ (isProcessing || currentSynthesisProgress) ? 'Synthesizing Audio...' : 'Ready to Synthesize' }}
+              </h3>
               <p class="text-sm text-muted-foreground">
-                {{ isProcessing ? `Processing segment ${(currentSegment || 0) + 1} of ${totalSegments}` : 'Click to start synthesis' }}
+                <span v-if="currentSynthesisProgress">
+                  Processing segment {{ (currentSynthesisProgress.currentSegment || 0) + 1 }} of {{ currentSynthesisProgress.totalSegments }}
+                  ({{ currentSynthesisProgress.progress }}% complete)
+                </span>
+                <span v-else-if="isProcessing">
+                  Processing segment {{ (currentSegment || 0) + 1 }} of {{ totalSegments }}
+                </span>
+                <span v-else>
+                  Click to start synthesis
+                </span>
               </p>
             </div>
           </div>
           
           <!-- 时间估算 -->
-          <div v-if="isProcessing && timeEstimate" class="text-right">
-            <div class="text-sm font-medium">{{ timeEstimate }}</div>
+          <div v-if="(isProcessing || currentSynthesisProgress) && (timeEstimate || currentSynthesisProgress)" class="text-right">
+            <div class="text-sm font-medium">
+              <span v-if="currentSynthesisProgress">
+                {{ Math.round((100 - currentSynthesisProgress.progress) / 100 * 120) }}s
+              </span>
+              <span v-else>{{ timeEstimate }}</span>
+            </div>
             <div class="text-xs text-muted-foreground">remaining</div>
           </div>
         </div>
@@ -317,14 +333,22 @@
               variant="default" 
               size="sm"
               @click="handleSynthesizeAll"
-              :disabled="isProcessing"
+              :disabled="isProcessing || !!currentSynthesisProgress"
             >
               <Icon 
-                :name="isProcessing ? 'ph:spinner' : 'ph:arrow-clockwise'" 
+                :name="(isProcessing || currentSynthesisProgress) ? 'ph:spinner' : 'ph:arrow-clockwise'" 
                 class="w-4 h-4 mr-2"
-                :class="isProcessing ? 'animate-spin' : ''"
+                :class="(isProcessing || currentSynthesisProgress) ? 'animate-spin' : ''"
               />
-              {{ isProcessing ? 'Synthesizing...' : `Synthesize Missing (${totalSegments - synthesizedCount})` }}
+              <span v-if="currentSynthesisProgress">
+                Synthesizing... ({{ currentSynthesisProgress.progress }}%)
+              </span>
+              <span v-else-if="isProcessing">
+                Synthesizing...
+              </span>
+              <span v-else>
+                Synthesize Missing ({{ totalSegments - synthesizedCount }})
+              </span>
             </Button>
           </div>
         </div>
@@ -591,6 +615,9 @@ const isPlayingSegment = ref<number | null>(null);
 // 音频合并功能
 const audioMerger = usePodcastAudioMerger();
 
+// 合成进度跟踪
+const { synthesisState } = usePodcastDatabase();
+
 // Computed properties
 const totalSegments = computed(() => {
   return props.podcast?.podcast_segments?.length || 0;
@@ -635,10 +662,28 @@ const progressPercentage = computed(() => {
 });
 
 const overallStatus = computed(() => {
-  if (props.isProcessing) return 'processing';
+  // 检查是否正在合成当前播客
+  const isCurrentPodcastSynthesizing = synthesisState.value.isProcessing && 
+    synthesisState.value.podcastId === props.podcast?.podcast_id;
+    
+  if (props.isProcessing || isCurrentPodcastSynthesizing) return 'processing';
   if (synthesizedCount.value === totalSegments.value) return 'completed';
   if (synthesizedCount.value > 0) return 'partial';
   return 'pending';
+});
+
+// 当前播客的合成进度
+const currentSynthesisProgress = computed(() => {
+  const isCurrentPodcast = synthesisState.value.podcastId === props.podcast?.podcast_id;
+  if (!isCurrentPodcast || !synthesisState.value.isProcessing) {
+    return null;
+  }
+  
+  return {
+    progress: synthesisState.value.progress,
+    currentSegment: synthesisState.value.currentSegment,
+    totalSegments: synthesisState.value.totalSegments
+  };
 });
 
 const totalDuration = computed(() => {
