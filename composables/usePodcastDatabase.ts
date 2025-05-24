@@ -192,7 +192,29 @@ export const usePodcastDatabase = () => {
 
   const downloadPodcast = async (podcastId: string) => {
     console.log('Download entire podcast:', podcastId);
-    // TODO: Implement logic
+    
+    try {
+      // 获取播客数据
+      let podcastToDownload = podcasts.value.find((p: any) => p.podcast_id === podcastId);
+      
+      if (!podcastToDownload) {
+        // 如果在当前列表中找不到，尝试从数据库获取
+        await fetchPodcastById(podcastId);
+        podcastToDownload = selectedPodcast.value;
+      }
+      
+      if (!podcastToDownload) {
+        throw new Error('找不到指定的播客');
+      }
+      
+      // 使用音频合并功能下载
+      const { mergePodcastAudio } = usePodcastAudioMerger();
+      await mergePodcastAudio(podcastToDownload);
+      
+    } catch (e: any) {
+      error.value = e.message;
+      console.error(`[usePodcastDatabase] Error downloading podcast ${podcastId}:`, e);
+    }
   };
 
   const resynthesizeAllSegments = async (podcastId: string) => {

@@ -449,12 +449,17 @@
         </Button>
         
         <Button 
-          v-if="synthesizedCount === totalSegments" 
+          v-if="synthesizedCount > 0"
           variant="default"
           @click="handleDownloadAll"
+          :disabled="audioMerger.isProcessing.value || !audioMerger.isSupported.value"
         >
-          <Icon name="ph:download-simple" class="w-4 h-4 mr-2" />
-          Download All
+          <Icon 
+            :name="audioMerger.isProcessing.value ? 'ph:spinner' : 'ph:download-simple'" 
+            class="w-4 h-4 mr-2"
+            :class="audioMerger.isProcessing.value ? 'animate-spin' : ''"
+          />
+          {{ audioMerger.isProcessing.value ? 'Merging...' : 'Download All (Merge Audio)' }}
         </Button>
       </div>
       
@@ -476,6 +481,24 @@
           <Icon name="ph:share" class="w-4 h-4 mr-2" />
           Publish
         </Button>
+      </div>
+    </div>
+
+    <!-- 音频合并进度显示 -->
+    <div v-if="audioMerger.isProcessing.value" class="mt-4 p-4 bg-muted/50 rounded-lg">
+      <div class="space-y-3">
+        <div class="flex items-center justify-between">
+          <span class="text-sm font-medium">Audio Merging Progress</span>
+          <span class="text-xs text-muted-foreground">
+            {{ audioMerger.currentSegmentIndex.value + 1 }} / {{ audioMerger.totalSegments.value }}
+          </span>
+        </div>
+        
+        <Progress :value="audioMerger.currentProgress.value" class="h-2" />
+        
+        <div class="text-xs text-muted-foreground truncate">
+          {{ audioMerger.currentSegmentText.value }}
+        </div>
       </div>
     </div>
 
@@ -549,6 +572,9 @@ const audioPlayer = ref<HTMLAudioElement | null>(null);
 const canScrollLeft = ref(false);
 const canScrollRight = ref(false);
 const isPlayingSegment = ref<number | null>(null);
+
+// 音频合并功能
+const audioMerger = usePodcastAudioMerger();
 
 // Computed properties
 const totalSegments = computed(() => {
@@ -829,8 +855,11 @@ function handlePreviewPodcast() {
   emit('preview-podcast');
 }
 
-function handleDownloadAll() {
-  emit('download-all');
+async function handleDownloadAll() {
+  if (!props.podcast) return;
+  
+  // 使用音频合并功能下载
+  await audioMerger.mergePodcastAudio(props.podcast);
 }
 
 function handlePublishPodcast() {
