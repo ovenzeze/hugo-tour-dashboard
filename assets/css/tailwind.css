@@ -92,7 +92,7 @@
   --mobile-vh: 100vh;
   
   /* 统一字体设置：英文使用 Crimson Text，中文使用 Noto Sans SC */
-  font-family: "Crimson Text", "Noto Sans SC", serif;
+  font-family: "Crimson Text", "Noto Serif SC", serif;
   font-weight: 400;
   line-height: 1.5;
   -webkit-text-size-adjust: 100%;

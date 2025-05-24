@@ -98,51 +98,31 @@ export const useAudioPlayerStore = defineStore('audioPlayer', () => {
   function next() {
     if (!hasNext.value) {
       console.log('[AudioPlayerStore] No next track available');
-      return;
+      return false;
     }
     
     // 获取当前索引和下一个索引
     const currentIdx = currentTrackIndex.value;
     const nextIdx = currentIdx + 1;
     
-    console.log(`[AudioPlayerStore] Attempting to play next track. Current index: ${currentIdx}, Next index: ${nextIdx}`);
+    console.log(`[AudioPlayerStore] Moving to next track. Current index: ${currentIdx} -> Next index: ${nextIdx}`);
+    console.log(`[AudioPlayerStore] Current playlist length: ${playlist.value.length}`);
     
     // 确保下一个索引有效
     if (nextIdx >= 0 && nextIdx < playlist.value.length) {
-      try {
-        // 获取下一首曲目
-        const nextTrack = playlist.value[nextIdx];
-        
-        console.log(`[AudioPlayerStore] Playing next track: ${nextTrack.title} (index: ${nextIdx})`);
-        
-        // 先更新索引
-        currentTrackIndex.value = nextIdx;
-        console.log(`[AudioPlayerStore] Updated currentTrackIndex to ${nextIdx}`);
-        
-        // 设置自动播放为 true
-        autoplay.value = true;
-        
-        // 设置当前曲目
-        currentTrack.value = nextTrack;
-        
-        // 确保播放状态为 true
-        isPlaying.value = true;
-        
-        // 延迟一下再次确认播放状态
-        setTimeout(() => {
-          if (currentTrack.value?.id === nextTrack.id) {
-            isPlaying.value = true;
-            console.log(`[AudioPlayerStore] Confirmed playing state for: ${nextTrack.title}`);
-          }
-        }, 50);
-        
-        return true;
-      } catch (error) {
-        console.error(`[AudioPlayerStore] Error in next function: ${error}`);
-        return false;
-      }
+      const nextTrack = playlist.value[nextIdx];
+      
+      console.log(`[AudioPlayerStore] Next track: "${nextTrack.title}" (segment: ${nextTrack.meta?.segmentId})`);
+      
+      // 🔧 简化状态更新，避免多次调用
+      currentTrackIndex.value = nextIdx;
+      currentTrack.value = nextTrack;
+      isPlaying.value = true;
+      
+      console.log(`[AudioPlayerStore] ✅ Successfully moved to track ${nextIdx}: ${nextTrack.title}`);
+      return true;
     } else {
-      console.error(`[AudioPlayerStore] Invalid next index: ${nextIdx} (playlist length: ${playlist.value.length})`);
+      console.error(`[AudioPlayerStore] ❌ Invalid next index: ${nextIdx} (playlist length: ${playlist.value.length})`);
       return false;
     }
   }
@@ -221,14 +201,8 @@ export const useAudioPlayerStore = defineStore('audioPlayer', () => {
   function updateCurrentTime(time: number) {
     currentTime.value = time;
     
-    // 检测是否播放完成，如果播放完成并启用了自动播放，则播放下一首
-    if (duration.value > 0 && time >= duration.value - 0.1 && autoplay.value && hasNext.value) {
-      console.log('[AudioPlayerStore] Track ended, auto-playing next track');
-      // 使用 setTimeout 确保当前曲目完全结束后再播放下一首
-      setTimeout(() => {
-        next();
-      }, 100);
-    }
+    // 🔧 移除自动播放逻辑，避免与 onEnded 事件重复触发
+    // Note: 自动播放现在只通过 AudioPlayer.vue 的 onEnded 事件处理
   }
 
   function updateDuration(newDuration: number) {

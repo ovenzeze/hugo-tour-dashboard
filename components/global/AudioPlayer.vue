@@ -283,13 +283,10 @@ function onPause() {
 function onEnded() {
   console.log('[AudioPlayer] Track ended');
   
-  // If crossfade is in progress, complete the transition
-  if (isCrossfading.value) {
-    completeCrossfade();
-  } else if (audioStore.hasNext) {
-    console.log('[AudioPlayer] Has next track, calling audioStore.next()');
-    // Smooth transition to the next track
-    smoothNextTrack();
+  // 🔧 简化处理逻辑，避免重复调用 next()
+  if (audioStore.hasNext) {
+    console.log('[AudioPlayer] Has next track, playing next...');
+    audioStore.next();
   } else {
     console.log('[AudioPlayer] No more tracks, stopping playback');
     audioStore.stop();
@@ -300,22 +297,8 @@ function onTimeUpdate() {
   if (audioElement.value && !isSeeking.value) {
     audioStore.updateCurrentTime(audioElement.value.currentTime);
     
-    // Smooth playback optimization: Preload the next track
-    if (audioStore.hasNext && audioStore.currentTrack?.meta?.type === 'podcast') {
-      const currentTime = audioElement.value.currentTime;
-      const duration = audioElement.value.duration || 0;
-      const timeRemaining = duration - currentTime;
-      
-      // Start preloading the next segment when remaining time is less than preload distance
-      if (timeRemaining <= preloadDistance.value && timeRemaining > 0 && !isPreloadReady.value) {
-        preloadNextTrack();
-      }
-      
-      // Start crossfade when remaining time is less than crossfade duration
-      if (timeRemaining <= crossfadeDuration.value && timeRemaining > 0 && isPreloadReady.value && !isCrossfading.value) {
-        startCrossfade();
-      }
-    }
+    // 🔧 禁用crossfade预加载逻辑，简化音频切换以解决重叠播放问题
+    // Note: 预加载和crossfade功能暂时禁用，以解决音频重叠和跳段问题
   }
 }
 

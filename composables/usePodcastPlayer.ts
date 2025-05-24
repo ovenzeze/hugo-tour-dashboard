@@ -185,42 +185,27 @@ export function usePodcastPlayer() {
       console.log(`[PodcastPlayer] Track ${index + 1}/${tracks.length}: ${track.title}`);
     });
     
-    try {
-      // 1. 先完全清空播放器状态
-      audioStore.stop();
-      audioStore.clearPlaylist();
+    // 🔧 简化播放列表设置，避免复杂的异步操作
+    console.log(`[PodcastPlayer] Setting up playlist with ${tracks.length} tracks`);
+    
+    // 1. 清空播放器状态
+    audioStore.stop();
+    audioStore.clearPlaylist();
+    
+    // 2. 添加所有片段到播放列表
+    audioStore.addMultipleToPlaylist(tracks);
+    
+    // 3. 播放第一个片段
+    if (tracks.length > 0) {
+      console.log(`[PodcastPlayer] Starting playback with first track: ${tracks[0].title}`);
+      audioStore.play(tracks[0]);
       
-      // 2. 等待一下，确保清空操作完成
-      setTimeout(() => {
-        // 3. 手动设置播放列表
-        console.log(`[PodcastPlayer] Setting up playlist with ${tracks.length} tracks`);
-        
-        // 添加所有片段到播放列表
-        audioStore.addMultipleToPlaylist(tracks);
-        
-        // 4. 手动设置当前索引为 0
-        (audioStore as any).currentTrackIndex = 0;
-        
-        // 5. 播放第一个片段
-        if (tracks.length > 0) {
-          console.log(`[PodcastPlayer] Starting playback with first track: ${tracks[0].title}`);
-          audioStore.play(tracks[0]);
-          
-          // 打印播放列表状态
-          console.log(`[PodcastPlayer] Playlist now has ${audioStore.playlist.length} tracks`);
-          console.log(`[PodcastPlayer] Current index: ${audioStore.currentIndex}`);
-          console.log(`[PodcastPlayer] hasNext check: ${audioStore.hasNext ? 'Yes' : 'No'}`);
-        }
-      }, 100);
-    } catch (error) {
-      console.error('[PodcastPlayer] Error setting up playlist:', error);
-      
-      // 如果出错，尝试使用原始方法
-      audioStore.clearPlaylist();
-      audioStore.addMultipleToPlaylist(tracks);
-      if (tracks.length > 0) {
-        audioStore.play(tracks[0]);
-      }
+      // 打印播放列表状态用于调试
+      console.log(`[PodcastPlayer] ✅ Playlist setup complete:`);
+      console.log(`[PodcastPlayer]   - Total tracks: ${audioStore.playlist.length}`);
+      console.log(`[PodcastPlayer]   - Current index: ${audioStore.currentIndex}`);
+      console.log(`[PodcastPlayer]   - Has next: ${audioStore.hasNext ? 'Yes' : 'No'}`);
+      console.log(`[PodcastPlayer]   - Current track: ${audioStore.currentTrack?.title}`);
     }
   }
   
