@@ -114,10 +114,20 @@ export const useAudioPlayerStore = defineStore('audioPlayer', () => {
       
       console.log(`[AudioPlayerStore] Next track: "${nextTrack.title}" (segment: ${nextTrack.meta?.segmentId})`);
       
-      // 🔧 简化状态更新，避免多次调用
+      // 🔧 简化状态更新，避免播放状态冲突
+      // 先更新索引
       currentTrackIndex.value = nextIdx;
+      
+      // 重置时间相关状态
+      currentTime.value = 0;
+      duration.value = 0;
+      error.value = null;
+      
+      // 设置新轨道（这会触发AudioPlayer中的watch）
       currentTrack.value = nextTrack;
-      isPlaying.value = true;
+      
+      // 🔧 不在这里强制设置播放状态，让调用方决定
+      // isPlaying.value = true; // 移除这行，避免强制播放
       
       console.log(`[AudioPlayerStore] ✅ Successfully moved to track ${nextIdx}: ${nextTrack.title}`);
       return true;
@@ -239,6 +249,7 @@ export const useAudioPlayerStore = defineStore('audioPlayer', () => {
     error,
     hlsInstance,
     autoplay,
+    currentTrackIndex,
     
     // 计算属性
     progress,

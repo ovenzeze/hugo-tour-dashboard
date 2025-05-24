@@ -47,3 +47,17 @@ alwaysApply: true
 //    - Use only Tailwind utility classes for styling.
 //    - Colors: Use Tailwind color palette classes (e.g., `text-primary`, `bg-destructive`) NOT hex/named colors.
 //    - Custom colors/themes in Tailwind v4 are via CSS variables or `@theme` in your main CSS, not `tailwind.config.js`.
+
+// Development & Testing Guidelines
+
+// 5. Local Development Server:
+//    - Assume local development server is already running on port 3000 or 4000.
+//    - DO NOT restart or re-launch the development server during verification tasks.
+//    - For verification, use existing running server instances.
+//    - Only suggest server restart if there are clear configuration changes that require it.
+//    - Check server status first before suggesting any server operations.
+
+// 6. Test Pages Creation:
+//    - DO NOT create separate test pages for new features unless explicitly requested by the user.
+//    - Integrate and test new functionality within existing pages or components.
+//    - Only create dedicated test/demo pages when specifically asked by the user.

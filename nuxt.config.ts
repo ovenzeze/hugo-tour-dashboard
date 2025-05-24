@@ -133,6 +133,7 @@ export default defineNuxtConfig({
     families: {
       "Crimson Text": [400, 600, 700],
       "Noto Serif SC": [300, 400, 500, 600, 700],
+      "Noto Sans SC": [300, 400, 500, 600, 700, 900],
     },
     subsets: ["latin", "chinese-simplified"],
     download: true,

@@ -2,9 +2,10 @@
 import { defineStore } from 'pinia';
 import { usePersonaCache } from '~/composables/usePersonaCache'; // Added import
 import type { FullPodcastSettings, SynthesisParams } from '~/types/playground'; // Assuming types are defined here
+import type { Persona } from '~/types/persona'; // Import Persona type
 
 // Default empty array for guestPersonaIds
-const defaultGuestPersonaIds: (string | number)[] = [];
+const defaultGuestPersonaIds: number[] = [];
 
 export const usePlaygroundSettingsStore = defineStore('playgroundSettings', {
   state: () => ({
@@ -14,14 +15,14 @@ export const usePlaygroundSettingsStore = defineStore('playgroundSettings', {
       numberOfSegments: 10, // 默认段落数量为10
       style: 'discussion', // Default style
       keywords: [],
-      hostPersonaId: undefined, // Added default, consistent with type
-      guestPersonaIds: [], // Added default, consistent with type
+      hostPersonaId: undefined as number | undefined, // Changed type to number | undefined
+      guestPersonaIds: [] as number[], // Changed type to number[]
       ttsProvider: 'elevenlabs', // Default TTS provider
       language: 'en-US', // 默认语言为English
       // backgroundMusic, elevenLabsProjectId, useTimestamps can be undefined initially
     } as FullPodcastSettings,
-    hostPersonaId: null as string | number | null, // This is the primary source for hostPersonaId
-    guestPersonaIds: [...defaultGuestPersonaIds] as (string | number)[], // Primary source for guest IDs
+    hostPersonaId: undefined as number | undefined, // Changed type to number | undefined
+    guestPersonaIds: [...defaultGuestPersonaIds] as number[], // Changed type to number[]
     synthesisParams: {
       temperature: 1.0, // Added default
       speed: 1.0,       // Added default
@@ -31,14 +32,9 @@ export const usePlaygroundSettingsStore = defineStore('playgroundSettings', {
 
   getters: {
     getHostPersonaIdNumeric(state): number | undefined {
-      if (state.hostPersonaId !== null && state.hostPersonaId !== undefined) {
-        const numericId = Number(state.hostPersonaId);
-        if (!isNaN(numericId)) {
-          return numericId;
-        }
-        // console.warn(`[getHostPersonaIdNumeric] Host Persona ID "${state.hostPersonaId}" is not a valid number, attempting random selection.`);
-        // It's better to handle error setting via an action if this store needs to reflect this error state.
-        // For now, this getter's purpose is to return an ID or undefined.
+      // If hostPersonaId is already set, return it
+      if (state.hostPersonaId !== undefined) {
+        return state.hostPersonaId;
       }
 
       // 🔧 改进：使用语言过滤的随机选择
@@ -107,29 +103,29 @@ export const usePlaygroundSettingsStore = defineStore('playgroundSettings', {
     setTtsProvider(provider: 'elevenlabs' | 'volcengine' | undefined) {
       this.podcastSettings.ttsProvider = provider;
     },
-    setHostPersonaId(id: string | number | null) {
+    setHostPersonaId(id: number | undefined) {
       this.hostPersonaId = id;
       this.podcastSettings.hostPersonaId = id;
       this.error = null; // Clear error when ID is set/updated
     },
-    setHostPersona(id: string | number | null) {
+    setHostPersona(id: number | undefined) {
       this.setHostPersonaId(id);
     },
-    addGuestPersonaId(id: string | number) {
+    addGuestPersonaId(id: number) {
       if (!this.guestPersonaIds.includes(id)) {
         this.guestPersonaIds.push(id);
         this.podcastSettings.guestPersonaIds = [...this.guestPersonaIds];
       }
     },
-    removeGuestPersonaId(id: string | number) {
+    removeGuestPersonaId(id: number) {
       this.guestPersonaIds = this.guestPersonaIds.filter(guestId => guestId !== id);
       this.podcastSettings.guestPersonaIds = [...this.guestPersonaIds];
     },
-    setGuestPersonaIds(ids: (string | number)[]) {
+    setGuestPersonaIds(ids: number[]) {
       this.guestPersonaIds = [...ids];
       this.podcastSettings.guestPersonaIds = [...ids];
     },
-    setGuestPersonas(ids: (string | number)[]) {
+    setGuestPersonas(ids: number[]) {
       this.setGuestPersonaIds(ids);
     },
     updatePodcastSettings(settings: Partial<FullPodcastSettings>) {
@@ -161,7 +157,7 @@ export const usePlaygroundSettingsStore = defineStore('playgroundSettings', {
     // For example:
     // resetSettingsState() {
     //   this.podcastSettings = { title: 'Untitled Podcast', ttsProvider: 'elevenlabs', topic: '', keywords: [], style: 'discussion' };
-    //   this.hostPersonaId = null;
+    //   this.hostPersonaId = undefined;
     //   this.guestPersonaIds = [...defaultGuestPersonaIds];
     //   this.synthesisParams = {};
     //   this.error = null;

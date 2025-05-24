@@ -34,105 +34,141 @@
 
     <!-- Simplified Gradient Overlay -->
     <div v-if="podcast.cover_image_url" class="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-black/30 z-10 pointer-events-none rounded-2xl md:rounded-3xl"></div>
+    
+    <!-- Top Right Corner - Progress Indicator -->
+    <div v-if="podcast.podcast_segments?.length" class="absolute top-4 right-4 z-20">
+      <div class="flex items-center gap-1 px-2 py-1 rounded-full backdrop-blur-sm"
+           :class="podcast.cover_image_url ? 'bg-black/30' : 'bg-muted/80'">
+        <div class="w-2 h-2 rounded-full" 
+             :class="getPodcastStatusIcon(podcast) === 'ph:check-circle' ? 'bg-green-400' : 
+                     getPodcastStatusIcon(podcast) === 'ph:hourglass' ? 'bg-yellow-400' : 'bg-gray-400'">
+        </div>
+        <span class="text-xs font-medium" :class="podcast.cover_image_url ? 'text-white' : 'text-foreground'">
+          {{ getCompletedSegments(podcast) }}/{{ podcast.podcast_segments.length }}
+        </span>
+      </div>
+    </div>
 
     <!-- Core content -->
     <div class="relative z-20 h-full flex flex-col p-4 md:p-6">
-      <!-- Header Area -->
-      <div class="flex flex-col items-start flex-1">
-        <div class="flex justify-between items-start w-full mb-3">
-          <h3 class="text-sm sm:text-lg font-bold leading-tight text-left line-clamp-2 break-words flex-1 mr-2" :title="podcast.title">
+      <!-- 顶部区域 - 标题和主要状态 -->
+      <div class="flex flex-col space-y-3">
+        <!-- Podcast Title -->
+        <div class="w-full">
+          <h3 
+            ref="titleElement"
+            class="podcast-title text-base sm:text-lg md:text-xl font-bold leading-tight text-left line-clamp-2 break-words" 
+            :title="podcast.title"
+            :data-has-chinese="hasChinese(podcast.title || '')"
+            :lang="hasChinese(podcast.title || '') ? 'zh' : 'en'"
+          >
             {{ podcast.title || `Podcast #${podcast.podcast_id}` }}
           </h3>
-
-          <Button 
-            variant="ghost"
-            size="sm"
-            class="h-6 w-6 sm:h-8 sm:w-8 opacity-0 group-hover:opacity-100 transition-opacity duration-300 backdrop-blur-sm"
-            :class="podcast.cover_image_url ? 'text-white hover:bg-white/20' : 'hover:bg-muted/40'"
-            title="Delete Podcast"
-            @click.stop="emit('delete-podcast', podcast.podcast_id)"
-          >
-            <Icon name="ph:trash" class="h-3 w-3 sm:h-4 sm:w-4" />
-          </Button>
         </div>
 
-        <!-- Basic Podcast Info -->
-        <div class="w-full space-y-2 mb-4">
-          <!-- Row 1: Host and Duration -->
-          <div class="flex items-center justify-between w-full text-xs">
-            <div class="flex items-center" v-if="podcast.host_name">
-              <Icon name="ph:microphone" class="h-3 w-3 mr-1.5" :class="podcast.cover_image_url ? 'text-white/80' : 'text-muted-foreground'" />
-              <span class="truncate max-w-[60px] sm:max-w-[100px]" :title="podcast.host_name">{{ podcast.host_name }}</span>
-            </div>
-            <div class="flex items-center">
-              <Icon name="ph:clock" class="h-3 w-3 mr-1.5" :class="podcast.cover_image_url ? 'text-white/80' : 'text-muted-foreground'" />
-              <span>{{ getPodcastTotalDuration(podcast) }}</span>
-            </div>
+        <!-- Primary Status Row -->
+        <div class="flex items-center justify-between w-full gap-2">
+          <Badge 
+            :variant="getPodcastStatusVariant(podcast)"
+            class="text-xs px-2.5 py-1.5 h-7 font-medium shrink-0"
+            :class="podcast.cover_image_url ? 'bg-white/20 text-white border-white/30' : ''"
+          >
+            <Icon :name="getPodcastStatusIcon(podcast)" class="h-3 w-3 mr-1.5" />
+            {{ getPodcastStatusText(podcast) }}
+          </Badge>
+          
+          <div class="flex items-center text-xs font-medium shrink-0">
+            <Icon name="ph:clock" class="h-3 w-3 mr-1.5" :class="podcast.cover_image_url ? 'text-white/90' : 'text-muted-foreground'" />
+            <span :class="podcast.cover_image_url ? 'text-white/90' : 'text-foreground'">{{ getPodcastTotalDuration(podcast) }}</span>
           </div>
+        </div>
+      </div>
 
-          <!-- Row 2: Publish Date and Status -->
-          <div class="flex items-center justify-between w-full text-xs">
-            <div class="flex items-center" v-if="podcast.created_at">
-              <Icon name="ph:calendar" class="h-3 w-3 mr-1.5" :class="podcast.cover_image_url ? 'text-white/80' : 'text-muted-foreground'" />
-              <span class="truncate" :title="formatDate(podcast.created_at)">{{ formatEnglishRelativeTime(podcast.created_at) }}</span>
-            </div>
-            <div class="flex items-center gap-1">
-              <!-- Completion Status Badge -->
-              <Badge 
-                :variant="getPodcastStatusVariant(podcast)"
-                class="text-xs px-1.5 py-0.5 h-5"
-                :class="podcast.cover_image_url ? 'border-white/30' : ''"
-              >
-                <Icon :name="getPodcastStatusIcon(podcast)" class="h-2.5 w-2.5 mr-1" />
-                {{ getPodcastStatusText(podcast) }}
-              </Badge>
-            </div>
-          </div>
+      <!-- 中部区域 - 灵活间距，垂直居中分布 -->
+      <div class="flex-1 flex flex-col justify-center min-h-0 py-6">
+        <!-- Topic Tag -->
+        <div v-if="podcast.topic" class="flex justify-center">
+          <span
+            class="inline-flex px-3 py-1.5 rounded-full text-xs font-medium transition-all duration-300 max-w-full truncate"
+            :class="podcast.cover_image_url ? 'bg-white/15 text-white hover:bg-white/25' : 'bg-primary/10 text-primary hover:bg-primary/15'"
+            :title="podcast.topic"
+          >
+            {{ podcast.topic }}
+          </span>
+        </div>
+      </div>
 
-          <!-- Row 3: Statistics -->
-          <div class="flex items-center justify-between w-full text-xs" v-if="podcast.podcast_segments?.length">
-            <div class="flex items-center">
-              <Icon name="ph:list-bullets" class="h-3 w-3 mr-1.5" :class="podcast.cover_image_url ? 'text-white/80' : 'text-muted-foreground'" />
-              <span>{{ podcast.podcast_segments.length }} segments</span>
-            </div>
-            <div class="flex items-center" v-if="podcast.total_word_count">
-              <Icon name="ph:text-aa" class="h-3 w-3 mr-1.5" :class="podcast.cover_image_url ? 'text-white/80' : 'text-muted-foreground'" />
-              <span>{{ formatWordCount(podcast.total_word_count) }} words</span>
-            </div>
-          </div>
-
-          <!-- Topic tag -->
-          <div v-if="podcast.topic" class="flex items-center">
-            <span
-              class="px-3 py-1 rounded-full text-xs font-medium line-clamp-1 transition-all duration-300"
-              :class="podcast.cover_image_url ? 'bg-white/20 text-white hover:bg-white/30' : 'bg-primary/10 text-primary'"
-              :title="podcast.topic"
-            >
-              {{ podcast.topic }}
+      <!-- 底部区域 - 元数据信息和描述 -->
+      <div class="space-y-3">
+        <!-- Metadata Information -->
+        <div class="text-xs text-center space-y-1.5">
+          <!-- Host Information -->
+          <div v-if="podcast.host_name" class="flex items-center justify-center">
+            <Icon name="ph:microphone" class="h-3 w-3 mr-1.5" :class="podcast.cover_image_url ? 'text-white/70' : 'text-muted-foreground'" />
+            <span class="font-medium truncate" :class="podcast.cover_image_url ? 'text-white/90' : 'text-foreground'" :title="podcast.host_name">
+              {{ podcast.host_name }}
             </span>
           </div>
+
+          <!-- Stats and Date Row -->
+          <div class="flex items-center justify-center gap-3 sm:gap-4 flex-wrap">
+            <div v-if="podcast.podcast_segments?.length" class="flex items-center">
+              <Icon name="ph:list-bullets" class="h-3 w-3 mr-1" :class="podcast.cover_image_url ? 'text-white/70' : 'text-muted-foreground'" />
+              <span :class="podcast.cover_image_url ? 'text-white/90' : 'text-foreground'">
+                {{ podcast.podcast_segments.length }}
+              </span>
+            </div>
+            
+            <div v-if="podcast.total_word_count" class="flex items-center">
+              <Icon name="ph:text-aa" class="h-3 w-3 mr-1" :class="podcast.cover_image_url ? 'text-white/70' : 'text-muted-foreground'" />
+              <span :class="podcast.cover_image_url ? 'text-white/90' : 'text-foreground'">
+                {{ formatWordCount(podcast.total_word_count) }}
+              </span>
+            </div>
+
+            <div v-if="podcast.created_at" class="flex items-center">
+              <!-- Icon for expired status -->
+              <Icon
+                v-if="isPodcastExpired(podcast)"
+                name="ph:calendar-x"
+                class="h-3 w-3 mr-1 text-red-400"
+                title="Podcast Expired"
+              />
+              <Icon
+                v-else
+                name="ph:calendar"
+                class="h-3 w-3 mr-1"
+                :class="podcast.cover_image_url ? 'text-white/70' : 'text-muted-foreground'"
+              />
+              <span :class="podcast.cover_image_url ? 'text-white/90' : 'text-foreground'">
+                {{ formatEnglishRelativeTime(podcast.created_at) }}
+              </span>
+            </div>
+          </div>
         </div>
 
-        <!-- Extended content - Description -->
-        <div class="flex-1">
+        <!-- Description -->
+        <div v-if="podcast.description" class="min-h-[2rem]">
           <p 
-            v-if="podcast.description"
-            :class="podcast.cover_image_url ? 'text-white/90' : 'text-muted-foreground'"
-            class="text-xs sm:text-sm line-clamp-3 opacity-0 group-hover:opacity-100 transition-opacity duration-300"
+            :class="podcast.cover_image_url ? 'text-white/85' : 'text-muted-foreground'"
+            class="text-xs leading-relaxed line-clamp-2 opacity-0 group-hover:opacity-100 transition-all duration-500 ease-out transform group-hover:translate-y-0 translate-y-1"
           >
             {{ podcast.description }}
           </p>
         </div>
+
+        <!-- Bottom spacer for action buttons -->
+        <div class="h-8"></div>
       </div>
 
-      <!-- Central Play Button Area -->
+      <!-- 右下角播放按钮 -->
       <div class="absolute bottom-4 right-4 z-30">
         <!-- Continue Editing Button -->
         <Button
           v-if="hasUnsynthesizedSegments(podcast)"
           variant="default"
           size="icon"
-          class="w-12 h-12 rounded-full bg-primary hover:bg-primary/90 text-primary-foreground shadow-lg hover:scale-110 transition-all"
+          class="w-12 h-12 rounded-full bg-primary hover:bg-primary/90 text-primary-foreground shadow-lg hover:scale-110 transition-all duration-300"
           @click.stop="navigateToPlayground(Number(podcast.podcast_id))"
           title="Continue editing in Playground"
         >
@@ -144,7 +180,7 @@
           v-else-if="hasPlayableSegments(podcast) && currentPreviewingId !== podcast.podcast_id"
           variant="default"
           size="icon"
-          class="w-12 h-12 rounded-full bg-primary hover:bg-primary/90 text-primary-foreground shadow-lg hover:scale-110 transition-all"
+          class="w-12 h-12 rounded-full bg-primary hover:bg-primary/90 text-primary-foreground shadow-lg hover:scale-110 transition-all duration-300"
           @click.stop="emit('preview-podcast', podcast.podcast_id)"
           title="Preview podcast"
         >
@@ -156,7 +192,7 @@
           v-else-if="currentPreviewingId === podcast.podcast_id"
           variant="destructive"
           size="icon"
-          class="w-12 h-12 rounded-full bg-destructive hover:bg-destructive/90 text-destructive-foreground shadow-lg hover:scale-110 transition-all animate-pulse"
+          class="w-12 h-12 rounded-full bg-destructive hover:bg-destructive/90 text-destructive-foreground shadow-lg hover:scale-110 transition-all duration-300 animate-pulse"
           @click.stop="emit('stop-preview')"
           title="Stop preview"
         >
@@ -176,14 +212,14 @@
         </Button>
       </div>
       
-      <!-- Bottom Actions Area -->
-      <div class="absolute bottom-4 left-4 flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity duration-300 z-30">
+      <!-- 左下角操作按钮 -->
+      <div class="absolute bottom-4 left-4 flex items-center gap-1.5 opacity-0 group-hover:opacity-100 transition-all duration-300 z-30">
         <!-- Generate cover button -->
         <Button
           variant="ghost"
           size="icon"
-          class="h-8 w-8 rounded-full backdrop-blur-sm bg-background/20 hover:bg-background/40"
-          :class="podcast.cover_image_url ? 'text-white' : 'text-foreground'"
+          class="h-8 w-8 rounded-full backdrop-blur-sm bg-background/20 hover:bg-background/40 transition-all duration-200"
+          :class="podcast.cover_image_url ? 'text-white hover:text-white' : 'text-foreground'"
           title="Generate cover image"
           @click.stop="emit('generate-cover', String(podcast.podcast_id))"
           :disabled="currentPreviewingId === podcast.podcast_id || (loadingCovers && loadingCovers[Number(podcast.podcast_id)])"
@@ -205,8 +241,8 @@
           v-if="hasPlayableSegments(podcast)"
           variant="ghost"
           size="icon"
-          class="h-8 w-8 rounded-full backdrop-blur-sm bg-background/20 hover:bg-background/40"
-          :class="podcast.cover_image_url ? 'text-white' : 'text-foreground'"
+          class="h-8 w-8 rounded-full backdrop-blur-sm bg-background/20 hover:bg-background/40 transition-all duration-200"
+          :class="podcast.cover_image_url ? 'text-white hover:text-white' : 'text-foreground'"
           title="Download podcast"
           @click.stop="emit('download-podcast', String(podcast.podcast_id))"
         >
@@ -217,8 +253,8 @@
         <Button
           variant="ghost"
           size="icon"
-          class="h-8 w-8 rounded-full backdrop-blur-sm bg-background/20 hover:bg-background/40"
-          :class="podcast.cover_image_url ? 'text-white' : 'text-foreground'"
+          class="h-8 w-8 rounded-full backdrop-blur-sm bg-background/20 hover:bg-background/40 transition-all duration-200"
+          :class="podcast.cover_image_url ? 'text-white hover:text-white' : 'text-foreground'"
           title="Edit podcast"
           @click.stop="emit('edit-podcast', podcast.podcast_id)"
         >
@@ -230,12 +266,24 @@
           v-if="hasPlayableSegments(podcast)"
           variant="ghost"
           size="icon"
-          class="h-8 w-8 rounded-full backdrop-blur-sm bg-background/20 hover:bg-background/40"
-          :class="podcast.cover_image_url ? 'text-white' : 'text-foreground'"
+          class="h-8 w-8 rounded-full backdrop-blur-sm bg-background/20 hover:bg-background/40 transition-all duration-200"
+          :class="podcast.cover_image_url ? 'text-white hover:text-white' : 'text-foreground'"
           title="Share podcast"
           @click.stop="openSharePreviewModal(podcast.podcast_id)"
         >
           <Icon name="ph:share" class="h-4 w-4" />
+        </Button>
+        
+        <!-- Delete button -->
+        <Button
+          variant="ghost"
+          size="icon"
+          class="h-8 w-8 rounded-full backdrop-blur-sm bg-destructive/20 hover:bg-destructive/30 transition-all duration-200"
+          :class="podcast.cover_image_url ? 'text-red-300 hover:text-red-200' : 'text-destructive'"
+          title="Delete podcast"
+          @click.stop="emit('delete-podcast', podcast.podcast_id)"
+        >
+          <Icon name="ph:trash" class="h-4 w-4" />
         </Button>
       </div>
     </div>
@@ -522,12 +570,18 @@ function formatEnglishRelativeTime(dateString: string): string {
 
 // Get podcast status text
 function getPodcastStatusText(podcast: Podcast): string {
+  // TODO: Determine the actual logic for 'Expired' status based on business requirements
+  // For now, adding a placeholder check
+  // if (isPodcastExpired(podcast)) {
+  //   return 'Expired';
+  // }
+
   if (!podcast.podcast_segments || podcast.podcast_segments.length === 0) {
     return 'Draft';
   }
   
   const totalSegments = podcast.podcast_segments.length;
-  const synthesizedSegments = podcast.podcast_segments.filter(segment => 
+  const synthesizedSegments = podcast.podcast_segments.filter(segment =>
     segment.segment_audios && segment.segment_audios.length > 0
   ).length;
   
@@ -542,12 +596,18 @@ function getPodcastStatusText(podcast: Podcast): string {
 
 // Get podcast status icon
 function getPodcastStatusIcon(podcast: Podcast): string {
+  // TODO: Determine the actual logic for 'Expired' status based on business requirements
+  // For now, adding a placeholder check
+  // if (isPodcastExpired(podcast)) {
+  //   return 'ph:calendar-x'; // Using calendar-x to represent expired
+  // }
+
   if (!podcast.podcast_segments || podcast.podcast_segments.length === 0) {
     return 'ph:file-dashed';
   }
   
   const totalSegments = podcast.podcast_segments.length;
-  const synthesizedSegments = podcast.podcast_segments.filter(segment => 
+  const synthesizedSegments = podcast.podcast_segments.filter(segment =>
     segment.segment_audios && segment.segment_audios.length > 0
   ).length;
   
@@ -579,20 +639,49 @@ function getPodcastStatusVariant(podcast: Podcast): "default" | "secondary" | "d
     return 'outline';
   }
 }
+
+// Get completed segments count
+function getCompletedSegments(podcast: Podcast): number {
+  if (!podcast.podcast_segments || podcast.podcast_segments.length === 0) {
+    return 0;
+  }
+  
+  return podcast.podcast_segments.filter(segment => 
+    segment.segment_audios && segment.segment_audios.length > 0
+  ).length;
+}
+
+// Helper function to determine if a podcast is expired (example logic)
+function isPodcastExpired(podcast: Podcast): boolean {
+  if (!podcast.created_at) {
+    return false;
+  }
+  const createdAt = new Date(podcast.created_at);
+  const now = new Date();
+  const oneYearAgo = new Date(now.setFullYear(now.getFullYear() - 1));
+  return createdAt < oneYearAgo;
+}
+
+// 检测文本中是否包含中文字符
+function hasChinese(text: string): boolean {
+  const chineseRegex = /[\u4e00-\u9fff\u3400-\u4dbf\uf900-\ufaff]/;
+  return chineseRegex.test(text);
+}
 </script>
 
 <style scoped>
-/* Keep animations concise */
+/* 优化的动画效果 */
 .group {
-  transition: all 0.3s cubic-bezier(.4,0,.2,1);
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
-/* Simplified hover effect */
+/* 改进的悬停效果 */
 .group:hover {
   transform: scale(1.02);
+  filter: brightness(1.05);
 }
 
-/* Retain necessary text shadow effect */
+/* 文本截断样式 */
 .line-clamp-2 {
   display: -webkit-box;
   -webkit-line-clamp: 2;
@@ -605,5 +694,171 @@ function getPodcastStatusVariant(podcast: Podcast): "default" | "secondary" | "d
   -webkit-line-clamp: 3;
   -webkit-box-orient: vertical;
   overflow: hidden;
+}
+
+/* 响应式字体大小优化 */
+@media (max-width: 640px) {
+  .text-base {
+    font-size: 0.9rem;
+  }
+  
+  /* 移动端间距调整 */
+  .py-6 {
+    padding-top: 1.5rem;
+    padding-bottom: 1.5rem;
+  }
+  
+  .space-y-3 > * + * {
+    margin-top: 0.75rem;
+  }
+  
+  .space-y-2 > * + * {
+    margin-top: 0.5rem;
+  }
+  
+  .space-y-1\.5 > * + * {
+    margin-top: 0.375rem;
+  }
+}
+
+/* 改进的阴影效果 */
+.shadow-lg {
+  box-shadow: 0 10px 25px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
+}
+
+/* 优化的过渡动画 */
+.transition-all {
+  transition-property: all;
+  transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* 渐变遮罩优化 */
+.bg-gradient-to-t {
+  background: linear-gradient(to top, rgba(0, 0, 0, 0.6) 0%, rgba(0, 0, 0, 0.1) 50%, rgba(0, 0, 0, 0.3) 100%);
+}
+
+/* 确保中部区域垂直居中 */
+.justify-center {
+  justify-content: center;
+}
+
+/* 确保卡片高度分布均匀 */
+.min-h-0 {
+  min-height: 0;
+}
+
+/* 文本居中对齐优化 */
+.text-center {
+  text-align: center;
+}
+
+/* 中文标题优化设计 */
+.podcast-title {
+  /* 优先使用更好的中文字体 */
+  font-family: 
+    "Noto Sans SC",
+    "PingFang SC", 
+    "Hiragino Sans GB", 
+    "Source Han Sans SC", 
+    "Microsoft YaHei", 
+    "WenQuanYi Micro Hei",
+    "Crimson Text", 
+    system-ui, 
+    -apple-system, 
+    sans-serif;
+  
+  /* 中文优化的字重 */
+  font-weight: 600;
+  
+  /* 改进的行高，适合中文字符 */
+  line-height: 1.45;
+  
+  /* 字间距优化，中文字符更舒适的间距 */
+  letter-spacing: 0.025em;
+  
+  /* 中文字体的字符间距微调 */
+  word-spacing: 0.1em;
+  
+  /* 文字渲染优化 */
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  
+  /* 更好的文字阴影效果（有背景图时） */
+  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
+  
+  /* 响应式字体大小优化 */
+  font-size: clamp(0.95rem, 2.5vw, 1.25rem);
+}
+
+/* 无背景图时的标题样式 */
+.podcast-title:not([style*="text-shadow"]) {
+  text-shadow: none;
+}
+
+/* 移动端标题样式优化 */
+@media (max-width: 640px) {
+  .podcast-title {
+    font-weight: 600;
+    letter-spacing: 0.015em;
+    line-height: 1.35;
+    font-size: clamp(0.9rem, 4vw, 1rem);
+  }
+}
+
+/* 有背景图片时的标题样式增强 */
+.group .podcast-title {
+  /* 确保在背景图上有足够的对比度 */
+  filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.3));
+}
+
+/* 悬停时的标题效果 */
+.group:hover .podcast-title {
+  /* 轻微的发光效果 */
+  text-shadow: 
+    0 1px 3px rgba(0, 0, 0, 0.3),
+    0 0 20px rgba(255, 255, 255, 0.1);
+}
+
+/* 针对中文字符的特殊样式 */
+.podcast-title:lang(zh) {
+  font-weight: 700;
+  letter-spacing: 0.03em;
+  word-spacing: 0.15em;
+}
+
+/* 检测到中文字符时的增强样式 */
+.podcast-title[data-has-chinese="true"] {
+  font-family: 
+    "Noto Sans SC",
+    "PingFang SC", 
+    "Hiragino Sans GB", 
+    "Source Han Sans SC", 
+    "Microsoft YaHei",
+    sans-serif;
+  font-weight: 700;
+  letter-spacing: 0.03em;
+  word-spacing: 0.15em;
+  /* 中文字符的特殊渲染优化 */
+  font-feature-settings: "kern" 1, "liga" 0, "calt" 0;
+  /* 更好的中文字符间距 */
+  text-justify: inter-character;
+}
+
+.space-y-3 p {
+  font-family:
+    "Georgia", /* Preferred serif font */
+    "Palatino Linotype", /* Another option */
+    "Times New Roman", /* Common serif */
+    "Crimson Text", /* Existing serif */
+    "Noto Sans SC", /* Chinese fonts */
+    "PingFang SC",
+    "Hiragino Sans GB",
+    "Source Han Sans SC",
+    "Microsoft YaHei",
+    "WenQuanYi Micro Hei",
+    system-ui,
+    -apple-system,
+    serif; /* Generic serif fallback */
 }
 </style>

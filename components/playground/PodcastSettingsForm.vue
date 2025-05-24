@@ -22,7 +22,10 @@
             <SelectItem
               v-for="lang in SUPPORTED_LANGUAGES"
               :key="lang.code"
-              :value="lang.code">
+              :value="lang.code"
+              class="flex items-center"
+            >
+              <span class="mr-2">{{ languageCodeToEmoji[lang.code] }}</span>
               {{ lang.name }}
             </SelectItem>
           </SelectContent>
@@ -239,6 +242,18 @@ const SUPPORTED_LANGUAGES = [
   { code: 'es', name: 'Spanish' },
   // Add other languages as needed
 ];
+
+// Mapping from language code to flag emoji
+const languageCodeToEmoji: Record<string, string> = {
+  'en-US': '🇺🇸',
+  'zh-CN': '🇨🇳',
+  'ja': '🇯🇵',
+  'ko': '🇰🇷',
+  'de': '🇩🇪',
+  'fr': '🇫🇷',
+  'es': '🇪🇸',
+  // Add other language codes and their emojis here
+};
 
 const segmentOptions = ref([5, 10, 20, 30, 40, 50]);
 

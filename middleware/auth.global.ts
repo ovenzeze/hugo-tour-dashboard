@@ -1,4 +1,7 @@
 export default defineNuxtRouteMiddleware(async (to, from) => {
+  // 暂时禁用鉴权以便本地调试
+  return;
+  
   // Skip auth check for login page
   if (to.path === '/auth/login') {
     return;

@@ -173,6 +173,7 @@
           @edit="editPersona"
           @delete="confirmDeletePersona"
           @view-details="viewPersonaDetails"
+          @updated="handlePersonaUpdated"
         />
       </div>
       <div v-else-if="searchTerm || statusFilter !== 'all' || languageFilter !== 'all'" class="text-center py-16 px-4 border-2 border-dashed border-muted rounded-xl bg-muted/5">
@@ -376,6 +377,10 @@ export interface ApiPersona {
   voice_model_identifier?: string | null;
   created_at: string | null;
   updated_at: string | null;
+  // Recommendation fields
+  is_recommended_host?: boolean | null;
+  is_recommended_guest?: boolean | null;
+  recommended_priority?: number | null;
 }
 
 const personaToDelete = ref<number | null>(null);
@@ -656,6 +661,12 @@ async function deletePersona(id: number) {
 
 const viewPersonaDetails = (id: number) => {
   useNuxtApp().$alert(`View persona details for persona ${id}`);
+};
+
+// Handle persona updates from the card component
+const handlePersonaUpdated = (updatedPersona: ApiPersona) => {
+  // Refresh the personas data to reflect the changes
+  refreshPersonas();
 };
 
 definePageMeta({

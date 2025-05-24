@@ -283,10 +283,25 @@ function onPause() {
 function onEnded() {
   console.log('[AudioPlayer] Track ended');
   
-  // 🔧 简化处理逻辑，避免重复调用 next()
+  // 🔧 使用store的方法来切换轨道，避免直接操作内部状态
   if (audioStore.hasNext) {
-    console.log('[AudioPlayer] Has next track, playing next...');
-    audioStore.next();
+    console.log('[AudioPlayer] Has next track, automatically switching...');
+    
+    // 使用store的next()方法，但不让它触发播放逻辑
+    const wasPlaying = audioStore.isPlaying;
+    audioStore.isPlaying = false; // 临时设置为false避免重复播放逻辑
+    
+    // 调用store的next方法来正确更新索引和轨道
+    const success = audioStore.next();
+    
+    if (success) {
+      console.log('[AudioPlayer] ✅ Successfully switched to next track');
+      // 恢复播放状态，让音频元素准备好时自动播放
+      audioStore.isPlaying = wasPlaying;
+    } else {
+      console.error('[AudioPlayer] Failed to switch to next track');
+      audioStore.isPlaying = false;
+    }
   } else {
     console.log('[AudioPlayer] No more tracks, stopping playback');
     audioStore.stop();
@@ -328,7 +343,7 @@ function onCanPlay() {
   audioStore.setLoading(false);
   console.log('[AudioPlayer] Audio can play now:', audioStore.currentTrack?.title);
   
-  // If isPlaying is true, attempt to play
+  // 🔧 简化播放逻辑，如果应该播放就直接播放
   if (audioStore.isPlaying) {
     tryPlayAudio();
   }
@@ -346,20 +361,57 @@ function onCanPlayThrough() {
 
 // Helper function to attempt audio playback
 function tryPlayAudio() {
-  if (!audioElement.value) return;
+  if (!audioElement.value) {
+    console.warn('[AudioPlayer] No audio element available');
+    return;
+  }
   
   console.log('[AudioPlayer] Attempting to play audio:', audioStore.currentTrack?.title);
-  const playPromise = audioElement.value.play();
+  console.log('[AudioPlayer] Audio readyState:', audioElement.value.readyState);
+  console.log('[AudioPlayer] Audio networkState:', audioElement.value.networkState);
   
-  if (playPromise !== undefined) {
-    playPromise.catch(err => {
-      console.error('[AudioPlayer] Failed to play audio:', err);
-      // If the error is due to user interaction restrictions, log it
-      if (err.name === 'NotAllowedError') {
-        console.warn('[AudioPlayer] Autoplay prevented by browser. User interaction required.');
-      }
-      audioStore.isPlaying = false;
-    });
+  // 确保音频元素处于可播放状态
+  if (audioElement.value.readyState >= 2) { // HAVE_CURRENT_DATA or higher
+    const playPromise = audioElement.value.play();
+    
+    if (playPromise !== undefined) {
+      playPromise
+        .then(() => {
+          console.log('[AudioPlayer] ✅ Audio playback started successfully');
+        })
+        .catch(err => {
+          console.error('[AudioPlayer] Failed to play audio:', err);
+          
+          // 处理不同类型的错误
+          if (err.name === 'NotAllowedError') {
+            console.warn('[AudioPlayer] Autoplay prevented by browser. User interaction required.');
+            audioStore.setError('Autoplay blocked. Please click play button.');
+            audioStore.isPlaying = false;
+          } else if (err.name === 'AbortError') {
+            console.warn('[AudioPlayer] Play request was aborted by a new load request.');
+            // 🔧 对于AbortError，使用更智能的重试机制
+            // 只有在音频状态仍然是播放且没有新的轨道切换时才重试
+            setTimeout(() => {
+              if (audioStore.isPlaying && 
+                  audioElement.value && 
+                  audioElement.value.readyState >= 2 && 
+                  audioElement.value.src && 
+                  !audioElement.value.ended) {
+                console.log('[AudioPlayer] Retrying playback after AbortError...');
+                tryPlayAudio();
+              } else {
+                console.log('[AudioPlayer] Skip retry - conditions not met for playback');
+              }
+            }, 150); // 稍微增加延迟时间
+            return; // 不要设置 isPlaying = false
+          } else {
+            audioStore.setError(`Playback error: ${err.message}`);
+            audioStore.isPlaying = false;
+          }
+        });
+    }
+  } else {
+    console.log('[AudioPlayer] Audio not ready yet, waiting for readyState >= 2, current readyState:', audioElement.value.readyState);
   }
 }
 
@@ -589,15 +641,23 @@ function closePlayer() {
 }
 
 // Watch for play state changes
-watch(() => audioStore.isPlaying, (isPlaying) => {
+watch(() => audioStore.isPlaying, (isPlaying, wasPlaying) => {
   if (!audioElement.value) return;
   
+  console.log(`[AudioPlayer] Play state changed: ${wasPlaying} -> ${isPlaying}`);
+  
   if (isPlaying) {
+    // 当设置为播放状态时，尝试播放
     audioElement.value.play().catch(err => {
       console.error('Failed to play:', err);
-      audioStore.isPlaying = false;
+      
+      // 如果播放失败，重置播放状态
+      if (err.name !== 'AbortError') { // AbortError 不重置状态，等待重试
+        audioStore.isPlaying = false;
+      }
     });
   } else {
+    // 当设置为暂停状态时，暂停播放
     audioElement.value.pause();
   }
 });
@@ -618,116 +678,105 @@ watch(() => audioStore.currentTime, (newTime) => {
 });
 
 // Watch for current track changes
-watch(() => audioStore.currentTrack, async (newTrack) => {
-  if (!newTrack) return;
+watch(() => audioStore.currentTrack, async (newTrack, oldTrack) => {
+  if (!newTrack) {
+    console.log('[AudioPlayer] No track to play, clearing...');
+    if (audioElement.value) {
+      audioElement.value.pause();
+      audioElement.value.src = '';
+    }
+    return;
+  }
   
-  // Reset state
-  audioStore.updateCurrentTime(0);
-  audioStore.updateDuration(0);
-  audioStore.setLoading(true);
-  audioStore.setError(null);
+  // 如果是同一个轨道，不需要重新加载
+  if (oldTrack && newTrack.id === oldTrack.id) {
+    console.log('[AudioPlayer] Same track, skipping reload');
+    return;
+  }
   
-  // Reset smooth playback state
-  isPreloadReady.value = false;
-  isCrossfading.value = false;
+  console.log('[AudioPlayer] Track changing to:', newTrack.title);
   
-  // Handle HLS streaming
-  if (newTrack.isM3u8) {
-    try {
-      // Dynamically import hls.js
-      if (!Hls) {
-        const HlsModule = await import('hls.js');
-        Hls = HlsModule.default;
-      }
-      
-      // Check if browser natively supports HLS
-      if (Hls.isSupported()) {
-        // Clean up old HLS instance
-        if (audioStore.hlsInstance) {
-          audioStore.hlsInstance.destroy();
+  try {
+    // 🔧 参考SmoothPodcastPlayer的简单切换逻辑
+    // 先停止当前播放
+    if (audioElement.value) {
+      audioElement.value.pause();
+      audioElement.value.currentTime = 0;
+    }
+    
+    // 重置状态
+    audioStore.updateCurrentTime(0);
+    audioStore.updateDuration(0);
+    audioStore.setLoading(true);
+    audioStore.setError(null);
+    
+    // 处理HLS流
+    if (newTrack.isM3u8) {
+      // HLS逻辑保持不变
+      try {
+        if (!Hls) {
+          const HlsModule = await import('hls.js');
+          Hls = HlsModule.default;
         }
         
-        // Create new HLS instance
-        const hls = new Hls();
-        audioStore.setHlsInstance(hls);
-        
-        // Load m3u8 file
-        hls.loadSource(newTrack.url);
-        
-        // Bind HLS to audio element
-        if (audioElement.value) {
-          hls.attachMedia(audioElement.value);
-        }
-        
-        // Listen for HLS events
-        hls.on(Hls.Events.MANIFEST_PARSED, () => {
-          if (audioStore.isPlaying && audioElement.value) {
+        if (Hls.isSupported()) {
+          if (audioStore.hlsInstance) {
+            audioStore.hlsInstance.destroy();
+          }
+          
+          const hls = new Hls();
+          audioStore.setHlsInstance(hls);
+          hls.loadSource(newTrack.url);
+          
+          if (audioElement.value) {
+            hls.attachMedia(audioElement.value);
+          }
+          
+          hls.on(Hls.Events.MANIFEST_PARSED, () => {
+            if (audioStore.isPlaying && audioElement.value) {
+              audioElement.value.play().catch(err => {
+                console.error('Failed to play HLS stream:', err);
+                audioStore.isPlaying = false;
+              });
+            }
+          });
+          
+          hls.on(Hls.Events.ERROR, (event: any, data: any) => {
+            if (data.fatal) {
+              console.error('Fatal HLS error:', data);
+              audioStore.setError('HLS playback error');
+            }
+          });
+        } else if (audioElement.value && audioElement.value.canPlayType('application/vnd.apple.mpegurl')) {
+          audioElement.value.src = newTrack.url;
+          if (audioStore.isPlaying) {
             audioElement.value.play().catch(err => {
-              console.error('Failed to play HLS stream:', err);
+              console.error('Failed to play HLS stream natively:', err);
               audioStore.isPlaying = false;
             });
           }
-        });
-        
-        hls.on(Hls.Events.ERROR, (event: any, data: any) => {
-          if (data.fatal) {
-            switch (data.type) {
-              case Hls.ErrorTypes.NETWORK_ERROR:
-                // Try to recover from network error
-                console.log('Fatal network error encountered, trying to recover');
-                hls.startLoad();
-                break;
-              case Hls.ErrorTypes.MEDIA_ERROR:
-                // Try to recover from media error
-                console.log('Fatal media error encountered, trying to recover');
-                hls.recoverMediaError();
-                break;
-              default:
-                // Unrecoverable error
-                console.error('Fatal error, cannot recover:', data);
-                audioStore.setError('Playback error. Please try again later.');
-                hls.destroy();
-                break;
-            }
-          }
-        });
-      } else if (audioElement.value && audioElement.value.canPlayType('application/vnd.apple.mpegurl')) {
-        // Browser natively supports HLS (like Safari)
-        audioElement.value.src = newTrack.url;
-        if (audioStore.isPlaying) {
-          audioElement.value.play().catch(err => {
-            console.error('Failed to play HLS stream natively:', err);
-            audioStore.isPlaying = false;
-          });
+        } else {
+          audioStore.setError('Browser does not support HLS playback');
         }
-      } else {
-        audioStore.setError('Your browser does not support HLS streaming playback');
+      } catch (error) {
+        console.error('Error loading HLS:', error);
+        audioStore.setError('Failed to load HLS');
       }
-    } catch (error) {
-      console.error('Error loading HLS:', error);
-      audioStore.setError('Failed to load HLS library');
+    } else if (audioElement.value) {
+      // 🔧 简化常规音频文件处理
+      console.log('[AudioPlayer] Loading regular audio:', newTrack.title);
+      
+      // 设置新音频源
+      audioElement.value.src = newTrack.url;
+      audioElement.value.preload = 'auto';
+      audioElement.value.load();
+      
+      console.log('[AudioPlayer] Audio element setup complete for:', newTrack.title);
     }
-  } else if (audioElement.value) {
-    // Regular audio file
-    console.log('[AudioPlayer] Setting up regular audio file:', newTrack.title);
-    
-    // Pause current playback first to ensure audio element is in a controllable state
-    audioElement.value.pause();
-    
-    // Ensure the audio element's src is set correctly
-    audioElement.value.src = newTrack.url;
-    
-    // Set preload mode to "auto" to prompt the browser to load audio immediately
-    audioElement.value.preload = 'auto';
-    
-    // Force load
-    audioElement.value.load();
-    
-    // If isPlaying is true, attempt to play
-    // Note: Actual playback will be handled in onCanPlay or onLoadedData events
-    if (audioStore.isPlaying) {
-      console.log('[AudioPlayer] Track is set to play when ready:', newTrack.title);
-    }
+  } catch (error) {
+    console.error('[AudioPlayer] Error during track change:', error);
+    audioStore.setError('Failed to load track');
+    audioStore.setLoading(false);
   }
 }, { immediate: true });
 

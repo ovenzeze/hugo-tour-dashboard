@@ -211,24 +211,26 @@
         />
       </div>
 
-      <!-- Podcast Detail Drawer/Sheet -->
-      <Sheet :open="!!selectedPodcast" @update:open="handleCloseDrawer">
-        <SheetContent side="right" class="w-full sm:max-w-2xl safe-area-all"> 
-          <SheetHeader>
-            <SheetTitle>Podcast Details</SheetTitle>
-            <SheetDescription>
-              View and manage podcast details and segments.
-            </SheetDescription>
-          </SheetHeader>
-          <PodcastDetailDrawer
-            :podcast="selectedPodcast"
-            @close="handleCloseDrawer"
-            @resynthesize-all="handleResynthesizeAll"
-            @download-all="handleDownloadAll"
-            @delete-podcast="handleDeletePodcast"
-          />
-        </SheetContent>
-      </Sheet>
+      <!-- Podcast Synthesis Card Modal -->
+      <Dialog :open="!!selectedPodcast" @update:open="handleCloseModal">
+        <DialogContent class="podcast-synthesis-modal">
+          <ScrollArea class="max-h-[98vh] flex-1 w-full">
+            <div class="p-2 md:p-4 lg:p-6 w-full">
+              <PodcastSynthesisCard
+                :podcast="selectedPodcast"
+                :personas="personaCache.personas.value"
+                :is-processing="processingPodcastIds.has(selectedPodcast?.podcast_id?.toString() || '')"
+                @close="handleCloseModal"
+                @synthesize-all="handleSynthesizeAll"
+                @resynthesize-segment="handleResynthesizeSegment"
+                @preview-podcast="handlePreviewSelectedPodcast"
+                @download-all="() => handleDownloadAll(selectedPodcast?.podcast_id?.toString() || '')"
+                @publish-podcast="handlePublishPodcast"
+              />
+            </div>
+          </ScrollArea>
+        </DialogContent>
+      </Dialog>
 
       <!-- No longer need hidden audio player, now using global audio player -->
     </div>
@@ -239,11 +241,12 @@
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from '@/components/ui/sheet';
+import { Dialog, DialogContent } from '@/components/ui/dialog';
+import { ScrollArea } from '@/components/ui/scroll-area';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { computed, nextTick, onMounted, ref } from 'vue';
-import PodcastDetailDrawer from '~/components/podcasts/PodcastDetailDrawer.vue';
+import PodcastSynthesisCard from '~/components/podcasts/PodcastSynthesisCard.vue';
 import PodcastList from '~/components/podcasts/PodcastList.vue';
 import { usePodcastDatabase } from '~/composables/usePodcastDatabase';
 import { usePersonaCache } from '~/composables/usePersonaCache'; // 新增导入
@@ -256,6 +259,9 @@ const podcastStatusFilter = ref('completed'); // 播客状态筛选，默认显�
 const languageFilter = ref('all'); // 新增语言筛选状态
 const availableLanguages = ref<string[]>([]); // 新增可用语言列表
 const showMoreLanguages = ref(false);
+
+// 处理中的播客IDs
+const processingPodcastIds = ref(new Set<string>());
 
 const {
   podcasts,
@@ -327,13 +333,13 @@ const filteredPodcasts = computed<Podcast[]>(() => {
     result = result.filter(podcast => {
       const podcastLanguages = new Set<string>();
       if (podcast.host_persona?.language_support) {
-        podcast.host_persona.language_support.forEach(lang => podcastLanguages.add(lang));
+        podcast.host_persona.language_support.forEach((lang: string) => podcastLanguages.add(lang));
       }
       if (podcast.guest_persona?.language_support) {
-        podcast.guest_persona.language_support.forEach(lang => podcastLanguages.add(lang));
+        podcast.guest_persona.language_support.forEach((lang: string) => podcastLanguages.add(lang));
       }
       if (podcast.creator_persona?.language_support) {
-        podcast.creator_persona.language_support.forEach(lang => podcastLanguages.add(lang));
+        podcast.creator_persona.language_support.forEach((lang: string) => podcastLanguages.add(lang));
       }
       // Check if any of the podcast's languages match the filter
       return podcastLanguages.has(languageFilter.value);
@@ -359,8 +365,8 @@ const handleSelectPodcast = (podcastId: string) => {
   fetchPodcastById(podcastId);
 };
 
-// Handle closing the detail drawer
-const handleCloseDrawer = () => {
+// Handle closing the modal
+const handleCloseModal = () => {
   selectedPodcast.value = null;
 };
 
@@ -402,6 +408,45 @@ const handlePreviewPodcast = async (podcastId: string) => {
   }
 };
 
+
+// 合成所有片段
+const handleSynthesizeAll = () => {
+  if (!selectedPodcast.value) return;
+  
+  const podcastId = selectedPodcast.value.podcast_id.toString();
+  processingPodcastIds.value.add(podcastId);
+  
+  console.log('Synthesize all segments for podcast:', podcastId);
+  resynthesizeAllSegments(podcastId).finally(() => {
+    processingPodcastIds.value.delete(podcastId);
+  });
+};
+
+// 重新合成特定片段
+const handleResynthesizeSegment = (segmentIndex: number) => {
+  if (!selectedPodcast.value) return;
+  
+  const podcastId = selectedPodcast.value.podcast_id.toString();
+  console.log('Resynthesize segment', segmentIndex, 'for podcast:', podcastId);
+  // TODO: 实现单个片段重新合成逻辑
+};
+
+// 预览选中的播客
+const handlePreviewSelectedPodcast = () => {
+  if (!selectedPodcast.value) return;
+  
+  const podcastId = selectedPodcast.value.podcast_id.toString();
+  handlePreviewPodcast(podcastId);
+};
+
+// 发布播客
+const handlePublishPodcast = () => {
+  if (!selectedPodcast.value) return;
+  
+  const podcastId = selectedPodcast.value.podcast_id.toString();
+  console.log('Publish podcast:', podcastId);
+  // TODO: 实现发布播客逻辑
+};
 
 const handleResynthesizeAll = (podcastId: string) => {
   console.log('Resynthesize all segments for podcast:', podcastId);
@@ -462,6 +507,25 @@ const selectLanguage = (lang: string) => {
   showMoreLanguages.value = false;
 };
 </script>
+
+<style>
+/* 强制覆盖DialogContent的默认样式 */
+.podcast-synthesis-modal {
+  width: 98vw !important;
+  max-width: 1400px !important;
+  max-height: 98vh !important;
+  overflow: hidden !important;
+  padding: 0 !important;
+  display: flex !important;
+  flex-direction: column !important;
+  grid-template-columns: none !important;
+}
+
+/* 如果还有更深层的grid样式，也强制覆盖 */
+.podcast-synthesis-modal[data-state="open"] {
+  display: flex !important;
+}
+</style>
 
 <style scoped>
 /* 添加xs断点支持 */
