@@ -357,8 +357,11 @@ const maxDisplaySegments = computed(() => {
 
 // 计算属性
 const progressPercentage = computed(() => {
-  if (props.progressData.total === 0) return 0;
-  return Math.round((props.progressData.completed / props.progressData.total) * 100);
+  const total = props.progressData?.total || 0;
+  const completed = props.progressData?.completed || 0;
+  
+  if (total === 0) return 0;
+  return Math.round((completed / total) * 100);
 });
 
 const statusText = computed(() => {
@@ -385,16 +388,18 @@ const statusText = computed(() => {
 // 获取要显示的段落（包含persona信息）
 const displaySegments = computed(() => {
   const segments: SegmentProgress[] = [];
-  const total = Math.min(props.progressData.total, maxDisplaySegments.value);
-  const completed = props.progressData.completed;
-  const currentSegment = props.progressData.currentSegment;
+  const total = Math.max(0, Math.min(props.progressData?.total || 0, maxDisplaySegments.value));
+  const completed = Math.max(0, props.progressData?.completed || 0);
+  const currentSegment = props.progressData?.currentSegment;
   
   // 如果有segments数据，使用它
-  if (props.progressData.segments && props.progressData.segments.length > 0) {
-    return props.progressData.segments.slice(0, maxDisplaySegments.value).map(segment => ({
-      ...segment,
+  if (props.progressData?.segments && Array.isArray(props.progressData.segments) && props.progressData.segments.length > 0) {
+    return props.progressData.segments.slice(0, maxDisplaySegments.value).map((segment, index) => ({
+      status: segment?.status || 'waiting',
+      speaker: segment?.speaker || `Speaker ${index + 1}`,
+      text: segment?.text || `Segment ${index + 1} content`,
       // 优先使用已有的persona，否则通过ID查找
-      persona: segment.persona || findPersonaByName(segment.speaker)
+      persona: segment?.persona || findPersonaByName(segment?.speaker || '')
     }));
   }
   
@@ -428,12 +433,18 @@ const currentSegmentInfo = computed(() => {
   const currentIndex = props.progressData.currentSegment;
   const segments = displaySegments.value;
   
-  if (currentIndex >= 0 && currentIndex < segments.length) {
+  // 增强边界检查，确保数组和索引都有效
+  if (!segments || !Array.isArray(segments) || segments.length === 0) {
+    return null;
+  }
+  
+  if (currentIndex >= 0 && currentIndex < segments.length && segments[currentIndex]) {
+    const currentSegment = segments[currentIndex];
     return {
       index: currentIndex,
-      speaker: segments[currentIndex].speaker,
-      text: segments[currentIndex].text,
-      persona: segments[currentIndex].persona
+      speaker: currentSegment?.speaker || `Speaker ${currentIndex + 1}`,
+      text: currentSegment?.text || `Segment ${currentIndex + 1} content`,
+      persona: currentSegment?.persona || null
     };
   }
   
@@ -443,7 +454,10 @@ const currentSegmentInfo = computed(() => {
 const timeEstimate = computed(() => {
   if (!props.showTimeEstimate || !props.isProcessing) return null;
   
-  const remaining = props.progressData.total - props.progressData.completed;
+  const total = props.progressData?.total || 0;
+  const completed = props.progressData?.completed || 0;
+  const remaining = total - completed;
+  
   if (remaining <= 0) return null;
   
   const estimatedSeconds = remaining * 12; // 每段约12秒
@@ -457,7 +471,8 @@ const timeEstimate = computed(() => {
 });
 
 const processingSpeed = computed(() => {
-  if (!props.isProcessing || props.progressData.completed === 0) return null;
+  const completed = props.progressData?.completed || 0;
+  if (!props.isProcessing || completed === 0) return null;
   return '4.2/min'; // 示例处理速度
 });
 
@@ -478,7 +493,10 @@ const currentProcessingStage = computed(() => {
 });
 
 const uniqueSpeakersCount = computed(() => {
-  const speakers = new Set(displaySegments.value.map(s => s.speaker));
+  const segments = displaySegments.value;
+  if (!segments || !Array.isArray(segments)) return 0;
+  
+  const speakers = new Set(segments.map(s => s?.speaker || 'Unknown').filter(Boolean));
   return speakers.size;
 });
 
@@ -541,6 +559,12 @@ function scrollRight() {
 
 const allDisplaySegments = computed(() => {
   const segments = displaySegments.value;
+  if (!segments || !Array.isArray(segments)) {
+    hasHiddenSegments.value = false;
+    hiddenSegmentsCount.value = 0;
+    return [];
+  }
+  
   const total = Math.min(segments.length, maxDisplaySegments.value);
   const hiddenSegments = segments.slice(total);
   

@@ -18,6 +18,7 @@ import type { SynthesisParams } from '~/types/api/podcast'; // Import shared Syn
 import { getPersonaById, type AutoSelectedPersona } from '~/server/utils/personaFetcher';
 import { randomUUID } from 'crypto';
 import { SynthesisTaskService } from '~/server/services/synthesisTaskService';
+import { DEFAULT_TTS_CONFIG, getConfigByRole, getRecommendedEmotionForText, validateTTSParams } from '~/server/config/volcengineTTSConfig';
 
 // Define the expected structure for each segment in the request
 interface SynthesizeSegmentRequestData {
@@ -267,6 +268,12 @@ async function processSynchronously(
       continue;
     }
     
+    // 智能获取基于角色的TTS配置
+    const roleBasedConfig = getConfigByRole(segment.persona.name || 'podcast_host');
+    
+    // 基于文本内容推荐情感
+    const recommendedEmotion = getRecommendedEmotionForText(segment.text);
+    
     // Merge global and persona-specific synthesis params (TODO: define clear merge strategy if needed)
     // For now, globalSynthesisParams are applied, specific services might override with persona defaults if not provided
     const currentSynthesisParams: SynthesisParams = {
@@ -276,6 +283,7 @@ async function processSynchronously(
     };
     
     consola.info(`[TTS] Segment ${segment.segmentIndex} ('${segment.text.substring(0,20)}...'): Provider='${cleanedTtsProvider}', VoiceID='${actualVoiceId}'`); // Used cleanedTtsProvider
+    consola.info(`[TTS] 使用角色配置: ${segment.persona.name}, 推荐情感: ${recommendedEmotion}`);
 
     try {
       let segmentResult: TimedAudioSegmentResult | null = null;
@@ -286,7 +294,9 @@ async function processSynchronously(
           results.push({ error: 'Volcengine configuration missing.', segmentIndex: segment.segmentIndex, provider: 'volcengine', voiceModelUsed: actualVoiceId });
           continue;
         }
-        const volcConfig: VolcengineParams = {
+        
+        // 构建优化的火山引擎TTS配置
+        const optimizedVolcConfig: VolcengineParams = {
           text: segment.text,
           voiceType: actualVoiceId,
           storageService,
@@ -298,16 +308,32 @@ async function processSynchronously(
           storageOutputDirectory,
           baseFilename,
           encoding: currentSynthesisParams.volcengineEncoding || 'mp3',
-          speedRatio: currentSynthesisParams.speed,
-          volumeRatio: currentSynthesisParams.volume,
-          pitchRatio: currentSynthesisParams.pitch,
+          speedRatio: currentSynthesisParams.speed || roleBasedConfig.speedRatio,
+          volumeRatio: currentSynthesisParams.volume || roleBasedConfig.volumeRatio,
+          pitchRatio: currentSynthesisParams.pitch || roleBasedConfig.pitchRatio,
           enableTimestamps: true,
-          emotion: 'happy',
+          emotion: recommendedEmotion, // 使用智能推荐的情感
           enableEmotion: true,
-          emotionScale: 4.5,
-          loudnessRatio: 1.3
+          emotionScale: roleBasedConfig.emotionScale, // 使用角色配置的情绪强度
+          loudnessRatio: roleBasedConfig.loudnessRatio // 使用角色配置的音量
         };
-        segmentResult = await generateAndStoreTimedAudioSegmentVolcengine(volcConfig);
+        
+        // 验证参数范围
+        const validation = validateTTSParams({
+          emotionScale: optimizedVolcConfig.emotionScale,
+          loudnessRatio: optimizedVolcConfig.loudnessRatio,
+          speedRatio: optimizedVolcConfig.speedRatio,
+          volumeRatio: optimizedVolcConfig.volumeRatio,
+          pitchRatio: optimizedVolcConfig.pitchRatio
+        });
+        
+        if (!validation.isValid) {
+          consola.warn(`[TTS] 参数验证警告 (Segment ${segment.segmentIndex}):`, validation.errors);
+        }
+        
+        consola.info(`[TTS] 火山引擎优化配置: emotion=${optimizedVolcConfig.emotion}, emotionScale=${optimizedVolcConfig.emotionScale}, loudnessRatio=${optimizedVolcConfig.loudnessRatio}`);
+        
+        segmentResult = await generateAndStoreTimedAudioSegmentVolcengine(optimizedVolcConfig);
       } else if (cleanedTtsProvider.toLowerCase() === 'elevenlabs') { // Used cleanedTtsProvider
         const elevenLabsApiKey = runtimeConfig.elevenlabs?.apiKey;
         if (!elevenLabsApiKey) {

@@ -1,7 +1,7 @@
- // composables/usePodcastDatabase.ts
+// composables/usePodcastDatabase.ts
 import { ref } from 'vue';
 import type { SupabaseClient } from '@supabase/supabase-js';
-import { useSupabaseClient } from '#imports'; // Ensure this is correctly imported for client-side
+import { useSupabaseClient } from '#imports';
 // Import shared types
 import type { Podcast, Segment, SegmentAudio } from '~/types/podcast';
 
@@ -15,7 +15,7 @@ export const usePodcastDatabase = () => {
   const loadingSelected = ref(false); // For loading individual podcast details
   const error = ref<string | null>(null);
 
-  const commonSelectQuery = '*, cover_image_url, podcast_segments(*, segment_audios(*)).order(idx), host_persona:personas!podcasts_host_persona_id_fkey(*), creator_persona:personas!podcasts_creator_persona_id_fkey(*), guest_persona:personas!podcasts_guest_persona_id_fkey(*)';
+  const commonSelectQuery = '*, cover_image_url, podcast_segments(*, segment_audios(*)), host_persona:personas!podcasts_host_persona_id_fkey(*), creator_persona:personas!podcasts_creator_persona_id_fkey(*), guest_persona:personas!podcasts_guest_persona_id_fkey(*)';
 
   // Fetch all podcasts with nested segments and segment audios
   const fetchPodcasts = async () => {
@@ -35,7 +35,12 @@ export const usePodcastDatabase = () => {
       if (dbError) {
         throw dbError;
       }
-      podcasts.value = data as Podcast[];
+      // 手动排序podcast segments by idx
+      const processedData = (data || []).map((podcast: any) => ({
+        ...podcast,
+        podcast_segments: podcast.podcast_segments?.sort((a: any, b: any) => (a.idx || 0) - (b.idx || 0))
+      }));
+      podcasts.value = processedData as any;
       console.log('[usePodcastDatabase] Parsed podcasts.value:', podcasts.value);
     } catch (e: any) {
       error.value = e.message;
@@ -62,7 +67,12 @@ export const usePodcastDatabase = () => {
       if (dbError) {
         throw dbError;
       }
-      selectedPodcast.value = data as Podcast;
+      // 手动排序podcast segments by idx
+      const processedPodcast = {
+        ...data,
+        podcast_segments: data.podcast_segments?.sort((a: any, b: any) => (a.idx || 0) - (b.idx || 0))
+      };
+      selectedPodcast.value = processedPodcast as any;
       console.log('[usePodcastDatabase] fetchPodcastById successful. Selected podcast:', JSON.parse(JSON.stringify(selectedPodcast.value)));
     } catch (e: any) {
       error.value = e.message;
@@ -108,7 +118,7 @@ export const usePodcastDatabase = () => {
           podcast_segments: data.podcast_segments || [],
         };
         podcasts.value = [newPodcastEntryDto as any, ...podcasts.value as any[]] as Podcast[];
-        selectedPodcast.value = newPodcastEntryDto as Podcast;
+        selectedPodcast.value = newPodcastEntryDto as any;
         console.log('[usePodcastDatabase] createPodcast successful. New podcast:', JSON.parse(JSON.stringify(selectedPodcast.value)), 'Updated podcasts list:', JSON.parse(JSON.stringify(podcasts.value)));
       }
     } catch (e: any) {
@@ -140,14 +150,14 @@ export const usePodcastDatabase = () => {
       if (data) {
         const index = podcasts.value.findIndex(p => p.podcast_id === podcastId);
         if (index !== -1) {
-          podcasts.value[index] = { ...podcasts.value[index], ...data } as any; // Avoid deep type instantiation
+          podcasts.value[index] = Object.assign(podcasts.value[index], data);
         }
         if (selectedPodcast.value?.podcast_id === podcastId) {
-          selectedPodcast.value = { ...selectedPodcast.value, ...data } as any; // Avoid deep type instantiation
+          selectedPodcast.value = Object.assign(selectedPodcast.value, data);
         }
         console.log('[usePodcastDatabase] updatePodcast successful. Updated data:', JSON.parse(JSON.stringify(data)), 'Updated podcasts list:', JSON.parse(JSON.stringify(podcasts.value)));
       }
-      return data as Podcast;
+      return data as any;
     } catch (e: any) {
       error.value = e.message;
       console.error(`[usePodcastDatabase] Error updating podcast ${podcastId}:`, e);
@@ -200,7 +210,7 @@ export const usePodcastDatabase = () => {
       if (!podcastToDownload) {
         // 如果在当前列表中找不到，尝试从数据库获取
         await fetchPodcastById(podcastId);
-        podcastToDownload = selectedPodcast.value;
+        podcastToDownload = selectedPodcast.value as any;
       }
       
       if (!podcastToDownload) {
@@ -220,38 +230,90 @@ export const usePodcastDatabase = () => {
   const resynthesizeAllSegments = async (podcastId: string) => {
     loading.value = true;
     error.value = null;
-    console.log(`Requesting resynthesis for all segments of podcast: ${podcastId}`);
+    console.log(`Requesting smart resynthesis for podcast: ${podcastId}`);
     try {
-      // Simulate API call
-      await new Promise(resolve => setTimeout(resolve, 2000));
-      // Refresh data after operation
-      const podcastToRefresh = podcasts.value.find((p: any) => p.podcast_id === podcastId);
-      if (podcastToRefresh) {
-        await fetchPodcastById(podcastToRefresh.podcast_id); // Use existing fetch function
+      // 调用智能继续合成API，只合成未完成的片段
+      const response = await $fetch<{
+        success: boolean;
+        message: string;
+        taskId?: string;
+        segmentsToProcess: number;
+        podcastId: string;
+      }>(`/api/podcast/continue-synthesis`, {
+        method: 'POST',
+        body: { podcastId } as any
+      });
+      
+      console.log('Continue synthesis response:', response);
+      
+      if (response.success) {
+        if (response.segmentsToProcess === 0) {
+          console.log('All segments are already synthesized');
+        } else {
+          console.log(`Started synthesis for ${response.segmentsToProcess} unsynthesized segments`);
+        }
+        
+        // 刷新播客数据
+        const podcastToRefresh = podcasts.value.find((p: any) => p.podcast_id === podcastId);
+        if (podcastToRefresh) {
+          await fetchPodcastById(podcastToRefresh.podcast_id);
+        }
+      } else {
+        throw new Error(response.message || 'Continue synthesis failed');
       }
-      console.log(`Resynthesis for all segments of podcast ${podcastId} (simulated) complete.`);
+      
     } catch (e: any) {
       error.value = e.message;
-      console.error(`[usePodcastDatabase] Error resynthesizing all segments for podcast ${podcastId}:`, e);
+      console.error(`[usePodcastDatabase] Error continuing synthesis for podcast ${podcastId}:`, e);
     } finally {
       loading.value = false;
-      console.log(`[usePodcastDatabase] resynthesizeAllSegments finished. Loading: ${loading.value} Error: ${error.value}`);
     }
   };
 
-  const resynthesizeSegment = async (segmentId: string) => {
+  const resynthesizeSegment = async (segmentId: string, podcastId?: string) => {
     loading.value = true;
     error.value = null;
     console.log(`Requesting resynthesis for segment: ${segmentId}`);
     try {
-      // Simulate API call
-      await new Promise(resolve => setTimeout(resolve, 1500));
-      // Refresh data after operation
-      const podcastToRefresh = podcasts.value.find((p: any) => p.podcast_segments?.some((s: any) => s.segment_text_id === segmentId));
-      if (podcastToRefresh) {
-        await fetchPodcastById(podcastToRefresh.podcast_id); // Use existing fetch function
+      // 查找包含该segment的podcast
+      let targetPodcastId = podcastId;
+      if (!targetPodcastId) {
+        const podcastWithSegment = podcasts.value.find((p: any) => 
+          p.podcast_segments?.some((s: any) => s.segment_text_id === segmentId)
+        );
+        if (podcastWithSegment) {
+          targetPodcastId = podcastWithSegment.podcast_id;
+        }
       }
-      console.log(`Resynthesis for segment ${segmentId} (simulated) complete.`);
+      
+      if (!targetPodcastId) {
+        throw new Error('Cannot find podcast for this segment');
+      }
+      
+      // 调用重新合成API
+      const response = await $fetch<{
+        success: boolean;
+        message: string;
+        segmentId: string;
+        taskId?: string;
+      }>('/api/podcast/resynthesize-segment', {
+        method: 'POST',
+        body: { 
+          podcastId: targetPodcastId,
+          segmentId 
+        } as any
+      });
+      
+      console.log('Resynthesize segment response:', response);
+      
+      if (response.success) {
+        console.log(`Started resynthesis for segment ${segmentId}`);
+        
+        // 刷新播客数据
+        await fetchPodcastById(targetPodcastId);
+      } else {
+        throw new Error(response.message || 'Resynthesis failed');
+      }
     } catch (e: any) {
       error.value = e.message;
       console.error(`[usePodcastDatabase] Error resynthesizing segment ${segmentId}:`, e);

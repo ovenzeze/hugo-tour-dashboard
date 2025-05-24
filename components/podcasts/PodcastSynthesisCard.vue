@@ -320,11 +320,11 @@
               :disabled="isProcessing"
             >
               <Icon 
-                :name="isProcessing ? 'ph:spinner' : 'ph:play-fill'" 
+                :name="isProcessing ? 'ph:spinner' : 'ph:arrow-clockwise'" 
                 class="w-4 h-4 mr-2"
                 :class="isProcessing ? 'animate-spin' : ''"
               />
-              {{ isProcessing ? 'Synthesizing...' : 'Synthesize All' }}
+              {{ isProcessing ? 'Synthesizing...' : `Synthesize Missing (${totalSegments - synthesizedCount})` }}
             </Button>
           </div>
         </div>
@@ -446,6 +446,21 @@
         <Button variant="outline" @click="emit('close')">
           <Icon name="ph:x" class="w-4 h-4 mr-2" />
           Close
+        </Button>
+        
+        <!-- 智能合成按钮 - 只合成失败或未完成的片段 -->
+        <Button 
+          v-if="totalSegments > synthesizedCount"
+          variant="default"
+          @click="handleSynthesizeAll"
+          :disabled="isProcessing"
+        >
+          <Icon 
+            :name="isProcessing ? 'ph:spinner' : 'ph:arrow-clockwise'" 
+            class="w-4 h-4 mr-2"
+            :class="isProcessing ? 'animate-spin' : ''"
+          />
+          {{ isProcessing ? 'Synthesizing...' : `Synthesize Missing (${totalSegments - synthesizedCount})` }}
         </Button>
         
         <Button 
@@ -848,7 +863,22 @@ function handleSynthesizeAll() {
 }
 
 function handleResynthesizeSegment(segmentIndex: number) {
-  emit('resynthesize-segment', segmentIndex);
+  if (!props.podcast?.podcast_segments || !props.podcast.podcast_segments[segmentIndex]) {
+    console.error('Invalid segment index:', segmentIndex);
+    return;
+  }
+  
+  const segment = props.podcast.podcast_segments[segmentIndex];
+  const segmentId = segment.segment_text_id;
+  
+  if (!segmentId) {
+    console.error('Segment missing segment_text_id');
+    return;
+  }
+  
+  // 直接调用数据库函数
+  const { resynthesizeSegment } = usePodcastDatabase();
+  resynthesizeSegment(segmentId, props.podcast?.podcast_id);
 }
 
 function handlePreviewPodcast() {

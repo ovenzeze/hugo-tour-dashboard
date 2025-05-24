@@ -77,7 +77,7 @@ export default defineEventHandler(async (event): Promise<ContinueSynthesisRespon
 
     // 2. 准备合成请求数据
     // 获取播客信息以获取persona映射
-    const podcast = await podcastDb.getPodcastById(body.podcastId);
+    const podcast = await podcastDb.getPodcastWithSegments(body.podcastId);
     if (!podcast) {
       throw createError({
         statusCode: 404,

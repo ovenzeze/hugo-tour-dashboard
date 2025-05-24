@@ -4,6 +4,7 @@ import {
   type VolcengineSynthesizeParams, // Unified to VolcengineSynthesizeParams
   type SynthesizedAudioResult,
 } from '~/server/utils/volcengineTTS'; // Adjusted path if utils is directly under server
+import { DEFAULT_TTS_CONFIG } from '~/server/config/volcengineTTSConfig';
 
 export default defineEventHandler(async (event): Promise<SynthesizedAudioResult> => {
   try {
@@ -41,13 +42,13 @@ export default defineEventHandler(async (event): Promise<SynthesizedAudioResult>
       voiceType: body.voiceType || body.voice || 'female', // Maps to voiceType
       enableTimestamps: body.enableTimestamps !== undefined ? body.enableTimestamps : true,
       encoding: body.encoding || 'mp3',
-      speedRatio: body.speedRatio,
-      volumeRatio: body.volumeRatio,
-      pitchRatio: body.pitchRatio,
-      emotion: body.emotion || 'happy',           // 默认开心情感，让声音更有活力
+      speedRatio: body.speedRatio || DEFAULT_TTS_CONFIG.speedRatio,
+      volumeRatio: body.volumeRatio || DEFAULT_TTS_CONFIG.volumeRatio,
+      pitchRatio: body.pitchRatio || DEFAULT_TTS_CONFIG.pitchRatio,
+      emotion: body.emotion || DEFAULT_TTS_CONFIG.emotion,           // 使用配置文件的默认情感
       enableEmotion: body.enableEmotion !== undefined ? body.enableEmotion : true,
-      emotionScale: body.emotionScale || 4.5,     // 稍微提高情绪强度
-      loudnessRatio: body.loudnessRatio || 1.2,   // 稍微提高音量
+      emotionScale: body.emotionScale || DEFAULT_TTS_CONFIG.emotionScale,     // 使用配置文件的情绪强度
+      loudnessRatio: body.loudnessRatio || DEFAULT_TTS_CONFIG.loudnessRatio,   // 使用配置文件的音量设置
       // Provide actual values from environment variables
       appId: volcengineAppId,
       accessToken: volcengineAccessKeyId, // Using Access Key ID as Access Token for Bearer header

@@ -3,10 +3,11 @@ import { ElevenLabsClient } from 'elevenlabs';
 import type { IStorageService } from './storageService';
 import {
   synthesizeSpeechVolcengine,
-  type SynthesizeSpeechParams as VolcengineSynthesizeParams,
+  type VolcengineSynthesizeParams,
   type SynthesizedAudioResult as VolcengineSynthesizedAudioResult,
   type FrontendTimestampData as VolcengineTimestamps,
 } from '~/server/utils/volcengineTTS'; // Assuming volcengineTTS.ts is in server/utils
+import { DEFAULT_TTS_CONFIG, getConfigByRole } from '~/server/config/volcengineTTSConfig';
 
 export interface TimedAudioSegmentResult {
   audioFileUrl?: string;
@@ -14,6 +15,7 @@ export interface TimedAudioSegmentResult {
   durationMs?: number;
   error?: string;
   provider?: 'elevenlabs' | 'volcengine'; // Optional: to indicate which provider was used
+  errorCategory?: string; // Optional: to indicate the error category
 }
 
 // Parameters for ElevenLabs
@@ -151,17 +153,21 @@ export async function generateAndStoreTimedAudioSegmentVolcengine(
     storageOutputDirectory,
     baseFilename,
     encoding = 'mp3',
-    speedRatio = 1.0,
-    volumeRatio = 1.0,
-    pitchRatio = 1.0,
+    speedRatio = DEFAULT_TTS_CONFIG.speedRatio,
+    volumeRatio = DEFAULT_TTS_CONFIG.volumeRatio,
+    pitchRatio = DEFAULT_TTS_CONFIG.pitchRatio,
     enableTimestamps = true,
-    emotion = 'happy',        // 默认开心情感
+    emotion = DEFAULT_TTS_CONFIG.emotion,        // 使用配置文件的默认情感
     enableEmotion = true,     // 默认启用情感
-    emotionScale = 4.5,       // 稍微提高情绪强度
-    loudnessRatio = 1.2       // 稍微提高音量
+    emotionScale = DEFAULT_TTS_CONFIG.emotionScale,       // 使用配置文件的情绪强度
+    loudnessRatio = DEFAULT_TTS_CONFIG.loudnessRatio      // 使用配置文件的音量设置
   } = params;
 
-  console.log('[Volcengine Config Debug - timedAudioService] Received Volcengine config parameters:');
+  console.log('[Volcengine Config Debug - timedAudioService] 使用优化后的TTS配置参数:');
+  console.log('[Volcengine Config Debug - timedAudioService] Emotion:', emotion);
+  console.log('[Volcengine Config Debug - timedAudioService] EmotionScale:', emotionScale);
+  console.log('[Volcengine Config Debug - timedAudioService] LoudnessRatio:', loudnessRatio);
+  console.log('[Volcengine Config Debug - timedAudioService] SpeedRatio:', speedRatio);
   console.log('[Volcengine Config Debug - timedAudioService] AppId:', appId);
   console.log('[Volcengine Config Debug - timedAudioService] AccessToken:', accessToken);
   console.log('[Volcengine Config Debug - timedAudioService] Cluster:', cluster);
@@ -195,7 +201,35 @@ export async function generateAndStoreTimedAudioSegmentVolcengine(
 
     if (volcResponse.error || !volcResponse.audioBuffer || !volcResponse.timestamps) {
       console.error('[timedAudioService - Volcengine] Error from synthesizeSpeechVolcengine:', volcResponse.error);
-      return { error: volcResponse.error || 'Failed to get audio or timestamps from Volcengine.', provider: 'volcengine' };
+      
+      // 检测特定的欠费和其他错误类型
+      let errorCategory = 'SYNTHESIS_ERROR';
+      let userFriendlyMessage = volcResponse.error || 'Failed to get audio or timestamps from Volcengine.';
+      
+      if (volcResponse.error) {
+        if (volcResponse.error.includes('INSUFFICIENT_BALANCE')) {
+          errorCategory = 'INSUFFICIENT_BALANCE';
+          userFriendlyMessage = '火山引擎账户余额不足，请充值后重试';
+        } else if (volcResponse.error.includes('AUTHENTICATION_FAILED')) {
+          errorCategory = 'AUTHENTICATION_FAILED';
+          userFriendlyMessage = '火山引擎认证失败，请检查配置信息';
+        } else if (volcResponse.error.includes('QUOTA_EXCEEDED')) {
+          errorCategory = 'QUOTA_EXCEEDED';  
+          userFriendlyMessage = '调用次数已达上限，请稍后重试或升级套餐';
+        } else if (volcResponse.error.includes('INVALID_VOICE_TYPE')) {
+          errorCategory = 'INVALID_VOICE_TYPE';
+          userFriendlyMessage = '音色类型无效，请检查配置';
+        }
+      }
+      
+      console.error(`[timedAudioService - Volcengine] 错误类别: ${errorCategory}`);
+      console.error(`[timedAudioService - Volcengine] 用户友好消息: ${userFriendlyMessage}`);
+      
+      return { 
+        error: userFriendlyMessage, 
+        provider: 'volcengine',
+        errorCategory // 添加错误分类供前端使用
+      };
     }
 
     const audioBuffer = volcResponse.audioBuffer; // audioBuffer is already an ArrayBuffer, no need to Buffer.from(..., 'base64') here
@@ -208,7 +242,7 @@ export async function generateAndStoreTimedAudioSegmentVolcengine(
     const audioStoragePath = storageService.joinPath(storageOutputDirectory, audioFilename);
     const timestampStoragePath = storageService.joinPath(storageOutputDirectory, timestampFilename);
 
-    await storageService.writeFile(audioStoragePath, audioBuffer);
+    await storageService.writeFile(audioStoragePath, Buffer.from(audioBuffer));
     await storageService.writeFile(timestampStoragePath, JSON.stringify(timestampData, null, 2));
 
     const audioFileUrl = storageService.getPublicUrl(storageService.joinPath(publicOutputDirectory, audioFilename));
