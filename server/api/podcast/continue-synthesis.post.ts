@@ -22,10 +22,10 @@ export default defineEventHandler(async (event): Promise<ContinueSynthesisRespon
     const body = await readBody<ContinueSynthesisRequest>(event);
     consola.info('[continue-synthesis] Received request:', body);
 
-    if (!body.podcastId) {
+    if (!body || !body.podcastId) {
       throw createError({
         statusCode: 400,
-        statusMessage: 'Podcast ID is required'
+        statusMessage: 'Request body and podcast ID are required'
       });
     }
 

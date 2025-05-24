@@ -22,10 +22,10 @@ export default defineEventHandler(async (event): Promise<ResynthesizeSegmentResp
     const body = await readBody<ResynthesizeSegmentRequest>(event);
     consola.info('[resynthesize-segment] Received request:', body);
 
-    if (!body.podcastId || !body.segmentId) {
+    if (!body || !body.podcastId || !body.segmentId) {
       throw createError({
         statusCode: 400,
-        statusMessage: 'Podcast ID and Segment ID are required'
+        statusMessage: 'Request body, podcast ID and segment ID are required'
       });
     }
 

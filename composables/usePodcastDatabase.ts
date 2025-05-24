@@ -1,7 +1,6 @@
 // composables/usePodcastDatabase.ts
 import { ref } from 'vue';
 import type { SupabaseClient } from '@supabase/supabase-js';
-import { useSupabaseClient } from '#imports';
 // Import shared types
 import type { Podcast, Segment, SegmentAudio } from '~/types/podcast';
 
@@ -321,8 +320,9 @@ export const usePodcastDatabase = () => {
         segmentsToProcess: number;
         podcastId: string;
       }>(`/api/podcast/continue-synthesis`, {
-        method: 'POST'
-      }, { podcastId });
+        method: 'POST',
+        body: { podcastId }
+      });
       
       console.log('Continue synthesis response:', response);
       
@@ -381,10 +381,11 @@ export const usePodcastDatabase = () => {
         segmentId: string;
         taskId?: string;
       }>('/api/podcast/resynthesize-segment', {
-        method: 'POST'
-      }, { 
-        podcastId: targetPodcastId,
-        segmentId 
+        method: 'POST',
+        body: { 
+          podcastId: targetPodcastId,
+          segmentId 
+        }
       });
       
       console.log('Resynthesize segment response:', response);

@@ -21,11 +21,11 @@
         <div class="relative z-10 p-6">
           <div class="flex items-start justify-between mb-4">
             <div class="flex-1 min-w-0 mr-4">
-              <h2 class="text-2xl font-bold mb-2 truncate" 
+              <h2 class="text-2xl font-bold font-serif mb-2 truncate" 
                   :class="podcast?.cover_image_url ? 'text-white' : 'text-foreground'">
                 {{ podcast?.title || 'Unknown Podcast' }}
               </h2>
-              <p class="text-sm mb-3 line-clamp-2" 
+              <p class="text-sm font-serif mb-3 line-clamp-2" 
                  :class="podcast?.cover_image_url ? 'text-white/80' : 'text-muted-foreground'">
                 {{ podcast?.topic || 'No description available' }}
               </p>
@@ -111,10 +111,10 @@
               <div v-if="isProcessing" class="absolute inset-0 rounded-full border-2 border-primary/20 animate-ping" />
             </div>
             <div>
-              <h3 class="text-lg font-semibold">
-                {{ (isProcessing || currentSynthesisProgress) ? 'Synthesizing Audio...' : 'Ready to Synthesize' }}
-              </h3>
-              <p class="text-sm text-muted-foreground">
+                          <h3 class="text-lg font-semibold font-serif">
+              {{ (isProcessing || currentSynthesisProgress) ? 'Synthesizing Audio...' : 'Ready to Synthesize' }}
+            </h3>
+              <p class="text-sm text-muted-foreground font-serif">
                 <span v-if="currentSynthesisProgress">
                   Processing segment {{ (currentSynthesisProgress.currentSegment || 0) + 1 }} of {{ currentSynthesisProgress.totalSegments }}
                   ({{ currentSynthesisProgress.progress }}% complete)
@@ -232,7 +232,7 @@
               
               <!-- 主播名称和状态 -->
               <div class="mt-2 text-center">
-                <p class="text-xs sm:text-xs md:text-sm lg:text-sm font-medium text-foreground truncate max-w-[56px] sm:max-w-[64px] md:max-w-[72px] lg:max-w-[80px]">{{ segment.speaker }}</p>
+                <p class="text-xs sm:text-xs md:text-sm lg:text-sm font-medium font-serif text-foreground truncate max-w-[56px] sm:max-w-[64px] md:max-w-[72px] lg:max-w-[80px]">{{ segment.speaker }}</p>
                 <p v-if="segment.status === 'processing'" class="text-xs text-primary animate-pulse">Processing</p>
                 <p v-else-if="segment.status === 'completed'" class="text-xs text-green-600">Done</p>
                 <p v-else-if="segment.status === 'error'" class="text-xs text-red-600">Error</p>
@@ -242,8 +242,8 @@
               <!-- 悬停提示 -->
               <div class="absolute -top-2 left-1/2 transform -translate-x-1/2 opacity-0 group-hover:opacity-100 transition-opacity duration-200 pointer-events-none z-20">
                 <div class="bg-popover text-popover-foreground px-3 py-2 rounded-md text-xs whitespace-nowrap shadow-lg border max-w-48">
-                  <p class="font-medium">{{ segment.speaker }}</p>
-                  <p class="text-muted-foreground truncate">"{{ segment.text }}"</p>
+                  <p class="font-medium font-serif">{{ segment.speaker }}</p>
+                  <p class="text-muted-foreground font-serif truncate">"{{ segment.text }}"</p>
                 </div>
               </div>
             </div>
@@ -303,8 +303,8 @@
                 </Badge>
               </div>
               
-              <p class="text-sm font-medium text-foreground mb-1 truncate">{{ currentProcessingInfo.speaker }}</p>
-              <p class="text-xs text-muted-foreground line-clamp-1 italic mb-2">
+              <p class="text-sm font-medium font-serif text-foreground mb-1 truncate">{{ currentProcessingInfo.speaker }}</p>
+              <p class="text-xs text-muted-foreground font-serif line-clamp-1 italic mb-2">
                 "{{ currentProcessingInfo.text }}"
               </p>
               
@@ -323,7 +323,7 @@
     <Card>
       <CardHeader>
         <div class="flex items-center justify-between">
-          <h3 class="text-lg font-semibold">Segment Details</h3>
+          <h3 class="text-lg font-semibold font-serif">Segment Details</h3>
           <div class="flex items-center gap-2">
             <Badge variant="outline" class="text-xs">
               {{ synthesizedCount }} / {{ totalSegments }} Ready
@@ -394,9 +394,9 @@
             <!-- 段落信息 -->
             <div class="flex-1 min-w-0">
               <div class="flex items-center justify-between mb-1">
-                <p class="text-sm font-medium truncate">
+                <p class="text-sm font-medium font-serif truncate">
                   {{ segment.speaker }}
-                  <span v-if="segment.persona" class="text-muted-foreground ml-1">
+                  <span v-if="segment.persona" class="text-muted-foreground ml-1 font-serif">
                     ({{ segment.persona.name }})
                   </span>
                 </p>
@@ -405,9 +405,9 @@
                 </span>
               </div>
               
-              <p class="text-xs text-muted-foreground line-clamp-2 mb-2">
-                {{ segment.text }}
-              </p>
+                              <p class="text-xs text-muted-foreground font-serif line-clamp-2 mb-2">
+                  {{ segment.text }}
+                </p>
 
               <!-- 段落进度条 -->
               <div v-if="segment.status === 'processing'" class="mb-2">
@@ -477,14 +477,22 @@
           v-if="totalSegments > synthesizedCount"
           variant="default"
           @click="handleSynthesizeAll"
-          :disabled="isProcessing"
+          :disabled="isProcessing || !!currentSynthesisProgress"
         >
           <Icon 
-            :name="isProcessing ? 'ph:spinner' : 'ph:arrow-clockwise'" 
+            :name="(isProcessing || currentSynthesisProgress) ? 'ph:spinner' : 'ph:arrow-clockwise'" 
             class="w-4 h-4 mr-2"
-            :class="isProcessing ? 'animate-spin' : ''"
+            :class="(isProcessing || currentSynthesisProgress) ? 'animate-spin' : ''"
           />
-          {{ isProcessing ? 'Synthesizing...' : `Synthesize Missing (${totalSegments - synthesizedCount})` }}
+          <span v-if="currentSynthesisProgress">
+            Synthesizing... ({{ currentSynthesisProgress.progress }}%)
+          </span>
+          <span v-else-if="isProcessing">
+            Synthesizing...
+          </span>
+          <span v-else>
+            Synthesize Missing ({{ totalSegments - synthesizedCount }})
+          </span>
         </Button>
         
         <Button 
@@ -520,6 +528,24 @@
           <Icon name="ph:share" class="w-4 h-4 mr-2" />
           Publish
         </Button>
+      </div>
+    </div>
+
+    <!-- 实时合成进度显示 -->
+    <div v-if="currentSynthesisProgress" class="mt-4 p-4 bg-primary/5 rounded-lg border">
+      <div class="space-y-3">
+        <div class="flex items-center justify-between">
+          <span class="text-sm font-medium">Synthesis Progress</span>
+          <span class="text-xs text-muted-foreground">
+            {{ currentSynthesisProgress.progress }}% Complete
+          </span>
+        </div>
+        
+        <Progress :value="currentSynthesisProgress.progress" class="h-2" />
+        
+        <div class="text-xs text-muted-foreground">
+          Processing segment {{ (currentSynthesisProgress.currentSegment || 0) + 1 }} of {{ currentSynthesisProgress.totalSegments }}
+        </div>
       </div>
     </div>
 
